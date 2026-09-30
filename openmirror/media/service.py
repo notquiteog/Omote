@@ -55,6 +55,36 @@ from openmirror.providers.registry import NoProviderError, ProviderRegistry, Rou
 
 log = logging.getLogger(__name__)
 
+# What can be made, and which modality each kind goes to.
+#
+# A table rather than a ternary, because there were two kinds for a long time
+# and the ternary said so: `Modality.IMAGE if kind == 'image' else
+# Modality.VIDEO`. Adding a third kind to that expression does not make the
+# else mean "video" — it makes it mean "everything that is not an image",
+# which is how a music job ends up resolving to a video provider and reporting
+# a cheerful mp4.
+KINDS: tuple[str, ...] = ('image', 'video', 'music')
+MODALITY_FOR_KIND: dict[str, Modality] = {
+    'image': Modality.IMAGE,
+    'video': Modality.VIDEO,
+    'music': Modality.MUSIC,
+}
+
+
+def _modality(kind: str) -> Modality:
+    """The modality for a kind, refusing a kind this install has never heard of.
+
+    Raises rather than defaulting, because the caller has already been told
+    the kinds that exist — `can_generate` — and answering a question about
+    `audio` with the video provider is the failure this exists to stop.
+    """
+    try:
+        return MODALITY_FOR_KIND[kind]
+    except KeyError:
+        raise NoProviderError(
+            f'{kind!r} is not something this can make. It can make: {", ".join(KINDS)}.'
+        ) from None
+
 #: How many finished jobs to keep. They are only ever read by a client that
 #: wants to know what happened; the media itself is in the store and outlives
 #: all of this. Unbounded, they are a slow leak on a daemon that stays up for
@@ -126,7 +156,7 @@ class MediaService:
         about instead of doing the task.
         """
         available = self.registry.capabilities()
-        return {kind for kind in ('image', 'video') if available.get(kind)}
+        return {kind for kind in KINDS if available.get(kind)}
 
     def providers(self, kind: str = '') -> list[dict[str, Any]]:
         """Who could answer for this kind of generation.
@@ -136,10 +166,7 @@ class MediaService:
         video, and offering the six in the video picker is offering four
         failures.
         """
-        modalities = (
-            [Modality.IMAGE, Modality.VIDEO] if not kind
-            else [Modality.IMAGE if kind == 'image' else Modality.VIDEO]
-        )
+        modalities = list(MODALITY_FOR_KIND) if not kind else [_modality(kind)]
         seen: dict[str, dict[str, Any]] = {}
         for modality in modalities:
             for info in self.registry.providers_for(modality):
@@ -149,7 +176,7 @@ class MediaService:
     # -- what can be asked for ----------------------------------------------
 
     def _resolve(self, kind: str, provider: str | None, model: str | None):
-        modality = Modality.IMAGE if kind == 'image' else Modality.VIDEO
+        modality = _modality(kind)
         routes = (
             RouteSet(routes={modality: Route(provider=provider, model=model or '')})
             if provider else None
@@ -290,6 +317,9 @@ class MediaService:
                     job.prompt, model=job.model, n=count, size=size, progress=report, **clean
                 )
             else:
+                # Video and music share a signature and differ only in what the
+                # backend does with the parameters; an image backend wants `n`
+                # and `size` spelled out and the rest take **kw.
                 results = await impl.generate(job.prompt, model=job.model, progress=report, **clean)
             took = int((time.monotonic() - started) * 1000)
 
@@ -388,6 +418,8 @@ class MediaService:
                 recipe = {'size': size, **recipe}
             if count > 1:
                 recipe = {'n': count, **recipe}
+        elif kind == 'music' and count > 1:
+            recipe = {'n': count, **recipe}
         return recipe
 
     @staticmethod
@@ -475,6 +507,22 @@ class MediaService:
     ) -> Job:
         """Kept because the video endpoint and the agent's tool both call it."""
         return self.start('video', prompt, provider=provider, model=model, params=params)
+
+    def start_music(
+        self,
+        prompt: str,
+        *,
+        provider: str | None = None,
+        model: str | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> Job:
+        """Make a piece of music. Minutes, not seconds, so this is a job.
+
+        The same shape as video on purpose: a hosted music model is a submit,
+        a poll and a download, and pretending it is a request would mean either
+        holding a socket open for two minutes or lying about how long it took.
+        """
+        return self.start('music', prompt, provider=provider, model=model, params=params)
 
     def cancel(self, job_id: str) -> bool:
         job = self.jobs.get(job_id)

@@ -29,6 +29,13 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
+# Media type to file extension, and the whole vocabulary of what can be kept.
+#
+# Every entry here is load-bearing in a way that is not obvious: a type that is
+# missing from this table is not refused, it is *stored* — with a `.bin`
+# extension and a `application/octet-stream` sidecar, so a generated .wav comes
+# back as a file no player will open and no DAW will import. Music is why this
+# table was ever a question.
 EXTENSIONS = {
     'image/png': '.png',
     'image/jpeg': '.jpg',
@@ -36,13 +43,23 @@ EXTENSIONS = {
     'video/mp4': '.mp4',
     'video/webm': '.webm',
     'image/gif': '.gif',
+    'audio/mpeg': '.mp3',
+    'audio/wav': '.wav',
+    'audio/x-wav': '.wav',
+    'audio/ogg': '.ogg',
+    'audio/flac': '.flac',
+    # Not audio — a score. Kept here because it comes out of the same panel
+    # and has to survive the same round trip, and because a `.mid` stored as
+    # `.bin` is a file nothing can open.
+    'audio/midi': '.mid',
+    'application/x-midi': '.mid',
 }
 
 
 @dataclass(slots=True)
 class Media:
     id: str
-    kind: str                 # 'image' or 'video'
+    kind: str                 # 'image', 'video' or 'music'
     media_type: str
     filename: str
     bytes: int

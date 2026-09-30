@@ -19,7 +19,11 @@ import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:  # pragma: no cover - annotations only, and this keeps
+    # `media/` out of the import graph of every adapter that touches `base`.
+    from openmirror.media.params import Param
 
 
 class NoProviderError(RuntimeError):
@@ -60,6 +64,13 @@ class Modality(StrEnum):
     TTS = 'tts'
     IMAGE = 'image'
     VIDEO = 'video'
+    # A separate modality rather than a flag on VIDEO, because the shapes do
+    # not overlap: a music model is asked for a length in bars and returns a
+    # `.wav`, a video model is asked for a resolution and returns an `.mp4`,
+    # and the two lists have almost no models in common. An install can have
+    # two things that make video and nothing at all that makes music, and
+    # offering the video models in a music picker is offering failures.
+    MUSIC = 'music'
 
 
 # ---------------------------------------------------------------------------
@@ -393,6 +404,57 @@ class VideoProvider(abc.ABC):
     async def generate(
         self, prompt: str, *, model: str, progress: ProgressFn = None, **kw: Any
     ) -> list[GeneratedMedia]: ...
+
+
+class MusicProvider(abc.ABC):
+    """Text to a piece of music.
+
+    Deliberately not `VideoProvider` with a different model name. A music job
+    has a *duration in bars*, an optional instrumental flag, and a sample rate
+    that is often 44100 rather than 24000 — and reusing the video shape meant
+    every one of those arrived as a parameter the video path did not know the
+    meaning of. It is a separate protocol because the parameters are not the
+    same parameters.
+    """
+
+    @abc.abstractmethod
+    async def generate(
+        self, prompt: str, *, model: str, progress: ProgressFn = None, **kw: Any
+    ) -> list[GeneratedMedia]: ...
+
+    @abc.abstractmethod
+    def describe(self, *, model: str = '', **kw: Any) -> list[Param]:
+        """What this model can be told, as controls.
+
+        Same contract as the image and video providers and for the same reason:
+        nothing in the client knows what a sampler or a bar length is, so
+        installing a model on the box adds its controls here with no release in
+        between.
+        """
+
+
+class MediaEditorProvider(abc.ABC):
+    """Changing a file somebody already has.
+
+    Not a generation, which is why it is not `ImageProvider` with `prompt`
+    optional. There is no model and no seed: there is a clip and a request, and
+    the answer has to be reproducible or the thing is not an editor.
+
+    Kept behind its own protocol so the *inputs* can be stored media ids and
+    never paths. Every generation tool here already takes images as ids rather
+    than as data URIs or filenames, because a filename is a path the model
+    chose; an editor that takes paths would undo that for the one operation
+    where reading an arbitrary file off the disk is most tempting.
+    """
+
+    @abc.abstractmethod
+    async def edit(
+        self, operation: str, inputs: list[str], *, progress: ProgressFn = None, **kw: Any
+    ) -> list[GeneratedMedia]: ...
+
+    @abc.abstractmethod
+    def operations(self, *, kind: str = '') -> list[Param]:
+        """What can be done to this kind of file, and what each one does."""
 
 
 @dataclass(slots=True)

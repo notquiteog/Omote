@@ -28,6 +28,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from openmirror.media.service import KINDS
 from openmirror.providers.registry import NoProviderError
 
 log = logging.getLogger(__name__)
@@ -42,7 +43,14 @@ service: Any = None
 #: not an archive — and this endpoint writes a file to disk from an
 #: unauthenticated-by-shape request body, so the ceiling is here rather than
 #: left to whatever the reverse proxy happens to be configured with.
-UPLOADABLE = frozenset({'image/png', 'image/jpeg', 'image/webp', 'image/gif'})
+# What may be uploaded as a reference: an image a generator edits, or an audio
+# clip a music model continues or an editor trims. Video is deliberately not
+# here — a reference clip is tens of megabytes, and every generator that takes
+# one takes a *still* from it rather than the file.
+UPLOADABLE = frozenset({
+    'image/png', 'image/jpeg', 'image/webp', 'image/gif',
+    'audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/flac', 'audio/midi',
+})
 MAX_UPLOAD = 32 * 1024 * 1024
 
 
@@ -62,8 +70,8 @@ async def describe(kind: str = 'image', provider: str | None = None, model: str 
     does a Replicate model published this morning, whose form comes from the
     schema Replicate publishes for it.
     """
-    if kind not in ('image', 'video'):
-        raise HTTPException(status_code=400, detail="kind must be 'image' or 'video'")
+    if kind not in KINDS:
+        raise HTTPException(status_code=400, detail=f"kind must be one of: {', '.join(KINDS)}")
     try:
         return await _service().describe(kind, provider, model)
     except NoProviderError as exc:
@@ -93,12 +101,13 @@ class StartJob(Generate):
 
 @router.post('/jobs')
 async def start_job(body: StartJob) -> dict[str, Any]:
-    """Start a generation of either kind and return something to watch."""
-    if body.kind not in ('image', 'video'):
-        raise HTTPException(status_code=400, detail="kind must be 'image' or 'video'")
-    if not body.prompt.strip() and body.kind == 'image' and not body.params.get('image'):
+    """Start a generation and return something to watch."""
+    if body.kind not in KINDS:
+        raise HTTPException(status_code=400, detail=f"kind must be one of: {', '.join(KINDS)}")
+    if not body.prompt.strip() and body.kind in ('image', 'music') and not body.params.get('image'):
         # An image-to-image edit with no words is a real request; a text
-        # generation with no words is not.
+        # generation with no words is not. Music is grouped with image here
+        # because a piece with no description of it is not a piece.
         raise HTTPException(status_code=400, detail='a prompt is required')
     try:
         job = _service().start(
@@ -132,6 +141,25 @@ async def make_video(body: Generate) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail='a prompt or a starting image is required')
     try:
         job = _service().start_video(
+            body.prompt, provider=body.provider, model=body.model, params=body.params
+        )
+    except NoProviderError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return job.to_json()
+
+
+@router.post('/music')
+async def make_music(body: Generate) -> dict[str, Any]:
+    """Start a piece and return the job to watch.
+
+    A job rather than a result, like video and for the same reason: a hosted
+    music model takes minutes, and a request that holds a socket open for two
+    of them is a request that times out and takes the work with it.
+    """
+    if not body.prompt.strip():
+        raise HTTPException(status_code=400, detail='a prompt is required')
+    try:
+        job = _service().start_music(
             body.prompt, provider=body.provider, model=body.model, params=body.params
         )
     except NoProviderError as exc:

@@ -62,6 +62,11 @@ MAGIC: tuple[tuple[bytes, str], ...] = (
     (b'\xff\xd8\xff', 'image/jpeg'),
     (b'GIF87a', 'image/gif'),
     (b'GIF89a', 'image/gif'),
+    (b'fLaC', 'audio/flac'),
+    # MIDI has no magic number and does not need one: a Standard MIDI File
+    # starts with a chunk type that is fixed by the specification, and that is
+    # as close to a magic number as the format gets.
+    (b'MThd', 'audio/midi'),
 )
 
 
@@ -76,15 +81,35 @@ def sniff(data: bytes, declared: str = '', url: str = '') -> str:
         return 'image/webp'
     if data[:4] == b'\x1a\x45\xdf\xa3':
         return 'video/webm'
+    # Audio. Ordered by how sure each one is, because a WAV and a WebM are both
+    # RIFF and only the bytes at 8..12 say which — which is exactly the check
+    # `speech_audio.wav_layout` walks, and it is why that module's header walk
+    # has to *finish* rather than stop at the format chunk.
+    if data[:3] == b'ID3':
+        return 'audio/mpeg'
+    # An MPEG audio frame starts with eleven set bits. Checking the bits rather
+    # than matching the four literal sync words is both shorter and right: there
+    # are sixteen combinations of version and layer, and a table of them is a
+    # table that is wrong for one of them.
+    if len(data) >= 2 and data[0] == 0xFF and (data[1] & 0xE0) == 0xE0:
+        return 'audio/mpeg'
+    if data[:4] == b'RIFF' and data[8:12] == b'WAVE':
+        return 'audio/wav'
+    if data[:4] == b'OggS':
+        return 'audio/ogg'
     # Nothing recognised: believe the header, then the extension, then guess
     # by the only distinction that matters downstream.
     declared = (declared or '').split(';')[0].strip().lower()
-    if declared.startswith(('image/', 'video/')):
+    if declared.startswith(('image/', 'video/', 'audio/')):
         return declared
     tail = url.split('?', 1)[0].rsplit('.', 1)[-1].lower()
     by_extension = {
         'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'webp': 'image/webp',
         'gif': 'image/gif', 'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/mp4',
+        # Audio by extension, last, because several of the containers above are
+        # also valid media extensions and the magic check already had its turn.
+        'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg',
+        'oga': 'audio/ogg', 'opus': 'audio/ogg', 'flac': 'audio/flac', 'mid': 'audio/midi',
     }
     return by_extension.get(tail, 'application/octet-stream')
 
