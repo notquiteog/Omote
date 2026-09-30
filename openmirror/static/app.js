@@ -2283,14 +2283,17 @@ function wire() {
   };
 
   // Escape stops whatever is running: the fastest possible way to say "no",
-  // and it has to mean that in every mode. Ordered by what is most urgent to
-  // stop — something currently talking at you comes before a turn quietly
-  // grinding away in the background.
+  // and it has to mean that in every mode.
+  //
+  // A *call* is not handled here. `call.js` owns it, because a call holds the
+  // microphone and this chain used to reach in and take it — which is how two
+  // places ended up able to end a call and disagree about whether they had.
+  // `call()` is consulted only so this chain does not also interrupt the turn
+  // underneath a call that is being ended by the other handler.
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (isLive()) endLive();
-    else if (talking()) stopTalking();
-    else if (state.voice) state.voice.interrupt();
+    if (call()) return;
+    if (state.voice) state.voice.interrupt();
     else if (state.busy) send({ type: 'turn.interrupt' });
   });
 

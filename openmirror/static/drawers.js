@@ -15,6 +15,8 @@
  * including the one caused by going somewhere else.
  */
 
+import { $ } from './dom.js';
+
 const DRAWERS = ['search', 'mail'];
 
 let current = null;
