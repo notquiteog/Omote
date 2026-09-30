@@ -114,6 +114,10 @@ const TOOL_STATES = {
   // Writing a score is composing, not waiting, and it is fast — but from
   // outside it is still work happening, which is what 'running' already says.
   compose_music: 'running',
+  // Reading somebody's money is reading. It is not 'waiting' — nothing is
+  // being decided here — and it is not 'desktop'; the animal has no opinion
+  // about spreadsheets.
+  finance: 'reading',
   system_info: 'reading',
   display_info: 'reading',
   package_search: 'browsing',

@@ -53,6 +53,7 @@ TOOLSETS: dict[str, tuple[str, ...]] = {
     'mail': ('mail',),
     'calendar': ('calendar',),
     'hr': ('hr',),
+    'finance': ('finance',),
     'todo': ('todo',),
     'agents': ('agent',),
     'skills': ('skill',),
@@ -127,6 +128,22 @@ def hr_tools(cfg: Any) -> list[Tool]:
     from openmirror.hr.store import Ledger
 
     return [HrTool(Ledger(getattr(cfg, 'hr_db', '')))]
+
+
+def finance_tools(cfg: Any) -> list[Tool]:
+    """The `finance` tool, when there is somewhere to keep the ledger.
+
+    Offered whenever the feature is on, not only once an account has been
+    added — the same reasoning as `hr_tools` below, and for the same reason: a
+    tool that appears the moment a file lands is a tool the model has never
+    seen in a schema it was told about.
+    """
+    if not getattr(cfg, 'finance_enabled', False):
+        return []
+    from openmirror.agent.tools.finance import finance_tools as build
+    from openmirror.finance.store import Ledger
+
+    return build(Ledger(getattr(cfg, 'finance_db', '')))
 
 
 def calendar_tools(cfg: Any) -> list[Tool]:
@@ -286,6 +303,10 @@ def build_session(
     mail: Any = None,
     calendar: Any = None,
     hr: Any = None,
+    # The config, when the money ledger is on — the same shape `hr` and
+    # `calendar` take, for the same reason: the flag and the database path both
+    # live on the config and neither belongs in the caller.
+    finance: Any = None,
     toolset: list[str] | None = None,
     mcp: Any = None,
     checkpoints: Any = None,
@@ -358,6 +379,8 @@ def build_session(
         chosen = [*chosen, *calendar_tools(calendar)]
     if hr is not None:
         chosen = [*chosen, *hr_tools(hr)]
+    if finance is not None:
+        chosen = [*chosen, *finance_tools(finance)]
     if browser is not None:
         chosen = [*chosen, *browser_tools(browser)]
     if stage is not None:
@@ -448,6 +471,7 @@ def build_session(
             ('mail', 'mail'),
             ('calendar', 'calendar'),
             ('hr', 'hr'),
+            ('finance', 'finance'),
         )
         if marker in names
     ]

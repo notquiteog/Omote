@@ -169,6 +169,21 @@ class Config:
         else Path(os.getenv('OPENMIRROR_DATA_DIR', './data')) / 'hr.db'
     )
 
+    # --- money --------------------------------------------------------------
+    # A local ledger of accounts, transactions, categories and goals. Off by
+    # default, and read-only: not a connector to anyone's bank, because a
+    # correct guess at one is a system that can read a current account and a
+    # wrong guess is a system that cannot be fixed by the person who trusted
+    # it. See openmirror/finance/store.py for the whole argument, and
+    # openmirror/agent/tools/finance.py for why there is deliberately no way
+    # from here to move money.
+    finance_enabled: bool = field(default_factory=lambda: _bool('OPENMIRROR_FINANCE'))
+    finance_db: Path = field(
+        default_factory=lambda: Path(os.getenv('OPENMIRROR_FINANCE_DB', ''))
+        if os.getenv('OPENMIRROR_FINANCE_DB')
+        else Path(os.getenv('OPENMIRROR_DATA_DIR', './data')) / 'finance.db'
+    )
+
     # --- worktrees ----------------------------------------------------------
     # A second checkout of the repository, on its own branch, that a session
     # works in. Off by default: a branch somebody did not ask for is a branch

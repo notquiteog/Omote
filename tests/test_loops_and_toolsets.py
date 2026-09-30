@@ -176,6 +176,7 @@ async def test_every_group_names_tools_that_exist():
     optional |= set(TOOLSETS['memory']) | set(TOOLSETS['web']) | set(TOOLSETS['system'])
     optional |= {'lsp'} | set(TOOLSETS['mail']) | set(TOOLSETS['calendar'])
     optional |= set(TOOLSETS['hr']) | set(TOOLSETS['autopilot'])
+    optional |= set(TOOLSETS['finance'])
 
     for group, names in TOOLSETS.items():
         for name in names:
