@@ -80,16 +80,6 @@
     </button>
   </nav>
 
-  <!-- Drawers, not modes. They open over the conversation and give it back. -->
-  <nav id="drawer-rail" aria-label="Tools">
-    <button class="nav-row" data-drawer="search">
-      <svg class="ic"><use href="#i-search"></use></svg><span>Search</span>
-    </button>
-    <button class="nav-row" data-drawer="mail">
-      <svg class="ic"><use href="#i-mail"></use></svg><span>Mail</span>
-    </button>
-  </nav>
-
   <nav id="nav">
     <button class="nav-row" id="nav-new">
       <svg class="ic"><use href="#i-new"></use></svg><span>New session</span>
@@ -456,69 +446,6 @@
     </dialog>
   </section>
 
-  <!-- ----------------------------------------------------------- search -->
-  <section id="drawer-search" hidden>
-    <form id="search-form" class="search-form">
-      <input id="search-q" placeholder="Search the web" autocomplete="off">
-      <button class="primary" type="submit">Search</button>
-    </form>
-    <p id="search-meta" class="meta search-meta"></p>
-    <div id="search-results" class="search-results"></div>
-    <article id="search-reader" class="search-reader" hidden>
-      <header>
-        <span id="reader-title"></span>
-        <div class="spacer"></div>
-        <button id="reader-close" class="ghost small">Close</button>
-      </header>
-      <pre id="reader-body"></pre>
-    </article>
-  </section>
-
-  <!-- ------------------------------------------------------------ mail -->
-  <!-- Folders, a list, and a reader. Not a chat window and not an agent
-       surface: this is the mail you already have, opened without leaving the
-       thing you were doing. The agent can read the same inbox through the
-       `mail` tool — the two are the same server and the same accounts, and
-       neither one has a copy of the other. -->
-  <section id="drawer-mail" class="mail-pane" hidden>
-    <p id="mail-note" class="meta mail-note"></p>
-    <div class="mail-split">
-      <nav id="mail-folders" class="mail-folders" aria-label="Folders"></nav>
-      <div id="mail-list" class="mail-list" role="list" aria-label="Messages"></div>
-      <div class="mail-right">
-        <article id="mail-reader" hidden>
-          <header>
-            <h2 id="mail-reader-subject"></h2>
-            <div class="spacer"></div>
-            <button id="mail-new" class="ghost small">New</button>
-            <button id="mail-reply" class="ghost small">Reply</button>
-            <button id="mail-close" class="ghost small">Close</button>
-          </header>
-          <p id="mail-reader-from" class="meta"></p>
-          <p id="mail-attachments" class="meta"></p>
-          <pre id="mail-reader-body"></pre>
-
-          <!-- The composer. The AI button writes into it and stops; sending
-               is the next button, and a separate one on purpose. -->
-          <div id="mail-compose" class="mail-compose" hidden>
-            <label>To<input id="mail-to" autocomplete="off"></label>
-            <label>Subject<input id="mail-subject" autocomplete="off"></label>
-            <textarea id="mail-body" rows="8" placeholder="Say what you want to say…"></textarea>
-            <pre id="mail-quoted" class="mail-quoted" hidden></pre>
-            <div class="mail-actions">
-              <button id="mail-ai" class="ghost small" title="Write a first draft you can edit. It does not send.">
-                Write it for me
-              </button>
-              <span id="mail-ai-note" class="meta"></span>
-              <div class="spacer"></div>
-              <button id="mail-discard" class="ghost small">Discard</button>
-              <button id="mail-send" class="primary small">Send</button>
-            </div>
-          </div>
-        </article>
-      </div>
-    </div>
-  </section>
 </main>
 
 <dialog id="worktree-dialog">

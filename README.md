@@ -34,12 +34,13 @@ things are different kinds of attention:
 | **Studio** | images, video and music, with every knob the backend actually has |
 | **Browser** | which browser it drives — Chromium, your Chrome, Firefox, WebKit, or a path |
 
-Everything else is a tool or a drawer inside Chat rather than a place of its
-own. Search and mail are drawers that open *over* the conversation — they are
-tools the agent has always had, and a tool you can also visit is strictly worse
-than a tool. Working unattended is the `autopilot` tool, because the decision
-of whether a long job wants working on without checking in is one a model makes
-better than a rail button, and it has no separate permission level: see
+Everything else is a tool rather than a place of its own. Search and mail were
+panels *as well as* tools, which meant two doors onto one store and a panel
+that could not see what the tool knew; the panels are gone and the results are
+drawn into the tool card instead. Working unattended is the `autopilot` tool,
+because the decision of whether a long job wants working on without checking in
+is one a model makes better than a rail button, and it has no separate
+permission level: see
 [AUTONOMY.md](docs/AUTONOMY.md). The argument for all of it is in
 [MODES.md](docs/MODES.md).
 

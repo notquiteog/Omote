@@ -188,15 +188,25 @@ def test_a_post_that_wants_data_uses_send_and_not_post():
     fetched and checksum-verified was reported to the person as "it did not
     download", and the install path was never reached at all. The feature had
     never worked in a browser.
+
+    `mail.js` was in this list for the mail panel's "write it for me" button,
+    and is not any more: the panel is gone and drafting is the model's job, so
+    the button and its two-line `send` went with it. `mail.js` is still listed
+    below as one that must make no request at all — see `test_mail_ui.py`.
     """
     dom = (STATIC / 'dom.js').read_text()
     assert 'export async function send(' in dom
     assert 'detail' in dom
-    for module in (COMMIT, (STATIC / 'mail.js').read_text(), (STATIC / 'updates.js').read_text()):
+    for module in (COMMIT, (STATIC / 'updates.js').read_text()):
         assert 'await post(' not in module, 'a post that is read as data'
         assert 'await send(' in module
     assert 'const { data, detail } = await send(' in COMMIT
-    assert 'const { data, detail } = await send(' in (STATIC / 'mail.js').read_text()
+    # `updates.js` reads the two halves off the result rather than destructuring,
+    # which is the same contract in a different shape — so the assertion is that
+    # it reads them at all, and off something `send` returned.
+    updates = (STATIC / 'updates.js').read_text()
+    assert 'await send(' in updates
+    assert '.data' in updates and '.detail' in updates
 
 
 def test_the_update_button_can_still_be_pressed_once_something_is_staged():
@@ -223,8 +233,8 @@ def test_the_draft_buttons_are_bounded():
     page, and reloading loses whatever else was open in the dialog. Measured:
     a two-line diff on a reasoning model took over ninety seconds more than
     once."""
-    for module in (COMMIT, (STATIC / 'mail.js').read_text()):
-        assert 'timeout: 120_000' in module, 'a draft request with no bound'
+    for module in (COMMIT,):
+        assert 'timeout: 120_000' in module, 'a request that waits on a model with no bound'
     dom = (STATIC / 'dom.js').read_text()
     assert 'AbortSignal.timeout' in dom
     # And an abort is reported as a slow model, not as a daemon that has gone.

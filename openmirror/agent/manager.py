@@ -270,7 +270,9 @@ class SessionManager:
             mcp=mcp_manager if cfg.mcp_enabled and mcp_manager.servers else None,
             checkpoints=checkpoints,
             web=cfg if cfg.web_enabled else None,
-            mail=cfg if cfg.mail_enabled else None,
+            # Always, mailbox or not: the tool refuses with the settings to set rather
+            # than the model being unable to mention that it cannot read mail at all.
+            mail=cfg,
             calendar=cfg if cfg.calendar_enabled else None,
             hr=cfg if cfg.hr_enabled else None,
             finance=cfg if getattr(cfg, 'finance_enabled', False) else None,

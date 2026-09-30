@@ -2049,3 +2049,58 @@ button.ghost.danger:hover { border-color: var(--danger); }
 }
 .edit-form select { min-width: 12em; }
 .edit-form input[type="number"] { min-width: 6em; }
+
+/* --- tool cards: search and mail ---------------------------------------------
+ *
+ * Both were drawers once — a rail button and a panel — and both are now drawn
+ * into the tool card that asked for them. The styling is inherited from the old
+ * panes so a message looks like it always did; what changed is where it lives.
+ *
+ * Nothing here can send. A row expands to show what the fetch already returned,
+ * because `mail read` is a real fetch and it is what marks a message seen — so
+ * opening a listing must not quietly clear an unread badge.
+ */
+
+.card-search, .card-mail {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 2px 2px;
+}
+.card-search .hit { padding: 7px 0; border-bottom: 1px solid var(--edge-soft); }
+.card-search .hit:last-child { border-bottom: 0; }
+.card-search .url { font-size: 11.5px; color: var(--faint); word-break: break-all; }
+.card-search .snippet { font-size: 12.5px; line-height: 1.5; margin-top: 3px; }
+.card-search .read { margin-top: 6px; }
+
+.search-reader {
+  margin-top: 8px; border: 1px solid var(--edge-soft); border-radius: var(--radius);
+  background: var(--glass);
+}
+.search-reader > header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
+.search-reader > pre {
+  margin: 0; padding: 10px 12px; max-height: 46vh; overflow: auto;
+  white-space: pre-wrap; font-size: 12.5px; line-height: 1.55;
+  border-top: 1px solid var(--edge-soft);
+}
+
+.mail-row { padding: 7px 0; border-bottom: 1px solid var(--edge-soft); }
+.mail-row:last-child { border-bottom: 0; }
+.mail-subject { font-size: 13px; font-weight: 500; }
+.mail-subject.unseen { font-weight: 600; }
+.mail-subject.unseen::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); margin-right: 7px; vertical-align: middle;
+}
+.mail-row .snippet { font-size: 12px; line-height: 1.5; color: var(--dim); margin-top: 3px; }
+.mail-row .ghost.small { margin-top: 6px; }
+.mail-body {
+  margin: 8px 0 0; padding: 10px 12px;
+  white-space: pre-wrap; font-size: 12.5px; line-height: 1.55;
+  background: var(--glass); border-radius: var(--radius);
+  border-left: 2px solid var(--edge);
+}
+.mail-one > header { display: flex; align-items: baseline; gap: 8px; }
+.mail-one .meta { margin: 4px 0 8px; }
+.mail-account { display: flex; flex-direction: column; gap: 2px; padding: 5px 0; }
+.mail-from { font-size: 13px; }
+.mail-folders { display: flex; flex-wrap: wrap; gap: 5px; }
+.mail-folders .unseen { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--edge)); }

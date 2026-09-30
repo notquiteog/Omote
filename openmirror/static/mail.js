@@ -1,296 +1,152 @@
-/* Mail, from the browser.
+/* Mail, as something you read in the conversation.
  *
- * The same five operations the `mail` tool offers, over HTTP, for somebody
- * who wants to read their inbox rather than ask about it. The server decides
- * which protocol each account speaks; this file does not know or care.
+ * This was a drawer, and that was the wrong shape. The `mail` tool already
+ * existed, so the drawer was a *second* door onto one IMAP connection — and two
+ * doors is two places for the thing to be wrong. It also meant the two doors
+ * could not see each other: the drawer read your inbox without the model
+ * knowing you had, so "what came in today" was something you did and "what came
+ * in today" was something you asked, and the second conversation could not build
+ * on the first.
  *
- * Three decisions that are the interface's and not the server's:
+ * Now there is one door and it is the tool. The model reads, searches, drafts
+ * and replies; the results arrive here and are drawn into the tool card, in
+ * the place they were asked about.
  *
- *   - **The AI toggle is a draft, never a send.** "Write it for me" fills the
- *     composer and stops. Committing to that is a separate click on a message
- *     you can read in full, which is the only arrangement where the model
- *     never puts a word in somebody's inbox that nobody read. A button that
- *     drafted and sent would get used once and then never read again.
- *   - **Opening a folder does not mark it read.** The server uses BODY.PEEK
- *     and the `$seen` keyword is only touched when you ask, so scrolling
- *     through a list does not quietly clear the unread badge.
- *   - **The composer keeps what you typed.** Switching folders, opening a
- *     message or pressing the AI button mid-draft must not eat it, because
- *     the usual reason to come back to a draft is that the first attempt was
- *     not quite right.
+ * Everything this file used to fetch over its own HTTP calls, it no longer
+ * fetches at all: the data is already in the tool's `display` payload, because
+ * the tool is what went and got it. That is the whole of the change — the
+ * renderer is now a function of the tool's result rather than a second client
+ * with its own view of the server.
+ *
+ * Two decisions carried over unchanged:
+ *
+ *   - **Nothing is sent from here.** There is no send button. The model
+ *     drafts, you read the draft in the card, and it goes by the approval the
+ *     tool already grades. A drawer with a send button is a second, quieter way
+ *     for a message to leave without anyone reading it.
+ *   - **A listing does not mark anything read.** That is the server's
+ *     `BODY.PEEK`, and it is why expanding a list here cannot clear your unread
+ *     badge behind your back.
  */
 
-import { $, el, json, send } from './dom.js';
-import { onClose } from './drawers.js';
+import { el } from './dom.js';
 
-const state = {
-  account: '',
-  folder: '',
-  folders: [],
-  messages: [],
-  selected: null,
-  loading: false,
-};
+/** One `mail` tool result, as a card body. */
+export function mailCard(display) {
+  const box = el('div', 'card-mail');
 
-/* A draft in progress, kept here rather than in the DOM so that re-rendering
-   the list cannot clear it. */
-let draft = null;
-
-/* Set by `wireMail`, and called by whoever opens the drawer. Mail knows how to
-   load itself; how it is opened is not mail's business, and importing the
-   drawer module here to find out would be a cycle for one function. */
-export const hooks = { open: async () => {} };
-
-/* What "write it for me" is allowed to see. Enough to answer the question the
-   draft is about, and no more: the message being replied to, and nothing
-   from any other conversation. */
-const DRAFT_SYSTEM = `You are helping somebody write an email in their own voice.
-
-You are given the message they are replying to. Write the reply they would
-write. Rules:
-- Write as them, to the person in the message. First person, their tone.
-- Match how they write: their greeting, their sign-off or lack of one, how
-  formal they are, how long their sentences are. Their messages are the only
-  evidence you have of that.
-- Answer what the message asks. If it asks something only they can decide,
-  say so plainly and briefly rather than inventing an answer.
-- Do not commit to a date, a price, a promise or a deadline that was not
-  agreed. "I'll check and come back to you" is a real sentence.
-- Plain text only. No signature block, no disclaimer, no subject line, no
-  greeting line spelled out twice.
-- Reply with the body and nothing else. No preamble, no notes, no code fence.`;
-
-let lastReplied = null;
-
-function accountLabel() {
-  const found = state.folders.length ? state.folders : [];
-  return state.account || '';
+  if (display.unconfigured) {
+    box.appendChild(el('p', 'meta', 'No mail account on this install.'));
+    return box;
+  }
+  if (display.accounts) return accounts(box, display.accounts);
+  if (display.folders) return folders(box, display.folders);
+  if (display.mails) return listing(box, display);
+  if (display.mail) return one(box, display.mail);
+  if (display.thread) return reply(box, display);
+  if (display.drafted) return drafted(box, display);
+  return box;
 }
 
-async function loadAccounts() {
-  const data = await json('/api/mail/accounts');
-  const list = (data && data.accounts) || [];
-  if (!list.length) return false;
-  if (!state.account || !list.some((a) => (a.id || a.address) === state.account)) {
-    const preferred = list.find((a) => a.default) || list[0];
-    state.account = preferred.id || preferred.address;
+function accounts(box, found) {
+  if (!found.length) {
+    box.appendChild(el('p', 'meta', 'No mail account is configured.'));
+    return box;
   }
-  return true;
-}
-
-async function loadFolders() {
-  const box = $('#mail-folders');
-  const data = await json(`/api/mail/folders?account=${encodeURIComponent(state.account)}`);
-  state.folders = (data && data.folders) || [];
-
-  if (!state.folders.length) {
-    box.textContent = '';
-    return;
-  }
-  box.textContent = '';
-  for (const folder of state.folders) {
-    const row = el('button', 'mail-folder', folder.name);
-    row.type = 'button';
-    if (folder.name === state.folder) row.setAttribute('aria-current', 'true');
-    if (folder.unread) row.appendChild(el('span', 'count', String(folder.unread)));
-    row.onclick = () => { state.folder = folder.name; loadFolders(); loadMessages(); };
+  for (const one of found) {
+    const row = el('div', 'mail-account');
+    row.appendChild(el('span', 'mail-from', one.label || one.address));
+    const where = [one.protocol, one.imap_host, one.address].filter(Boolean).join(' · ');
+    row.appendChild(el('span', 'meta', where));
     box.appendChild(row);
   }
+  return box;
 }
 
-function messageRow(message) {
-  const row = el('button', `mail-row${message.seen ? '' : ' unread'}`);
-  row.type = 'button';
-
-  const who = el('span', 'who', message.from.short || message.from.email);
-  const when = el('span', 'when', (message.date || '').slice(0, 16));
-  const subject = el('span', 'subject', message.subject || '(no subject)');
-  const snippet = el('span', 'snippet', message.snippet || '');
-
-  const top = el('span', 'row-top');
-  top.appendChild(who);
-  top.appendChild(when);
-  if (!message.seen) top.appendChild(el('span', 'dot', '●'));
-  if (message.attachments.length) top.appendChild(el('span', 'meta', '📎'));
-
-  row.appendChild(top);
-  row.appendChild(subject);
-  row.appendChild(snippet);
-  row.onclick = () => openMessage(message);
-  return row;
-}
-
-async function loadMessages() {
-  const list = $('#mail-list');
-  list.textContent = 'loading…';
-  const query = new URLSearchParams({ account: state.account, limit: '40' });
-  if (state.folder) query.set('folder', state.folder);
-  const data = await json(`/api/mail/messages?${query}`);
-  if (!data) {
-    list.textContent = 'that mailbox did not answer. The account may need a password, or the host may be down.';
-    return;
+function folders(box, found) {
+  const row = el('div', 'mail-folders');
+  for (const one of found) {
+    const chip = el('span', 'chip flat', one.name || String(one));
+    if (one.unseen) chip.classList.add('unseen');
+    row.appendChild(chip);
   }
-  state.messages = data.messages || [];
-  if (!state.folder) state.folder = data.folder || '';
-  list.textContent = '';
-  if (!state.messages.length) {
-    list.appendChild(el('p', 'meta', 'Nothing here.'));
-    return;
-  }
-  for (const message of state.messages) list.appendChild(messageRow(message));
+  box.appendChild(row);
+  return box;
 }
 
-async function openMessage(message) {
-  state.selected = message;
-  const reader = $('#mail-reader');
-  reader.hidden = false;
-  $('#mail-reader-body').textContent = '…';
-  $('#mail-reader-subject').textContent = message.subject || '(no subject)';
-  $('#mail-reader-from').textContent = `${message.from.name || message.from.email} <${message.from.email}>`;
-
-  const full = await json(
-    `/api/mail/message?uid=${encodeURIComponent(message.uid)}&account=${encodeURIComponent(state.account)}`
-    + `&folder=${encodeURIComponent(message.folder || '')}`,
-  );
-  const body = (full && full.message && full.message.body) || '';
-  $('#mail-reader-body').textContent = body || '(this message has no text body)';
-  $('#mail-attachments').textContent = (full && full.message && full.message.attachments || [])
-    .map((a) => a.name).join(', ');
-
-  // Mark read — and only now, having actually been read. Listing the folder
-  // deliberately did not do this.
-  await send('/api/mail/read', { uid: message.uid, seen: true, account: state.account,
-    folder: message.folder || 'inbox' });
-  const found = state.messages.find((m) => m.uid === message.uid);
-  if (found) found.seen = true;
-  loadMessages();
+function listing(box, display) {
+  const where = display.search
+    ? `matching ${JSON.stringify(display.search)} in ${display.folder}`
+    : `in ${display.folder}`;
+  box.appendChild(el('p', 'meta', `${display.mails.length} message(s) ${where}`));
+  for (const message of display.mails) box.appendChild(row(message));
+  return box;
 }
 
-function startReply() {
-  const message = state.selected;
-  if (!message) return;
-  draft = {
-    to: message.from.email ? `${message.from.name || ''} <${message.from.email}>`.trim() : '',
-    subject: message.subject ? (/^re:/i.test(message.subject) ? message.subject : `Re: ${message.subject}`) : '',
-    body: '',
-    replyTo: message.uid,
-    folder: message.folder || '',
-    quoted: (message.body || '').split('\n').filter((l) => l.startsWith('>')).slice(0, 12).join('\n'),
+function one(box, message) {
+  const wrap = el('div', 'mail-one');
+  wrap.appendChild(head(message));
+  wrap.appendChild(el('div', 'meta', `to ${recipients(message.to)}${message.cc?.length ? ` · cc ${recipients(message.cc)}` : ''} · ${message.date || 'no date'}`));
+  wrap.appendChild(el('pre', 'mail-body', message.body || message.snippet || '(empty)'));
+  box.appendChild(wrap);
+  return box;
+}
+
+function reply(box, display) {
+  // What a reply call sent. Shown as a record, not an invitation to send again:
+  // there is no send button here and there is not going to be one.
+  box.appendChild(el('p', 'meta', `Replied to the thread${display.folder ? ` in ${display.folder}` : ''}.`));
+  if (display.subject) box.appendChild(el('div', 'mail-subject', display.subject));
+  return box;
+}
+
+function drafted(box, display) {
+  box.appendChild(el('p', 'meta', `Drafted${display.folder ? ` in ${display.folder}` : ''}. It has not been sent.`));
+  if (display.subject) box.appendChild(el('div', 'mail-subject', display.subject));
+  return box;
+}
+
+/** A message in a list: a subject you can open, not a message that opens itself.
+
+    Reading is a separate call on purpose — `mail read` is a real fetch, and it
+    is what marks a message seen. Clicking a row here shows the body the tool
+    already fetched and nothing more, so expanding a list never changes what
+    your mailbox thinks you have read.
+    */
+function row(message) {
+  const node = el('div', 'mail-row');
+  const subject = el('div', 'mail-subject', message.subject || '(no subject)');
+  if (!message.seen) subject.classList.add('unseen');
+  node.appendChild(subject);
+  node.appendChild(el('div', 'meta', [
+    message.from?.name || message.from?.email || '',
+    message.date || '',
+    message.answered ? '· replied' : '',
+  ].filter(Boolean).join(' · ')));
+  if (message.snippet) node.appendChild(el('div', 'snippet', message.snippet));
+
+  const open = el('button', 'ghost small', 'Read it');
+  open.onclick = () => {
+    const already = node.querySelector('.mail-body');
+    if (already) { already.remove(); open.textContent = 'Read it'; return; }
+    const body = el('pre', 'mail-body', message.body || message.snippet || '(empty)');
+    node.appendChild(body);
+    open.textContent = 'Hide it';
   };
-  renderDraft();
-  $('#mail-body').focus();
+  node.appendChild(open);
+  return node;
 }
 
-function renderDraft() {
-  const panel = $('#mail-compose');
-  panel.hidden = !draft;
-  if (!draft) return;
-  $('#mail-to').value = draft.to;
-  $('#mail-subject').value = draft.subject;
-  $('#mail-body').value = draft.body;
-  const quoted = $('#mail-quoted');
-  quoted.textContent = draft.quoted || '';
-  quoted.hidden = !draft.quoted;
+function head(message) {
+  const node = el('header');
+  const subject = el('h2', 'mail-subject', message.subject || '(no subject)');
+  node.appendChild(subject);
+  return node;
 }
 
-/* The whole of the AI feature, and it is deliberately small: one button that
- * writes a first draft into a box that is already open, addressed and
- * subject-lined from the message being answered. It cannot send. Sending is
- * the next button, and it is a different button on purpose. */
-async function propose() {
-  if (!draft) startReply();
-  if (!draft) return;
-  const button = $('#mail-ai');
-  button.disabled = true;
-  button.textContent = 'writing…';
-  try {
-    const { data, detail } = await send('/api/mail/propose', {
-      account: state.account,
-      reply_to: draft.replyTo || '',
-      folder: draft.folder || '',
-    }, { timeout: 120_000 });
-    if (data && data.draft) {
-      draft.body = data.draft;
-      renderDraft();
-      $('#mail-ai-note').textContent = 'a first draft — read it, change what you want, then send';
-    } else {
-      $('#mail-ai-note').textContent = detail;
-    }
-  } finally {
-    button.disabled = false;
-    button.textContent = 'Write it for me';
-  }
-}
-
-/* Named `sendIt` rather than `send` because `send` is the imported helper in
-   dom.js, and a module cannot have both. */
-async function sendIt() {
-  if (!draft) return;
-  const button = $('#mail-send');
-  button.disabled = true;
-  try {
-    const { data, detail } = await send('/api/mail/send', {
-      account: state.account,
-      to: [draft.to],
-      subject: draft.subject,
-      body: draft.body,
-      reply_to: draft.replyTo || '',
-      folder: draft.folder || '',
-    });
-    if (data && data.sent) {
-      draft = null;
-      renderDraft();
-      $('#mail-ai-note').textContent = 'sent';
-      closeReader();
-      loadFolders();
-      loadMessages();
-    } else {
-      $('#mail-ai-note').textContent = detail;
-    }
-  } finally {
-    button.disabled = false;
-  }
-}
-
-function closeReader() {
-  state.selected = null;
-  $('#mail-reader').hidden = true;
-  $('#mail-compose').hidden = true;
-  draft = null;
-}
-
-export function wireMail() {
-  $('#mail-close').onclick = closeReader;
-  $('#mail-reply').onclick = startReply;
-  $('#mail-discard').onclick = () => { draft = null; renderDraft(); };
-  $('#mail-ai').onclick = propose;
-  $('#mail-send').onclick = sendIt;
-  $('#mail-new').onclick = () => { startReply(); };
-
-  for (const [id, key] of [['mail-to', 'to'], ['mail-subject', 'subject'], ['mail-body', 'body']]) {
-    const node = $(`#${id}`);
-    if (node) node.oninput = () => { if (draft) draft[key] = node.value; };
-  }
-
-  // Loading happens when the drawer opens, not when a mode is entered: the
-  // store and the accounts are the same either way, and what changed is that
-  // there is no longer a place called Mail to be standing in.
-  const open = async () => {
-    $('#mail-note').textContent = '';
-    if (!(await loadAccounts())) {
-      $('#mail-list').textContent = '';
-      $('#mail-note').textContent =
-        'No mail account yet. Add one in Settings, or set OPENMIRROR_MAIL_ADDRESS with the IMAP and '
-        + 'SMTP hosts and OPENMIRROR_MAIL_PASSWORD and restart. A JMAP account needs its session URL.';
-      return;
-    }
-    await loadFolders();
-    await loadMessages();
-  };
-
-  hooks.open = open;
-  // An inbox left loaded in the background is a mailbox somebody's webview is
-  // still talking to after they closed it. Nothing here is expensive, but the
-  // rule is the rule and it costs one line.
-  onClose('mail', () => { state.messages = []; state.selected = null; });
+function recipients(people) {
+  const list = people || [];
+  if (!list.length) return 'nobody';
+  if (list.length <= 3) return list.map((p) => p.name || p.email).join(', ');
+  return `${list.slice(0, 3).map((p) => p.name || p.email).join(', ')} and ${list.length - 3} more`;
 }

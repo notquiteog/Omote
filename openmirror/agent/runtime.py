@@ -205,23 +205,28 @@ _STORE: Any = _UNSET
 
 
 def mail_tools(cfg: Any) -> list[Tool]:
-    """The `mail` tool, when this install has a mailbox to use it on.
+    """The `mail` tool. Offered on every install, mailbox or not.
 
-    Gated on there actually being an account, which is the same rule the
-    media and desktop tools follow: a tool that is offered and can only fail
-    is worse than no tool, because the model will spend a turn discovering
-    that and then tell the person it cannot read their mail.
+    It used to be gated on `mail_enabled`, which is off unless an address is
+    configured — and that left the model unable to tell somebody it could not
+    read their mail, because from its side the capability did not exist at all.
+    That is the wrong shape for this tool: the useful failure is a sentence
+    naming the three settings to set, and you cannot relay a sentence about a
+    tool you have never heard of.
+
+    So it is always offered and refuses with that sentence instead. The rule it
+    was hiding behind still holds for the tools that fail *silently* — an image
+    generator with no model — and does not hold for one whose whole job is to
+    report what it cannot do.
     """
-    if not getattr(cfg, 'mail_enabled', False):
-        return []
     from openmirror.agent.tools.mail import MailTool
-    from openmirror.mail.accounts import AccountStore, from_env
+    from openmirror.mail.accounts import AccountStore
 
-    path = Path(getattr(cfg, 'mail_accounts', ''))
-    if not str(path):
-        return []
-    store = AccountStore(path)
-    return [MailTool(store)] if from_env(store) else []
+    # The path is never a reason to withhold the tool: an accounts file that does
+    # not exist yet is an empty mailbox, not a missing one, and the tool writes
+    # it when somebody adds an account.
+    path = Path(getattr(cfg, 'mail_accounts', '') or (Path(getattr(cfg, 'data_dir', './data')) / 'mail.json'))
+    return [MailTool(AccountStore(path))]
 
 
 def web_tools(cfg: Any) -> list[Tool]:

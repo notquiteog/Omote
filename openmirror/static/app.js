@@ -23,10 +23,9 @@ import { active as searchActive, wireHistory } from './history.js';
 import { setCommitRoot, wireCommit } from './commit.js';
 import { $, api, el, icon, json, onReachable, socket, took } from './dom.js';
 import { wireLive } from './live.js';
-import { hooks as mailHooks, wireMail } from './mail.js';
+import { mailCard } from './mail.js';
 import { go, mode, onEnter, onLeave, wireModes } from './modes.js';
-import { focusSearch, wireSearch } from './search.js';
-import { closeDrawer, onDrawerChange, wireDrawers } from './drawers.js';
+import { searchCard } from './search.js';
 import { cancel as cancelStream, flush as flushStream, queue } from './stream.js';
 import { openStudio, stopPolling, wireStudio } from './studio.js';
 import { wireTalk } from './talk.js';
@@ -681,6 +680,27 @@ function toolDone(result) {
       autopilotHost = null;
     }
     return;
+  }
+
+  /* Search and mail are *tools*, and their results belong where they were asked
+   * about. Both were drawers once — a rail button, a panel, and a second client
+   * talking to the same backend as the tool — which meant two doors onto one
+   * store, and a conversation you had to leave in order to read an answer to a
+   * question asked inside it.
+   *
+   * Drawn here rather than in an output pane because a pane holds what the
+   * model was sent, and both of these are things a person reads: the hits, and
+   * the messages. The model's own summary of them is the text that follows. */
+  if (result.ok && result.display) {
+    const drawn = result.name === 'web_search' ? searchCard(result.display)
+      : result.name === 'mail' ? mailCard(result.display)
+        : null;
+    if (drawn) {
+      card.classList.add('card', 'open');
+      card.appendChild(drawn);
+      if (result.content) card.appendChild(el('div', 'out', result.content));
+      return;
+    }
   }
 
   const diff = result.display && result.display.diff;
@@ -2349,14 +2369,6 @@ wireLive({ sessionId });
 // listening; each one pressed again ends the call. There is no mode to switch
 // to first, because that was the only reason the button could not be pressed.
 wireCalls({ attach: (id) => selectSession(id) });
-wireSearch();
-wireMail();
-// Opening a drawer loads it. Mail says how; search just focuses the box.
-onDrawerChange((name) => {
-  if (name === 'mail') mailHooks.open();
-  if (name === 'search') focusSearch();
-});
-wireDrawers();
 // Autopilot is a tool call now, so its card is drawn by the transcript like any
 // other tool card — and its narration still comes off this socket, which is
 // why there is one reader of the event stream rather than two.

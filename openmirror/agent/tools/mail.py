@@ -225,18 +225,43 @@ class MailTool(Tool):
     async def run(self, args: dict[str, Any], ctx: ToolContext) -> Output:
         action = str(args['action']).strip().lower()
         store = self.store
+        found = store.load()
 
-        if action == 'accounts':
-            found = store.load()
-            if not found:
+        if not found:
+            # Offered on every install, including one with no mailbox.
+            #
+            # It used to be hidden until an account existed, on the grounds that
+            # "a tool that is offered and can only fail is worse than no tool".
+            # That is right for a tool that fails *silently* and wrong here:
+            # hidden, the model cannot even tell the person they have mail it
+            # cannot read, because from its side the capability does not exist.
+            # Offered, the message below is a sentence it can pass on, and the
+            # person learns the exact three settings that would fix it.
+            #
+            # A *question* answers and an *action* raises, which is the
+            # distinction the two paths draw. "What accounts do I have" is a
+            # question with a real answer — none — and answering it keeps the
+            # turn alive. "Send this" is an action that cannot happen, and it
+            # must fail loudly rather than come back as a result that reads
+            # like it did something.
+            if action == 'accounts':
                 return Output(
                     content=(
-                        'No mail account is configured. Add one from Settings, or set '
-                        'OPENMIRROR_MAIL_ADDRESS, OPENMIRROR_MAIL_IMAP_HOST and OPENMIRROR_MAIL_SMTP_HOST '
-                        'with OPENMIRROR_MAIL_PASSWORD and restart. JMAP accounts need a session URL.'
+                        'No mail account is configured. Add one in Settings, or set '
+                        'OPENMIRROR_MAIL_ADDRESS, OPENMIRROR_MAIL_IMAP_HOST and '
+                        'OPENMIRROR_MAIL_SMTP_HOST with OPENMIRROR_MAIL_PASSWORD and restart. '
+                        'A JMAP account needs its session URL as well.'
                     ),
-                    display={'accounts': []},
+                    display={'accounts': [], 'unconfigured': True},
                 )
+            raise ToolError(
+                f'cannot {action}: no mail account is configured on this install. Add one in '
+                'Settings, or set OPENMIRROR_MAIL_ADDRESS, OPENMIRROR_MAIL_IMAP_HOST and '
+                'OPENMIRROR_MAIL_SMTP_HOST with OPENMIRROR_MAIL_PASSWORD and restart — a JMAP '
+                'account needs its session URL too. Until then nothing can be read, searched or sent.'
+            )
+
+        if action == 'accounts':
             return Output(
                 content='\n'.join(
                     f'{a.id}: {a.address} ({"JMAP" if a.use_jmap else "IMAP"}{", default" if a.default else ""})'

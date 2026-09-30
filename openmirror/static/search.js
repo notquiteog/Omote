@@ -1,48 +1,37 @@
-/* Searching the web yourself.
+/* Search results, as something you read in the conversation.
  *
- * Worth having for a reason that is not obvious: the agent's search backend
- * is configured once, with a key, and is usually better than a browser tab —
- * a self-hosted SearxNG, or a Brave key that does not track you. Making it
- * reachable directly means "look this up" does not have to cost a model turn,
- * and someone who only wanted the links gets the links.
+ * This was a drawer: a rail button, a box, and a results list you left the
+ * conversation to look at. That was the wrong shape for two reasons, and only
+ * one of them was about tidiness.
  *
- * The reader is the other half. A result you can read here rather than in a
- * new tab is a result you can read without leaving what you were doing, and
- * it goes through the same fetch the agent uses — so the private-address
- * guard applies to a person clicking a link, not only to a model following
- * one.
+ * The structural reason is that `web_search` already existed as a tool, so the
+ * drawer was a *second* door onto one backend. Two doors is two places for the
+ * thing to be wrong: the drawer searched without the model seeing the query and
+ * the results, so "look this up" and "here is what I found" were two
+ * conversations rather than one. Now the model searches, and you read the hits
+ * where they are asked about, which is the conversation you would have had in
+ * the first place.
  *
- * It is a drawer and not a mode, and the reason it survived at all is that it
- * was never really a place. `web_search` and `research` are tools the agent
- * has always had; this is the same backend with the same guard, minus the
- * model turn. Two ways to reach one store is two places for it to be wrong,
- * so this is now *opened over* the conversation rather than replacing it —
- * which is also the difference between "look this up" and "go and look
- * something up".
+ * The reader is kept, unchanged and for the same reason as before: reading a
+ * result without opening a tab, through the same fetch the agent uses — so
+ * the private-address guard applies to a person clicking a link, not only to a
+ * model following one.
  */
 
-import { $, el, json } from './dom.js';
-import { onClose } from './drawers.js';
+import { el, json } from './dom.js';
 
-async function run(event) {
-  event.preventDefault();
-  const query = $('#search-q').value.trim();
-  if (!query) return;
-
-  $('#search-meta').textContent = 'searching…';
-  $('#search-results').textContent = '';
-
-  const data = await json(`/api/search?q=${encodeURIComponent(query)}&count=12`);
-  if (!data) {
-    $('#search-meta').textContent =
-      'the search backend did not answer. The keyless fallback is blocked in practice — '
-      + 'set OPENMIRROR_SEARCH_BACKEND to brave or tavily with a key, or to your own searxng.';
-    return;
+/** The results of a `web_search` call, as a card body. */
+export function searchCard(display) {
+  const box = el('div', 'card-search');
+  const hits = display.results || [];
+  if (!hits.length) {
+    box.appendChild(el('p', 'meta', 'No results.'));
+    return box;
   }
+  box.appendChild(el('p', 'meta',
+    `${display.count ?? hits.length} results via ${display.backend || 'the configured backend'}`));
 
-  $('#search-meta').textContent = `${data.results.length} results via ${data.backend}`;
-  const box = $('#search-results');
-  for (const hit of data.results) {
+  for (const hit of hits) {
     const row = el('div', 'hit');
     const title = el('a', 'title', hit.title || hit.url);
     title.href = hit.url;
@@ -51,36 +40,47 @@ async function run(event) {
     row.appendChild(title);
     row.appendChild(el('div', 'url', hit.url));
     if (hit.snippet) row.appendChild(el('div', 'snippet', hit.snippet));
-
-    const read = el('button', 'ghost small read', 'Read it here');
-    read.onclick = () => reader(hit.url, hit.title || hit.url);
+    const read = readButton(hit, row);
     row.appendChild(read);
     box.appendChild(row);
   }
+  return box;
 }
 
-async function reader(url, title) {
-  $('#search-reader').hidden = false;
-  $('#reader-title').textContent = title;
-  $('#reader-body').textContent = 'fetching…';
-
-  const data = await json(`/api/search/fetch?url=${encodeURIComponent(url)}`);
-  $('#reader-body').textContent = data
-    ? data.text
-    : 'that page could not be fetched. Private and link-local addresses are refused '
-      + 'on purpose — a page reached through here can otherwise reach services never '
-      + 'exposed to the internet.';
+function readButton(hit, row) {
+  const read = el('button', 'ghost small read', 'Read it here');
+  read.onclick = () => {
+    // Toggle in place, under the hit it belongs to. This used to be a panel
+    // that a button opened elsewhere, and when the panel went the handler was
+    // left building a reader and returning it to nobody — so the button did
+    // nothing at all, which is exactly what a browser check is for and a module
+    // graph is not.
+    const already = row.querySelector('.search-reader');
+    if (already) { already.remove(); read.textContent = 'Read it here'; return; }
+    row.appendChild(reader(hit.url, hit.title || hit.url));
+    read.textContent = 'Hide it';
+  };
+  return read;
 }
 
-export function wireSearch() {
-  $('#search-form').onsubmit = run;
-  $('#reader-close').onclick = () => { $('#search-reader').hidden = true; };
-  // The reader holds a fetched page. Closing the drawer closes it, or the next
-  // time somebody opens search they are looking at the last thing they read
-  // with no idea why.
-  onClose('search', () => { $('#search-reader').hidden = true; });
-}
+/** A page, opened in place inside the tool card. */
+function reader(url, title) {
+  const box = el('div', 'search-reader');
+  const head = el('header');
+  head.appendChild(el('span', '', title));
+  head.appendChild(el('div', 'spacer'));
+  const close = el('button', 'ghost small', 'Close');
+  head.appendChild(close);
+  const body = el('pre', '', 'fetching…');
+  box.append(head, body);
+  close.onclick = () => box.remove();
 
-export function focusSearch() {
-  $('#search-q').focus();
+  json(`/api/search/fetch?url=${encodeURIComponent(url)}`).then((data) => {
+    body.textContent = data
+      ? data.text
+      : 'that page could not be fetched. Private and link-local addresses are refused '
+        + 'on purpose — a page reached through here can otherwise reach services never '
+        + 'exposed to the internet.';
+  });
+  return box;
 }

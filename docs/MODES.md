@@ -2,8 +2,8 @@
 
 Not tabs over a shared workspace. A conversation and a place to make things
 are genuinely different kinds of attention, and one at a time is the honest
-arrangement. Everything else this app can do is a *tool* or a *drawer* inside
-the conversation, and the argument for that is below rather than assumed.
+arrangement. Everything else this app can do is a *tool*, and the argument for
+that is below rather than assumed.
 
 There were seven of these once: Code, Talk, Live, Autopilot, Studio, Search and
 Mail. Reducing them to two was not tidying. Each of the other five was a place
@@ -20,12 +20,28 @@ a decision had been pushed out to, and each push cost something real.
   it said when the call stops.
 * **Search and Mail** were modes because "look this up" and "read my inbox"
   were not expressible as messages. They are: they are tools, and they have
-  always been tools. What the modes added was a *second* way to reach one
-  store, and two ways to reach one store is two places for it to be wrong.
-  They are **drawers** now — opened over the conversation, closed by anything
-  else, and the conversation handed back. The rule that made them modes worth
-  having is kept: a drawer that leaks is a whole inbox open behind whatever
-  you went on to do.
+  always been tools. What the modes added was a *second* door onto one store,
+  and two doors is two places for it to be wrong — worse, the two could not
+  see each other. The panel read your inbox without the model knowing you had,
+  so "what came in today" was something you *did* and then something you had to
+  *ask* about, and the second conversation could not build on the first.
+
+  So the panels are gone. The model searches and reads, and the results are
+  drawn into the tool card, in the place they were asked about. There is one
+  door and it is the tool.
+
+  Two things survived the move and are worth stating:
+
+  * **The tool is offered even with no mailbox.** It used to be hidden until an
+    account existed, so on a fresh install the model had no `mail` tool at all
+    and could not tell you it could not read your mail — from its side the
+    capability did not exist. Offered, the refusal is a sentence naming the
+    three settings that would fix it.
+  * **Nothing in the browser can send.** The model drafts; a send is the tool,
+    and it is graded `MESSAGE` and asked for in every mode. A panel with a send
+    button is a second, quieter way for a message to leave without anybody
+    reading it.
+
 * **Autopilot** was a mode because somebody had to press the button, and that is
   the one thing the harness is better at. It is the `autopilot` tool now: the
   model decides a long job needs working on unattended, exactly as it decides
@@ -175,10 +191,7 @@ The prompt, seed, size and sampler settings are found and turned into
 controls, and what it found is reported back so you can see whether it worked.
 
 
-## The drawers
-
-Two things that are not a message, opened *over* the conversation rather than
-replacing it.
+## Search and mail, as cards in the conversation
 
 ### Search
 
@@ -190,34 +203,27 @@ SearxNG, or a Brave key that does not track you. Looking something up should
 not have to cost a model turn, and someone who only wanted the links gets the
 links.
 
-Results can be read in place, through the same fetch the agent uses — so the
-private-address guard applies to a person clicking a link, not only to a model
-following one.
+The hits are drawn into the tool card, with a "read it here" on each — through
+the same fetch the agent uses, so the private-address guard applies to a person
+clicking a link, not only to a model following one.
 
 ### Mail
 
-Your inbox, opened without leaving what you were doing. Folders with unread
-counts, a list, a reader, and a composer.
+Your inbox, in the conversation, as a card.
 
-Three things it does that a mail client does not:
-
-* **The agent reads the same inbox.** The `mail` tool and this drawer are two
-  doors onto one store, so "what came in today" costs you nothing and "draft
-  a reply to the Acme thread" costs the agent one turn. Neither is a copy of
-  the other, and nothing is cached twice. This is the part that was true when
-  mail was a mode too, and it is the part that made it worth having.
-* **"Write it for me" fills the composer and stops.** It sends the one
-  message being answered to whichever model this install routes chat to, and
-  puts a draft in a box that is already open, already addressed and already
-  subject-lined. Sending is a separate button on purpose — see
-  [AUTONOMY.md](AUTONOMY.md).
-* **Listing a folder does not mark it read.** The server uses `BODY.PEEK`
-  and the `$seen` keyword is only touched when you open a message, so the
-  unread count is still true after you have looked through the list.
+* **The agent reads the same inbox you are looking at.** One door: the `mail`
+  tool, and a renderer that draws its result. "What came in today" and "what did
+  the Acme thread say about the invoice" are one conversation now, which is the
+  thing that was impossible when the panel and the tool could not see each other.
+* **A listing does not mark anything read.** That is the server's `BODY.PEEK`,
+  and it is why expanding a list cannot clear your unread badge behind your back.
+  Reading is a separate call, and it is what marks a message seen.
+* **A draft says it has not been sent.** It is not going to be, by anything you
+  can press.
 
 ## Where the commit bar lives
 
-Not a mode or a drawer — it is in the Chat header, and it only appears when
+Not a mode — it is in the Chat header, and it only appears when
 your working root is a git repository with something in it. It counts *changed files* rather
 than lines, because that is the number that answers "is there anything to do
 here", and a diffstat of a reformat is large and says nothing.
