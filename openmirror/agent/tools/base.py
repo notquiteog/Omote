@@ -86,6 +86,22 @@ class ToolContext:
     # is told about. For the one tool whose job is changing it: propose_plan.
     policy: Any = None
     set_mode: Any = None
+    # The screen this session has, when it has one: its own virtual display or
+    # the person's, with its own pointer. `None` for a session that was not
+    # given one and for every subagent, and "no stage" is a different answer
+    # from "a stage that shares the pointer" — the first means there is
+    # nothing to look at, the second means looking at it would take somebody's
+    # mouse. Tools that need a screen ask, rather than assuming either.
+    stage: Any = None
+    # Appends a section to this session's system prompt, once, reporting
+    # whether it was added. For the one tool whose job is changing how the
+    # model behaves rather than what it may do: `autopilot`, which tells it to
+    # work unattended and stop checking in.
+    #
+    # Deliberately not a way to rewrite the prompt. A tool that could replace
+    # the project's own instructions would be a tool that could end them, and
+    # `AGENTS.md` is the one thing in here a person wrote on purpose.
+    unattend: Any = None
 
 
 # The tools whose whole purpose is changing files. Left out of a read-only

@@ -11,9 +11,18 @@
  * it goes through the same fetch the agent uses — so the private-address
  * guard applies to a person clicking a link, not only to a model following
  * one.
+ *
+ * It is a drawer and not a mode, and the reason it survived at all is that it
+ * was never really a place. `web_search` and `research` are tools the agent
+ * has always had; this is the same backend with the same guard, minus the
+ * model turn. Two ways to reach one store is two places for it to be wrong,
+ * so this is now *opened over* the conversation rather than replacing it —
+ * which is also the difference between "look this up" and "go and look
+ * something up".
  */
 
 import { $, el, json } from './dom.js';
+import { onClose } from './drawers.js';
 
 async function run(event) {
   event.preventDefault();
@@ -66,6 +75,10 @@ async function reader(url, title) {
 export function wireSearch() {
   $('#search-form').onsubmit = run;
   $('#reader-close').onclick = () => { $('#search-reader').hidden = true; };
+  // The reader holds a fetched page. Closing the drawer closes it, or the next
+  // time somebody opens search they are looking at the last thing they read
+  // with no idea why.
+  onClose('search', () => { $('#search-reader').hidden = true; });
 }
 
 export function focusSearch() {

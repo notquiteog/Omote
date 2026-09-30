@@ -82,6 +82,10 @@ const TOOL_STATES = {
   agent: 'thinking',
   // A plan put to the person is a question, and it waits like one.
   propose_plan: 'waiting',
+  // Handing the turn over: from outside this looks like 'desktop', because
+  // that is where its hands are — but it is not waiting for you, which is the
+  // whole distinction the mode it replaced was drawing.
+  autopilot: 'desktop',
   web_search: 'browsing',
   web_fetch: 'browsing',
   research: 'browsing',

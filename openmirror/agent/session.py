@@ -1925,6 +1925,15 @@ class AgentSession:
         async def spawn(kind: Any, task: str, title: str, background: bool) -> Output:
             return await self._spawn(kind, task, title, background, turn_id, call_id)
 
+        async def unattend(marker: str, section: str) -> bool:
+            """Append the unattended section to this session's prompt, once.
+
+            Additive and idempotent rather than a rewrite: the project's own
+            instructions are the one thing here a person wrote on purpose, so a
+            tool that could replace them is a tool that could end them.
+            """
+            return self.work_unattended(marker, section)
+
         top = self.parent is None
         return ToolContext(
             root=self.root,
@@ -1940,4 +1949,21 @@ class AgentSession:
             spawn=spawn if top and self.agent_kinds else None,
             policy=self.policy,
             set_mode=self.set_mode if top else None,
+            stage=self.stage,
+            unattend=unattend if top else None,
         )
+
+    def work_unattended(self, marker: str, section: str) -> bool:
+        """Tell this session's model to finish the job without checking in.
+
+        Returns whether it was added. Called by the `autopilot` tool, and by
+        nothing else — which is the point: the decision to work unattended is
+        the harness's, made by a model that can see the alternative tools, and
+        not a thing a person has to click through to before the model is
+        allowed to consider it.
+        """
+        prompt = self.system_prompt or ''
+        if marker in prompt:
+            return False
+        self.system_prompt = f'{prompt}\n\n{marker}\n\n{section}'.strip()
+        return True

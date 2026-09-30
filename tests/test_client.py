@@ -56,10 +56,12 @@ def test_the_approval_modes_the_page_offers_are_real():
     An `<option>` whose value is not a `Mode` used to be a cosmetic mistake.
     Since these selects send it, it is now an error message on a click.
 
-    Three of them now, and they are not identical: the composer chip and the
-    new-session dialog offer every mode, and autopilot's offers a subset. That
-    subset is deliberate rather than an oversight, which is why it is named
-    here — see below.
+    Two of them now, and they are not identical: the composer chip and the
+    new-session dialog offer every mode. There used to be a third — autopilot's
+    own select, which offered everything except `read_only` on the grounds that
+    a run nobody is answering cannot do anything in that mode anyway. Autopilot
+    is a tool now, so the subset it offered moved into the tool's schema, where
+    a wrong value is an `invalid` on the call rather than an option in the page.
     """
     html = (STATIC / 'index.html').read_text()
     # A list rather than a dict keyed by name: two of these are called `mode`
@@ -70,7 +72,7 @@ def test_the_approval_modes_the_page_offers_are_real():
         for attrs, block in re.findall(r'<select([^>]*)>(.*?)</select>', html, re.S)
         if re.search(r'<option value="(read_only|ask)"', block)
     ]
-    assert len(offered) == 3, f'expected three mode selects, found {len(offered)}'
+    assert len(offered) == 2, f'expected two mode selects, found {len(offered)}'
 
     real = {m.value for m in Mode}
     for where, block in offered:
@@ -80,10 +82,3 @@ def test_the_approval_modes_the_page_offers_are_real():
     # Two of them create or change a session and offer every mode.
     full = [where for where, block in offered if block == real]
     assert len(full) == 2, f'expected the composer chip and the dialog to offer all of them, got {full}'
-
-    # Autopilot leaves read_only out on purpose: a run nobody is answering, in
-    # a mode where every tool that changes anything is refused outright, cannot
-    # do the thing it was started to do. Offering it would be offering a
-    # setting whose only possible outcome is a wasted run.
-    watch = next(block for where, block in offered if 'watch-mode' in where)
-    assert watch == real - {'read_only'}, 'autopilot should offer every mode except read_only'

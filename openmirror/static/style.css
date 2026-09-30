@@ -1044,23 +1044,29 @@ body.companion-off #buddy { padding-left: 4px; }
 
 /* --- modes ---------------------------------------------------------------
 
-   Six things this can be, and only one of them at a time. Not tabs over a
-   shared workspace: typing at an agent, talking to one, and watching one work
-   are different kinds of attention, and a layout that keeps a text box on
-   screen during a voice call is a layout that tells you to type.
+   Two things this can be: a conversation, and a place to make things. There
+   were seven, and the other five were places a decision had been pushed out to
+   — talk, live, autopilot, search, mail — each of which cost something real.
 
    The switch is a body class, so every pane's visibility is one rule rather
-   than a pile of imperative show/hide — and the code-mode furniture (the
+   than a pile of imperative show/hide — and the chat furniture (the
    transcript, the composer, the perch) is hidden by the same mechanism as
    everything else instead of being a special case. */
 
-#modes {
+#modes, #drawer-rail {
   display: flex; flex-direction: column; gap: 1px;
-  padding: 2px 8px 8px;
+  padding: 2px 8px;
+}
+#modes {
   border-bottom: 1px solid var(--edge-soft);
   margin-bottom: 6px;
 }
-.nav-row.mode[aria-current="true"] {
+/* The drawer rail is the same rows and is *not* a mode, so it has no
+   bottom border and no current-mode weight of its own; its rows light up
+   through `aria-current` while their drawer is open. */
+#drawer-rail { padding-bottom: 8px; }
+.nav-row.mode[aria-current="true"],
+.nav-row[data-drawer][aria-current="true"] {
   background: var(--raise);
   border-color: var(--edge-soft);
   color: var(--ink);
@@ -1070,20 +1076,58 @@ body.companion-off #buddy { padding-left: 4px; }
 .pane { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; position: relative; }
 /* `display: flex` above outranks the browser's own `[hidden] { display: none }`,
    so without this every pane is laid out at once and the mode you are actually
-   in gets a sixth of the window. A class would have the same problem; this is
-   the rule that has to exist, not a preference about how to hide things. */
+   in gets a fraction of the window. A class would have the same problem; this
+   is the rule that has to exist, not a preference about how to hide things. */
 .pane[hidden] { display: none; }
 
-body:not(.mode-code) #transcript,
-body:not(.mode-code) #composer,
-body:not(.mode-code) #starters,
-body:not(.mode-code) #perch-rail,
-body:not(.mode-code) #voice-strip,
-body:not(.mode-code) #diffstat,
-body:not(.mode-code) #rewind { display: none !important; }
+body:not(.mode-chat) #transcript,
+body:not(.mode-chat) #composer,
+body:not(.mode-chat) #starters,
+body:not(.mode-chat) #perch-rail,
+body:not(.mode-chat) #voice-strip,
+body:not(.mode-chat) #diffstat,
+body:not(.mode-chat) #rewind { display: none !important; }
 
-/* The one button. It is in the bar rather than the composer because it does
-   not qualify the next thing you type — it replaces typing. */
+/* A call gives the composer and the transcript back rather than covering them.
+   That is the rule that made talk a mode in the first place — a "just talk to
+   it" surface with a text box still on it is a text box — and it is kept, now
+   that a call is a state of Chat rather than a place. */
+body.calling #transcript,
+body.calling #composer,
+body.calling #starters,
+body.calling #perch-rail,
+body.calling #voice-strip { display: none !important; }
+
+.call-surface {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.call-surface[hidden] { display: none; }
+.call-stage {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+}
+/* Same reason as `.pane[hidden]` above: `display: flex` here would otherwise
+   lay out both call stages at once, and half of Live's pane would sit under
+   half of Talk's. */
+.call-stage[hidden] { display: none; }
+
+/* --- drawers ---------------------------------------------------------------
+
+   Search and mail open *over* the conversation rather than replacing it,
+   because they are tools the agent has always had and a tool you can also
+   visit is strictly worse than a tool. What has to be true is that a drawer
+   gives the conversation back when it closes — including when it closes
+   because something else opened. */
+
+#drawer-search, #drawer-mail {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+#drawer-search[hidden], #drawer-mail[hidden] { display: none; }
+
+/* The two buttons. They are in the bar rather than the composer because they
+   do not qualify the next thing you type — they replace it. */
 .talk-button {
   display: flex; align-items: center; gap: 7px;
   padding: 5px 12px 5px 10px; font-size: 12.5px;
@@ -1092,7 +1136,9 @@ body:not(.mode-code) #rewind { display: none !important; }
 }
 .talk-button .ic { width: 14px; height: 14px; }
 .talk-button:hover:not(:disabled) { color: var(--ink); }
-body.mode-talk .talk-button, body.mode-live .talk-button {
+body.call-talk #talk-button,
+body.call-live #talk-button,
+body.call-live #live-button {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--edge));
   background: color-mix(in srgb, var(--accent) 12%, transparent);
@@ -1167,56 +1213,59 @@ body.mode-talk .talk-button, body.mode-live .talk-button {
 }
 .live-note { flex: none; margin: 0; padding: 0 18px 12px; }
 
-/* --- autopilot ----------------------------------------------------------- */
+/* --- autopilot, as a card in the transcript ---------------------------------
 
-.watch-start {
-  margin: auto; width: min(100%, 640px); padding: 24px;
-  display: flex; flex-direction: column; gap: 12px;
-}
-.watch-start h2 { margin: 0; font-size: 17px; letter-spacing: -.01em; }
-.watch-start textarea {
-  width: 100%; resize: vertical; min-height: 76px;
-  font: inherit; padding: 11px 13px;
-  background: var(--glass-strong); border: 1px solid var(--edge);
-  border-radius: var(--radius); color: var(--ink);
-}
-.watch-controls { display: flex; align-items: center; gap: 8px; }
+   It was a mode, and it was a rail button and a goal box and a live view of a
+   screen. Every part of that said *a person starts this*, which is the one
+   thing the harness is better at.
 
-.watch-live { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 330px; }
-.watch-screen {
-  position: relative; min-width: 0; background: #08080b;
-  display: flex; align-items: center; justify-content: center;
-}
-.watch-screen img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-.watch-offline {
-  position: absolute; color: var(--faint); font-size: 13px;
-}
-.watch-side {
-  display: flex; flex-direction: column; min-height: 0;
-  border-left: 1px solid var(--edge-soft); background: var(--glass);
-}
-.watch-head {
-  display: flex; align-items: flex-start; gap: 8px;
-  padding: 12px 14px; border-bottom: 1px solid var(--edge-soft);
-}
-.watch-head .what { font-size: 12.5px; line-height: 1.45; flex: 1; }
+   So it is a tool call now, and this is the card that call produces. The card
+   is collapsible and collapsed by default, because a card that is 1280x720 by
+   default is a card nobody can scroll past — and after the run, the live view
+   is worthless anyway. What stays after is the narration, and the tool call
+   itself is in the transcript like any other.
 
-/* The narration is the whole interface here: no transcript, no tool cards,
-   one line per thing it did. */
-.watch-narration {
-  flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px;
+   The layout is unchanged from the mode it came from, because a screen and a
+   log beside it is the right shape for both. */
+
+.autopilot-card { display: grid; grid-template-columns: 1fr 260px; gap: 10px; }
+.autopilot-card[hidden] { display: none; }
+/* Collapsed: the narration alone, which is the part that is still true
+   afterwards. */
+.autopilot-card.folded { grid-template-columns: 1fr; }
+.autopilot-card.folded .autopilot-screen { display: none; }
+
+.autopilot-screen {
+  position: relative; min-width: 0; background: #08080b; border-radius: var(--radius);
+  overflow: hidden; display: flex; align-items: center; justify-content: center;
+  aspect-ratio: 16 / 10;
+}
+.autopilot-screen img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.autopilot-offline { position: absolute; color: var(--faint); font-size: 13px; }
+
+.autopilot-side {
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  border-left: 1px solid var(--edge-soft); padding-left: 10px;
+}
+.autopilot-card.folded .autopilot-side { border-left: 0; padding-left: 0; }
+.autopilot-head {
+  display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px;
+}
+.autopilot-head .what { font-size: 12.5px; line-height: 1.45; flex: 1; }
+
+/* The narration is the whole interface of a run: one line per thing it did,
+   and no transcript — a build log scrolling past is the transcript again. */
+.autopilot-narration {
+  flex: 1; min-height: 0; overflow-y: auto;
   display: flex; flex-direction: column; gap: 7px;
   font-size: 12.5px; line-height: 1.5;
 }
-.watch-narration .step { color: var(--dim); }
-.watch-narration .step.now { color: var(--ink); }
-.watch-narration .step.said { color: var(--ink); }
-.watch-narration .step.stuck { color: var(--warn); }
-.watch-narration .step.bad { color: var(--danger); }
-.watch-foot {
-  flex: none; display: flex; align-items: center; gap: 8px;
-  padding: 9px 12px; border-top: 1px solid var(--edge-soft);
-}
+.autopilot-narration .step { color: var(--dim); }
+.autopilot-narration .step.now { color: var(--ink); }
+.autopilot-narration .step.said { color: var(--ink); }
+.autopilot-narration .step.stuck { color: var(--warn); }
+.autopilot-narration .step.bad { color: var(--danger); }
+.autopilot-foot { flex: none; display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 
 /* --- studio ---------------------------------------------------------------
  *

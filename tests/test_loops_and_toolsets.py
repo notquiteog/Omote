@@ -175,7 +175,7 @@ async def test_every_group_names_tools_that_exist():
     optional = set(TOOLSETS['browser']) | set(TOOLSETS['desktop']) | set(TOOLSETS['media'])
     optional |= set(TOOLSETS['memory']) | set(TOOLSETS['web']) | set(TOOLSETS['system'])
     optional |= {'lsp'} | set(TOOLSETS['mail']) | set(TOOLSETS['calendar'])
-    optional |= set(TOOLSETS['hr'])
+    optional |= set(TOOLSETS['hr']) | set(TOOLSETS['autopilot'])
 
     for group, names in TOOLSETS.items():
         for name in names:

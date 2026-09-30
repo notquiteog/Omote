@@ -76,17 +76,26 @@ def extract(name: str, source: str) -> str:
     raise AssertionError(f'{name} is not closed in the source')
 
 
-# -- the pane exists, and is a mode ----------------------------------------
+# -- the pane exists, and is a drawer ---------------------------------------
 
 
-def test_mail_is_a_mode_and_not_a_dialog():
-    """It is a different kind of attention, the same as the others, and
-    switching to it should not be possible halfway through reading a message."""
-    assert 'data-mode="mail"' in INDEX
-    assert "const MODES = ['code', 'talk', 'live', 'watch', 'studio', 'search', 'mail'];" in MODES
-    assert 'id="pane-mail"' in INDEX
+def test_mail_is_a_drawer_and_not_a_mode_or_a_dialog():
+    """It was a mode, and being a mode was the problem rather than the
+    feature.
+
+    A mode says *this is now what the application is*. Mail is not: the `mail`
+    tool has always existed, and "what came in today" is a question you ask
+    rather than a place you go. Two ways to reach one store is two places for
+    it to be wrong, so the pane is now a drawer — opened over the
+    conversation, closed by anything else, and never something you can be
+    lost in.
+    """
+    assert "const MODES = ['chat', 'studio'];" in MODES
+    assert "'mail'" not in re.search(r'const MODES = \[(.*?)\];', MODES).group(1)
+    assert 'id="drawer-mail"' in INDEX
+    assert 'data-drawer="mail"' in INDEX
     assert "wireMail();" in (STATIC / 'app.js').read_text()
-    assert "import { wireMail } from './mail.js';" in (STATIC / 'app.js').read_text()
+    assert "import { hooks as mailHooks, wireMail } from './mail.js';" in (STATIC / 'app.js').read_text()
 
 
 def test_the_nav_button_has_a_symbol():
@@ -94,11 +103,28 @@ def test_the_nav_button_has_a_symbol():
     assert '<use href="#i-mail">' in INDEX
 
 
-def test_modes_reset_away_from_the_ones_that_hold_a_microphone():
-    """A tab that starts listening because of something you did yesterday is
-    a surprise, not a restored state. Mail is safe to come back to."""
-    assert "if (remembered === 'talk' || remembered === 'live') remembered = 'code';" in MODES
-    assert "'mail'" not in re.search(r"remembered === 'talk'[^\n]+", MODES).group(0)
+def test_the_drawer_hands_the_inbox_back_when_it_closes():
+    """The rule that made mail a mode in the first place, kept.
+
+    A drawer that leaks is worse than a mode that leaks: it is a whole inbox
+    open behind whatever the person went on to do. So there is a per-drawer
+    teardown hook, and mail registers one.
+    """
+    drawers = (STATIC / 'drawers.js').read_text()
+    assert 'export function onClose(' in drawers
+    assert 'closeDrawer()' in drawers
+    assert "onClose('mail'" in MAIL, 'mail never releases anything when the drawer closes'
+
+
+def test_only_two_modes_remain():
+    """The one claim this restructure is making, asserted where it cannot be
+    quietly undone by adding a row."""
+    names = re.findall(r"'(code|chat|talk|live|watch|studio|search|mail)'", MODES.split('const MODES')[1].split(']')[0])
+    assert names == ['chat', 'studio'], names
+    assert 'data-mode="talk"' not in INDEX
+    assert 'data-mode="live"' not in INDEX
+    assert 'data-mode="watch"' not in INDEX
+    assert 'data-mode="search"' not in INDEX
 
 
 # -- the AI button cannot send ------------------------------------------------
@@ -239,8 +265,8 @@ def test_no_account_is_a_sentence_rather_than_an_empty_pane():
     is the only useful thing on screen in that state."""
     assert 'No mail account yet' in MAIL
     assert 'OPENMIRROR_MAIL_ADDRESS' in MAIL
-    enter = MAIL[MAIL.index("onEnter('mail'"):]
-    assert 'if (!(await loadAccounts()))' in enter
+    opening = MAIL[MAIL.index('const open = async () => {'):]
+    assert 'if (!(await loadAccounts()))' in opening
 
 
 def test_the_account_is_remembered_across_enter():

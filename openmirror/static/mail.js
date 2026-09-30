@@ -21,7 +21,7 @@
  */
 
 import { $, el, json, send } from './dom.js';
-import { onEnter } from './modes.js';
+import { onClose } from './drawers.js';
 
 const state = {
   account: '',
@@ -35,6 +35,11 @@ const state = {
 /* A draft in progress, kept here rather than in the DOM so that re-rendering
    the list cannot clear it. */
 let draft = null;
+
+/* Set by `wireMail`, and called by whoever opens the drawer. Mail knows how to
+   load itself; how it is opened is not mail's business, and importing the
+   drawer module here to find out would be a cycle for one function. */
+export const hooks = { open: async () => {} };
 
 /* What "write it for me" is allowed to see. Enough to answer the question the
    draft is about, and no more: the message being replied to, and nothing
@@ -267,16 +272,25 @@ export function wireMail() {
     if (node) node.oninput = () => { if (draft) draft[key] = node.value; };
   }
 
-  onEnter('mail', async () => {
-    $('#mail-pane-note').textContent = '';
+  // Loading happens when the drawer opens, not when a mode is entered: the
+  // store and the accounts are the same either way, and what changed is that
+  // there is no longer a place called Mail to be standing in.
+  const open = async () => {
+    $('#mail-note').textContent = '';
     if (!(await loadAccounts())) {
       $('#mail-list').textContent = '';
-      $('#mail-pane-note').textContent =
+      $('#mail-note').textContent =
         'No mail account yet. Add one in Settings, or set OPENMIRROR_MAIL_ADDRESS with the IMAP and '
         + 'SMTP hosts and OPENMIRROR_MAIL_PASSWORD and restart. A JMAP account needs its session URL.';
       return;
     }
     await loadFolders();
     await loadMessages();
-  });
+  };
+
+  hooks.open = open;
+  // An inbox left loaded in the background is a mailbox somebody's webview is
+  // still talking to after they closed it. Nothing here is expensive, but the
+  // rule is the rule and it costs one line.
+  onClose('mail', () => { state.messages = []; state.selected = null; });
 }

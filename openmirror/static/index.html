@@ -59,29 +59,33 @@
     </button>
   </header>
 
-  <!-- The five things this can be. One at a time, because they are different
-       kinds of attention rather than panels: you are either typing, talking,
-       watching, or making something. -->
+  <!-- Two things, and only two, because those are the two there are: a
+       conversation, and a place to make things.
+
+       There were seven. The other five were all places a decision had been
+       pushed out to — talk, live, autopilot, search and mail — and each one
+       cost something real. Talking to it is now a call surface inside Chat,
+       entered by the button in the bar. Looking something up and reading mail
+       are drawers that open over the conversation, because they are tools the
+       agent has always had and a tool you can also visit is strictly worse
+       than a tool. And autopilot is not a place at all: the harness decides to
+       use it, the way it decides anything else, and the run is a turn you can
+       read afterwards. -->
   <nav id="modes" aria-label="Mode">
-    <button class="nav-row mode" data-mode="code" aria-current="true">
-      <svg class="ic"><use href="#i-code"></use></svg><span>Code</span>
-    </button>
-    <button class="nav-row mode" data-mode="talk">
-      <svg class="ic"><use href="#i-wave"></use></svg><span>Talk</span>
-    </button>
-    <button class="nav-row mode" data-mode="live">
-      <svg class="ic"><use href="#i-bolt"></use></svg><span>Live</span>
-    </button>
-    <button class="nav-row mode" data-mode="watch">
-      <svg class="ic"><use href="#i-screen"></use></svg><span>Autopilot</span>
+    <button class="nav-row mode" data-mode="chat" aria-current="true">
+      <svg class="ic"><use href="#i-code"></use></svg><span>Chat</span>
     </button>
     <button class="nav-row mode" data-mode="studio">
       <svg class="ic"><use href="#i-wand"></use></svg><span>Studio</span>
     </button>
-    <button class="nav-row mode" data-mode="search">
+  </nav>
+
+  <!-- Drawers, not modes. They open over the conversation and give it back. -->
+  <nav id="drawer-rail" aria-label="Tools">
+    <button class="nav-row" data-drawer="search">
       <svg class="ic"><use href="#i-search"></use></svg><span>Search</span>
     </button>
-    <button class="nav-row mode" data-mode="mail">
+    <button class="nav-row" data-drawer="mail">
       <svg class="ic"><use href="#i-mail"></use></svg><span>Mail</span>
     </button>
   </nav>
@@ -141,12 +145,26 @@
     <div id="session-title">No session</div>
     <span id="session-meta" class="meta"></span>
     <div class="spacer"></div>
-    <!-- One button, and it does the whole thing: switches the app to talking,
-         opens the microphone, and starts listening. Nothing else to set up,
-         because a mode you have to configure before you can speak is a mode
-         you use once. Pressing it again puts you back where you were. -->
-    <button id="talk-button" class="talk-button" title="Talk to it instead (one button — opens the microphone)">
+    <!-- Two buttons, and each one does the whole thing: opens the microphone
+         and starts listening, or ends the call. Nothing else to set up, because
+         a control you have to configure before you can speak is a control you
+         use once.
+
+         They are here rather than in the rail because a call is not a place.
+         You are still in the conversation — you can read what it said when the
+         call stops — and pressing Talk again puts you back exactly where you
+         were. That is the same guarantee the seven-mode version gave by making
+         them modes, without the cost of five extra places to be. -->
+    <button id="talk-button" class="talk-button" title="Talk to it instead (opens the microphone)">
       <svg class="ic"><use href="#i-wave"></use></svg><span>Talk</span>
+    </button>
+    <!-- Speech to speech, one model, no transcript in the middle. Latency and
+         prosody, paid for with choice: it is one vendor's model, it cannot run
+         on your own hardware, and everything said in the room goes to them
+         while it is open. Ordinary Talk routes dictation, thinking and speech
+         separately, so each of those can stay on your machine. -->
+    <button id="live-button" class="talk-button live-button" title="Speech to speech — one vendor's model, and they hear the room">
+      <svg class="ic"><use href="#i-bolt"></use></svg><span>Live</span>
     </button>
     <span id="diffstat" class="diffstat" hidden></span>
     <!-- Commit, from the project you are in. The bar only appears in a
@@ -267,12 +285,16 @@
 
   <div id="starters" hidden></div>
 
-  <!-- ------------------------------------------------------------ talk -->
-  <!-- Nothing to type into, deliberately. The whole surface is one control
-       and one transcript of what was said, because a mode whose promise is
-       "just talk to it" that still shows a text box is a mode people type
-       into. -->
-  <section id="pane-talk" class="pane" hidden>
+  <!-- ------------------------------------------------------ call surface -->
+  <!-- Not a mode. A call is a state of Chat, entered by the button in the bar,
+       and this is where it puts you while you are in it.
+
+       "Nothing to type into" is still the rule, and it is now a structural one
+       rather than a promise: the composer and the transcript are given back
+       rather than covered, so there is nothing left on screen to type into. A
+       "just talk to it" surface with a text box on it is a text box. -->
+  <section id="call-surface" class="call-surface" hidden>
+  <section id="call-talk" class="call-stage">
     <div class="talk-stage">
       <div id="talk-pet" class="talk-pet"></div>
       <button id="talk-orb" class="orb" aria-live="polite">
@@ -294,8 +316,7 @@
     </div>
   </section>
 
-  <!-- ------------------------------------------------------------ live -->
-  <section id="pane-live" class="pane" hidden>
+  <section id="call-live" class="call-stage" hidden>
     <div class="talk-stage">
       <div id="live-pet" class="talk-pet"></div>
       <button id="live-orb" class="orb live" aria-live="polite">
@@ -317,59 +338,11 @@
     <p class="explain warn live-note">
       This one is OpenAI's, and only OpenAI's: it cannot run on your own hardware, and
       everything said in the room goes to them for as long as it is open. The ordinary
-      Talk mode routes dictation, thinking and speech separately, so each of those can
-      stay on your machine.
+      Talk routes dictation, thinking and speech separately, so each of those can
+      stay on your machine. The same note is on the button, because a control
+      with a warning behind it is a warning nobody reads until after.
     </p>
   </section>
-
-  <!-- --------------------------------------------------------- autopilot -->
-  <section id="pane-watch" class="pane" hidden>
-    <form id="watch-start" class="watch-start">
-      <h2>Give it something to do</h2>
-      <textarea id="watch-goal" rows="3"
-        placeholder="Book a hotel in Tbilisi for the 14th to the 21st of October, two people, under 120 a night — show me the options before booking anything"></textarea>
-      <div class="watch-controls">
-        <label class="chip">Approval
-          <select id="watch-mode">
-            <option value="plan">plan first</option>
-            <option value="ask">ask first</option>
-            <option value="auto_edit">auto edit</option>
-            <option value="trusted" selected>trusted</option>
-            <option value="unrestricted">unrestricted</option>
-          </select>
-        </label>
-        <label class="chip" title="Only if you want it using the screen you are looking at">
-          <input type="checkbox" id="watch-share"> use my screen
-        </label>
-        <div class="spacer"></div>
-        <button id="watch-go" class="primary" type="submit">Start</button>
-      </div>
-      <p class="explain">
-        It gets a screen of its own — its own pointer, its own keyboard, its own windows —
-        so you keep using your computer while you watch. Tick "use my screen" only if you
-        want it driving the mouse on your desk.
-      </p>
-    </form>
-
-    <div id="watch-live" class="watch-live" hidden>
-      <div class="watch-screen">
-        <img id="watch-frame" alt="what the agent is looking at">
-        <div id="watch-offline" class="watch-offline" hidden>waiting for the first frame…</div>
-      </div>
-      <aside class="watch-side">
-        <div class="watch-head">
-          <span id="watch-goal-text" class="what"></span>
-          <span id="watch-stage" class="pill"></span>
-        </div>
-        <div id="watch-narration" class="watch-narration" role="log" aria-live="polite"></div>
-        <div class="watch-foot">
-          <div id="watch-pet" class="mini"></div>
-          <span id="watch-doing" class="meta">starting…</span>
-          <div class="spacer"></div>
-          <button id="watch-stop" class="danger small">Stop</button>
-        </div>
-      </aside>
-    </div>
   </section>
 
   <!-- ----------------------------------------------------------- studio -->
@@ -461,7 +434,7 @@
   </section>
 
   <!-- ----------------------------------------------------------- search -->
-  <section id="pane-search" class="pane" hidden>
+  <section id="drawer-search" hidden>
     <form id="search-form" class="search-form">
       <input id="search-q" placeholder="Search the web" autocomplete="off">
       <button class="primary" type="submit">Search</button>
@@ -484,8 +457,8 @@
        thing you were doing. The agent can read the same inbox through the
        `mail` tool — the two are the same server and the same accounts, and
        neither one has a copy of the other. -->
-  <section id="pane-mail" class="pane mail-pane" hidden>
-    <p id="mail-pane-note" class="meta mail-note"></p>
+  <section id="drawer-mail" class="mail-pane" hidden>
+    <p id="mail-note" class="meta mail-note"></p>
     <div class="mail-split">
       <nav id="mail-folders" class="mail-folders" aria-label="Folders"></nav>
       <div id="mail-list" class="mail-list" role="list" aria-label="Messages"></div>

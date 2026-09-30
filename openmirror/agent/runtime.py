@@ -15,6 +15,7 @@ from openmirror.agent import prompt as prompt_mod
 from openmirror.agent.approval import ApprovalPolicy, Mode
 from openmirror.agent.session import AgentSession
 from openmirror.agent.tools.ask import AskUserTool
+from openmirror.agent.tools.autopilot import AutopilotTool
 from openmirror.agent.tools.base import FILE_WRITERS, Tool
 from openmirror.agent.tools.code import ApplyPatchTool, MultiEditTool, OutlineTool, ReadFilesTool
 from openmirror.agent.tools.files import EditTool, ListDirTool, ReadTool, WriteTool
@@ -63,8 +64,15 @@ TOOLSETS: dict[str, tuple[str, ...]] = {
                 'desktop_scroll'),
     'system': ('system_info', 'package_search', 'package_install', 'package_remove',
                'display_info', 'display_hdr'),
-    'media': ('media_params', 'generate_image', 'generate_video', 'media_job', 'import_workflow'),
+    'media': ('media_params', 'generate_image', 'generate_video', 'generate_music',
+              'media_job', 'import_workflow', 'edit_media'),
     'memory': ('remember', 'recall'),
+    # Working unattended. Its own group rather than part of `desktop` because
+    # the tool is offered whether or not a screen is available — so the model
+    # can *find out* that there is none and say so, instead of not knowing the
+    # option exists. A capability you have to know about in advance is one you
+    # never reach for.
+    'autopilot': ('autopilot',),
 }
 
 
@@ -353,7 +361,11 @@ def build_session(
     if browser is not None:
         chosen = [*chosen, *browser_tools(browser)]
     if stage is not None:
-        chosen = [*chosen, *desktop_tools(stage)]
+        # Autopilot with the desktop tools, because it needs the same thing
+        # they do. It is not offered on an install with no screen: a tool that
+        # can only fail is worse than no tool, and the refusal message already
+        # says exactly what to install.
+        chosen = [*chosen, *desktop_tools(stage), AutopilotTool()]
     if media is not None:
         chosen = [*chosen, *media_tools(media)]
     if system:

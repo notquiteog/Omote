@@ -22,13 +22,15 @@ import { clear as clearAttachments, pending as pendingAttachments, wireAttachmen
 import { active as searchActive, wireHistory } from './history.js';
 import { setCommitRoot, wireCommit } from './commit.js';
 import { $, api, el, icon, json, onReachable, socket, took } from './dom.js';
-import { endLive, isLive, wireLive } from './live.js';
-import { wireMail } from './mail.js';
+import { wireLive } from './live.js';
+import { hooks as mailHooks, wireMail } from './mail.js';
 import { go, mode, onEnter, onLeave, wireModes } from './modes.js';
 import { focusSearch, wireSearch } from './search.js';
+import { closeDrawer, onDrawerChange, wireDrawers } from './drawers.js';
 import { cancel as cancelStream, flush as flushStream, queue } from './stream.js';
 import { openStudio, stopPolling, wireStudio } from './studio.js';
-import { startTalking, stopTalking, talking, wireTalk } from './talk.js';
+import { wireTalk } from './talk.js';
+import { call, endCall, wireCalls } from './call.js';
 import { renderContext, refreshContext, wireContext } from './context.js';
 import { onHookApproval, resetHooks, wireHooks } from './hooks.js';
 import { refreshWorktrees, wireWorktrees } from './worktree.js';
@@ -36,7 +38,7 @@ import { refreshReview, resetReview, wireReview } from './review.js';
 import { renderUpdate, watchUpdates, wireUpdates } from './updates.js';
 import { wireThemes } from './theme.js';
 import { Voice } from './voice.js';
-import { narrate, refreshRuns, wireWatch } from './watch.js';
+import { attach as attachAutopilot, narrate, reattach as reattachAutopilot, wireAutopilot } from './autopilot.js';
 
 function ago(seconds) {
   if (seconds < 60) return 'now';
@@ -425,6 +427,7 @@ const VERBS = {
   notebook_edit: 'Edited',
   todo: 'Updated the to-dos',
   propose_plan: 'Proposed a plan',
+  autopilot: 'Working unattended',
   agent: 'Delegated',
   skill: 'Used the skill',
   lsp: 'Asked the language server',
@@ -476,6 +479,12 @@ function setCard(card, on) {
 
 /* `host` is where the card goes: the transcript, or — for a subagent's call —
    the log inside the card of the call that started it. */
+/* Where the autopilot card goes. A module-level `let` rather than an argument
+   threaded through four functions, because it is set by exactly one event
+   (`tool.proposed` for an `autopilot` call) and read by exactly one
+   (`toolDone`, for the same call), and the pairing is by transcript order. */
+let autopilotHost = null;
+
 function toolCard(call, needsApproval, host = null) {
   const card = el('div', 'tool');
   const head = el('div', 'head');
@@ -499,6 +508,18 @@ function toolCard(call, needsApproval, host = null) {
   if (host) host.appendChild(card);
   else append(card);
   state.tools.set(call.id, card);
+
+  /* Autopilot's card goes inside its own tool card, because that is where the
+   * run now lives: it was a mode, and it was a mode because a person had to
+   * press a button to start it. The screen and the narration are exactly what
+   * a long tool call wants beside it, and after the run the narration is the
+   * record — a mode's live view would have been worth nothing by then.
+   *
+   * Opened rather than folded, and it folds itself when the turn ends. */
+  if (call.name === 'autopilot') {
+    card.classList.add('open', 'card', 'autopilot-call');
+    autopilotHost = card;
+  }
 
   if (needsApproval) {
     setCard(card, true);
@@ -636,6 +657,24 @@ function toolDone(result) {
   const shot = result.display && result.display.image;
   if (shot) {
     card.appendChild(renderScreenshot(result.display));
+  }
+
+  /* The autopilot card replaces the prose for this one call: the tool result
+   * is "you are working unattended until X", which is already on the card's
+   * head, and repeating it in an output pane is noise. */
+  if (result.name === 'autopilot' && result.ok && result.display && result.display.run) {
+    const node = attachAutopilot({
+      run: result.display.run,
+      goal: result.display.goal,
+      shares_pointer: result.display.shares_pointer,
+      session_id: state.sessionId,
+    });
+    if (node) card.appendChild(node);
+    if (result.display.already) {
+      card.classList.remove('open');
+      autopilotHost = null;
+    }
+    return;
   }
 
   const diff = result.display && result.display.diff;
@@ -2269,62 +2308,55 @@ function wire() {
 
 /* ------------------------------------------------------------------ modes */
 
-/* The one button. It does the whole thing — switches the app to talking and
-   opens the microphone — because a "talk mode" you then have to press a
-   second control to actually start talking in is two buttons wearing one
-   coat. Pressing it again puts you back where you were. */
-function wireTheOneButton() {
-  $('#talk-button').onclick = () => {
-    if (mode() === 'talk' || mode() === 'live') {
-      go('code');
-      return;
-    }
-    go('talk');
-    startTalking();
-  };
-}
-
-/* What each mode owns while it is on screen, and what it must give back.
+/* What Studio owns while it is on screen, and what it must give back.
  *
  * Handing things back is the half that matters. A microphone left open
- * because someone clicked away from Talk is a microphone left open; a frame
- * stream left running is a screen being captured for nobody. So every mode
+ * because someone clicked away from a call is a microphone left open; a frame
+ * stream left running is a screen being captured for nobody. So every surface
  * that takes a resource releases it here, in one place, rather than each of
- * them remembering to. */
+ * them remembering to — and the call surface releases itself when the mode
+ * changes, because going to make something and coming back to a live
+ * microphone is a surprise rather than a restored state. */
 function wireModeLifecycle() {
-  onEnter('talk', () => companion.set('idle'));
-  onLeave('talk', () => stopTalking());
-
-  onEnter('live', () => companion.set('idle'));
-  onLeave('live', () => endLive());
-
-  onEnter('watch', () => refreshRuns());
-
   onEnter('studio', () => openStudio());
-  onLeave('studio', () => stopPolling());
+  onLeave('studio', () => {
+    stopPolling();
+    endCall();
+  });
 
-  onEnter('search', () => focusSearch());
+  onEnter('chat', () => companion.set('idle'));
 }
 
 wire();
 wireMemory();
 wireBrowserChoice();
 wireRewind();
-wireTheOneButton();
 
 const sessionId = () => state.sessionId;
 const currentSession = () => (state.sessionId ? state.sessionId() : null);
 wireTalk({ sessionId });
 wireLive({ sessionId });
-wireWatch({
-  root: () => (state.info && state.info.root) || null,
-  // Autopilot's narration comes off the ordinary agent socket, so watching a
-  // run means attaching to its session — which also puts its approvals and
-  // questions in the Code tab, with the full context around them.
-  attach: (id) => selectSession(id),
-});
+// The two buttons in the bar. Each one opens the microphone and starts
+// listening; each one pressed again ends the call. There is no mode to switch
+// to first, because that was the only reason the button could not be pressed.
+wireCalls({ attach: (id) => selectSession(id) });
 wireSearch();
 wireMail();
+// Opening a drawer loads it. Mail says how; search just focuses the box.
+onDrawerChange((name) => {
+  if (name === 'mail') mailHooks.open();
+  if (name === 'search') focusSearch();
+});
+wireDrawers();
+// Autopilot is a tool call now, so its card is drawn by the transcript like any
+// other tool card — and its narration still comes off this socket, which is
+// why there is one reader of the event stream rather than two.
+wireAutopilot({
+  render: (node) => { if (autopilotHost) autopilotHost.appendChild(node); },
+});
+// A run somebody started before this page loaded, or from the CLI. Better than
+// showing an empty conversation next to an agent that is still working.
+reattachAutopilot();
 wireCommit();
 wireContext();
 wireThemes();
