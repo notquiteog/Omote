@@ -177,4 +177,16 @@ async def voice_socket(ws: WebSocket, token: str | None = Query(None)) -> None:
     except Exception:  # noqa: BLE001
         log.exception('voice socket failed')
     finally:
+        # Transcription now runs off the read loop, so there can be an
+        # utterance in flight that the client will never hear an answer to.
+        # `close` cancels the reply and the worker; `settle` is the courtesy
+        # call that lets an answer that has already been decided finish being
+        # spoken before the socket goes. Bounded, because the socket is gone.
+        try:
+            async with asyncio.timeout(2.0):
+                await session.settle()
+        except TimeoutError:
+            pass
+        except Exception:  # noqa: BLE001
+            log.debug('the voice session did not settle cleanly', exc_info=True)
         await session.close()

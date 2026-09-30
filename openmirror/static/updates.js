@@ -18,7 +18,7 @@
  * wants, and is not the same as being told about it and ignored forever.
  */
 
-import { $, el, json, post } from './dom.js';
+import { $, el, json, send } from './dom.js';
 import { installUpdate, isDesktop } from './native.js';
 
 const state = { last: null, poll: null, dismissing: false };
@@ -87,12 +87,32 @@ export function renderUpdate(info) {
   $('#update-dismiss').hidden = !info.available || state.dismissing;
   $('#update-apply').hidden = !(info.available && info.latest && info.latest.asset);
   $('#update-apply').textContent = info.staged ? 'Install' : 'Download';
-  $('#update-apply').disabled = Boolean(info.staged) || Boolean(info.downloading);
+  /* `staged` used to disable this permanently, which made the "Install"
+     label a button that could never be pressed: the only handler was
+     `download()`, which needs a fresh `/apply` that the disabled button could
+     no longer ask for. So a staged download on a browser install — where
+     nothing runs it for you, because `installUpdate` is a no-op off the
+     desktop — was a dead end. The staged file stays where it is and the
+     button stays live; what is disabled is only the work in progress. */
+  $('#update-apply').disabled = Boolean(info.downloading);
   $('#update-check').disabled = Boolean(info.downloading);
   $('#update-check').textContent = info.downloading ? 'Working…' : 'Check now';
   $('#update-current').title = info.enabled
     ? ''
     : 'Update checks are off on this install.';
+
+  /* A staged installer the browser cannot run itself needs the command to
+     type. On the desktop the app runs it and there is nothing to say. */
+  const hint = $('#update-staged');
+  if (hint) {
+    const staged = info.staged && info.latest && !info.downloading;
+    hint.hidden = !staged;
+    if (staged) {
+      hint.textContent = isDesktop
+        ? `On disk at ${info.staged}.`
+        : `On disk at ${info.staged}. Move to ${info.latest.version} with:`;
+    }
+  }
 }
 
 function setProgress(info) {
@@ -111,22 +131,68 @@ function setProgress(info) {
 
 async function check(force = true) {
   renderUpdate(state.last);
-  const got = await post('/api/update/check', { force, prerelease: false });
-  if (!got) return;
-  /* A 4xx is not a rejection — `post` resolves for any answer the server
-     gave. The detail is on the body, and for a check that means "not right
-     now" rather than an error worth shouting about. */
+  /* `send`, not `post`, and that distinction was the whole feature being
+     broken. `post` resolves with a `Response`, which has no `.data` — so
+     `body` was always `{}`, the new release and its notes and its error were
+     all discarded, and "Check now" appeared to do nothing. `download()` had the
+     same bug with a worse outcome: `body.path` was always falsy, so a
+     successful, checksum-verified download was reported as "it did not
+     download" and the install path was never reached at all.
+     `send` returns `{status, data, detail}`, which is what both of these want. */
+  const got = await send('/api/update/check', { force, prerelease: false });
   const body = got.data || {};
-  renderUpdate({ ...(state.last || {}), ...body, error: body.error || '' });
-  if (body.deferred) $('#update-error')?.append(
-    el('p', 'meta', body.deferred),
-  );
+  renderUpdate({ ...(state.last || {}), ...body, error: body.error || got.detail || '' });
+  /* `body.deferred` is the server saying "something is running, ask again" —
+     and it belongs with the other messages rather than in a `#update-error`
+     element that has never existed, which is why it could never be shown even
+     once the body was read correctly. */
+  if (body.deferred) $('#update-state')?.append(el('p', 'meta', body.deferred));
+}
+
+/* One button, two jobs, and which one is decided by whether a file is already
+   on disk.
+
+   They used to be conflated into a button that disabled itself once staged —
+   "Install", permanently unpressable, with `download()` as its only handler and
+   no way to trigger one. Split, and each half is the thing its label says. */
+async function install() {
+  const path = state.last && state.last.staged;
+  if (!path) return download();
+
+  $('#update-apply').disabled = true;
+  const box = $('#update-state');
+  const said = await installUpdate(path);
+  box.textContent = '';
+
+  if (!isDesktop) {
+    /* A tab cannot replace a binary. It says where the file is and what to
+       type, which is the honest answer rather than a button that does
+       nothing. */
+    box.appendChild(el('p', 'update-available', `${state.last.latest.version} is downloaded and checked.`));
+    box.appendChild(el('p', 'meta', said));
+    $('#update-apply').disabled = false;
+    return;
+  }
+
+  // The app runs the installer and restarts. On Windows and for an
+  // AppImage it comes straight back up; on macOS and a .deb the person
+  // finishes, and quitting under them would look like a crash — so the app
+  // only relaunches where it can.
+  box.appendChild(el('p', 'update-available', 'Starting it…'));
+  if (!String(said).startsWith('saved')) {
+    box.textContent = '';
+    box.appendChild(el('p', 'update-available', `${state.last.latest.version} is installing.`));
+    box.appendChild(el('p', 'meta', said));
+    return;
+  }
+  box.appendChild(el('p', 'meta', 'It is on disk and ready to run.'));
+  $('#update-apply').disabled = false;
 }
 
 async function download() {
   $('#update-apply').disabled = true;
   $('#update-apply').textContent = 'Working…';
-  const res = await post('/api/update/apply', {});
+  const res = await send('/api/update/apply', {}, { timeout: 600_000 });
   const body = res.data || {};
   const box = $('#update-state');
   box.textContent = '';
@@ -156,21 +222,21 @@ async function download() {
       box.appendChild(el('p', 'meta', body.next));
     }
   } else {
-    box.appendChild(el('p', 'update-error', body.detail || 'it did not download'));
+    box.appendChild(el('p', 'update-error', body.detail || res.detail || 'it did not download'));
     if (state.last) renderUpdate(state.last);
   }
 }
 
 async function dismiss() {
   state.dismissing = true;
-  await post('/api/update/dismiss', {});
+  await send('/api/update/dismiss', {});
   state.dismissing = false;
   if (state.last) renderUpdate({ ...state.last, available: false, latest: null });
 }
 
 export function wireUpdates() {
   $('#update-check').onclick = () => check(true);
-  $('#update-apply').onclick = download;
+  $('#update-apply').onclick = install;
   $('#update-dismiss').onclick = dismiss;
   json('/api/update/status').then((info) => {
     if (info) renderUpdate(info);

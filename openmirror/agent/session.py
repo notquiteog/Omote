@@ -39,6 +39,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from itertools import count
 from pathlib import Path
 from typing import Any
 
@@ -89,10 +90,22 @@ from openmirror.titles import needs_title, title_for
 
 log = logging.getLogger(__name__)
 
-# How many model round trips one user message may cost. A ceiling rather than
-# a target: hitting it means the agent is looping, and stopping with an
-# explanation beats burning tokens until someone notices the bill.
-MAX_STEPS = 60
+# How many model round trips one user message may cost. There is no ceiling,
+# and that is deliberate: the number is a guess about somebody else's task, and
+# it was wrong in the direction that costs the most. Sixty round trips is a
+# refactor of a small file. It is not enough for a migration across a
+# repository, an audit that reads every file, a long debugging session, or a
+# task a person deliberately kept going by adding to the to-do list — and
+# because the stop arrives as an error rather than a finish, the work is left
+# half done with no report.
+#
+# What stops a runaway model is not a step count but the repeat guard below,
+# which catches the actual failure — the same call with the same arguments,
+# over and over — and it catches it on the third try rather than the
+# sixtieth. A model that is genuinely working does not repeat itself, so
+# nothing is lost by letting it keep going; a model that is stuck is stopped
+# by the thing that detects being stuck.
+MAX_STEPS = 0
 
 # How many events one session keeps for replay. Roughly an afternoon of work.
 EVENT_LOG_LIMIT = 5000
@@ -111,6 +124,18 @@ EVENT_LOG_LIMIT = 5000
 # REPEAT_STOP is for when it is not.
 REPEAT_WARN = 3
 REPEAT_STOP = 6
+# Once the guard has refused a call, the model gets one more turn to notice. If
+# it asks for the same thing again, the turn ends.
+#
+# This is the other half of removing `MAX_STEPS`, and without it "no ceiling"
+# means no exit for a model that has lost the thread. The guard used to end at
+# REPEAT_STOP having said "you are stuck in a loop" into a tool result — an
+# intervention, not a termination — which is the right thing to try first
+# because a model that reads it usually stops. A model that does not read it
+# will ask again, and then ask again, and there is no longer anything counting
+# the number of times. Measured: `test_a_model_stuck_in_a_loop_is_still_stopped`
+# hung rather than failed.
+REPEAT_HALT = REPEAT_STOP + 1
 
 # Things typed into the composer that are about the conversation rather than
 # part of it. A slash followed by a skill's name runs the skill; a slash
@@ -388,6 +413,10 @@ class AgentSession:
         # (tool, arguments) -> how many times this turn has made that call.
         # Emptied per turn: a repeat across turns is a person asking twice.
         self._repeats: dict[str, int] = {}
+        # Set when the repeat guard has intervened on a call once and the model
+        # has asked for it again anyway. `_loop` reads it and stops. See
+        # `_note_repeat`, and `REPEAT_HALT`.
+        self._halted: str = ''
 
         self._approvals: dict[str, asyncio.Future[tuple[bool, str, bool]]] = {}
         self._questions: dict[str, asyncio.Future[str]] = {}
@@ -983,6 +1012,7 @@ class AgentSession:
             asyncio.create_task(self._safe_learn(text))
 
         self._repeats = {}
+        self._halted = ''
         self._fresh_summary = False
 
         # The first message names the conversation, but only while it is still
@@ -1084,7 +1114,13 @@ class AgentSession:
         done with what comes out.
         """
         nudged = False
-        for _step in range(self.max_steps):
+        # `max_steps` of zero — the default — is no ceiling: the loop runs
+        # until the model ends its turn, or until the repeat guard inside
+        # `_run_calls` stops a model that is stuck. `itertools.count` is the
+        # counter for that case; a finite one is honoured when a caller asked
+        # for a budget, which is what `--max-turns` is for.
+        steps = count() if not self.max_steps else range(self.max_steps)
+        for _step in steps:
             await self._maybe_compact(turn_id)
             assistant_blocks, calls, done = await self._one_exchange(turn_id)
 
@@ -1117,6 +1153,12 @@ class AgentSession:
             self._pending_images = []
             results = await self._run_calls(turn_id, calls)
 
+            # The repeat guard's verdict on a model that would not stop. Read
+            # before the results go back, because the turn is over and putting
+            # them back is asking the same question again.
+            if self._halted:
+                return await self._halt_turn(turn_id, self._halted)
+
             # Tool results go back as a user turn: that is where every
             # provider in use expects them, Anthropic and OpenAI alike.
             blocks: list[Any] = list(results)
@@ -1133,6 +1175,24 @@ class AgentSession:
             )
         )
         return 'max_steps'
+
+    async def _halt_turn(self, turn_id: str, why: str) -> str:
+        """End a turn the model will not finish, and say why.
+
+        Reported as an error rather than as a completion because a turn that
+        stops for no visible reason is the worst possible way to report that it
+        stopped — and this is the one time the session decides, so it has to
+        be the one time it explains itself.
+        """
+        self._halted = ''
+        await self._emit(
+            AgentError(
+                session_id=self.id,
+                turn_id=turn_id,
+                message=f'{why}. It was not run again.',
+            )
+        )
+        return 'looping'
 
     async def _one_exchange(self, turn_id: str) -> tuple[list[Any], list[ToolCall], StreamDone]:
         """One request to the model, streamed."""
@@ -1481,6 +1541,13 @@ class AgentSession:
         if seen >= REPEAT_STOP:
             log.info('session %s: stopping a repeated %s call (%d times)', self.id, call.name, seen)
             call.status = ToolStatus.DENIED
+            if seen >= REPEAT_HALT:
+                # It has been told, and it has asked again. Stop the turn —
+                # not the call, which was already refused — because with no
+                # step ceiling this is the only exit there is.
+                self._halted = (
+                    f'stopped after asking for the same thing {seen} times: {call.summary}'
+                )
             return ToolResultBlock(
                 tool_use_id=call.id,
                 content=(

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "openmirror"
-version = "0.7.0"
+dynamic = ["version"]
 description = "An open-source digital twin: PC control, duplex voice, opt-in memory, and per-modality provider choice."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -51,6 +51,13 @@ openmirror = "openmirror.main:main"
 # This install as an MCP server on stdio, for a client that would rather spawn
 # it than reach it over HTTP. See openmirror/mcp/server.py.
 openmirror-mcp = "openmirror.mcp.server:main"
+
+[tool.hatch.version]
+# The one place the version is written down is `openmirror/_version.py`, and it
+# is a module of the package so that a wheel, an editable install and a
+# PyInstaller bundle all carry the same number. Restating it here is what let a
+# frozen daemon report `0.0.0` and offer itself a downgrade — see that file.
+path = "openmirror/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["openmirror"]

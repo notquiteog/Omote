@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
 import aiohttp
@@ -55,6 +55,7 @@ from openmirror.providers.reasoning import (
     openai_takes_sampling,
     request_level,
 )
+from openmirror.providers.speech_audio import guard, resample, to_pcm16
 
 log = logging.getLogger(__name__)
 
@@ -137,6 +138,36 @@ def _stt_form(audio: bytes, model: str, language: str | None) -> aiohttp.FormDat
         form.add_field('language', language)
     form.add_field('response_format', 'json')
     return form
+
+
+# How much playable audio goes out per yield. Large enough that the per-chunk
+# barge-in check in the voice pipeline is not doing real work, small enough that
+# cancelling mid-sentence still drops most of it.
+SPEECH_CHUNK = 8192
+
+
+def _usable(body: bytes, content_type: str, *, model: str, provider: str, rate: int) -> Iterator[bytes]:
+    """A speech response as PCM16 at `rate`, in playable chunks.
+
+    Raises `SpeechFormatError` — refusing, with the format named — rather than
+    forwarding something the browser will play as static. That refusal is the
+    whole reason this module exists; see `openmirror/providers/speech_audio.py`.
+
+    Synchronous, and deliberately so: there is nothing in it to await, and
+    making it an async generator would mean the caller discovered that by
+    hitting a `TypeError` in a voice call. It is also called with a plain
+    `for`, while reading the response stays one cancellable `await` in the
+    caller — which is what keeps barge-in working mid-utterance.
+    """
+    pcm, found = to_pcm16(body, content_type, model=model, provider=provider)
+    if found and found != rate:
+        # The endpoint told us what it used and it is not what the client will
+        # play. Converting here is the only chance: the browser is told one rate
+        # and has no way to know another.
+        pcm = resample(pcm, found, rate)
+    pcm = guard(pcm)
+    for at in range(0, len(pcm), SPEECH_CHUNK):
+        yield pcm[at : at + SPEECH_CHUNK]
 
 
 class OpenAICompatProvider(ChatProvider, EmbeddingProvider, STTProvider, TTSProvider, ImageProvider):
@@ -373,6 +404,16 @@ class OpenAICompatProvider(ChatProvider, EmbeddingProvider, STTProvider, TTSProv
     async def synthesize(
         self, text: str, *, model: str, voice: str, fmt: str = 'pcm16', sample_rate: int = 16_000
     ) -> AsyncIterator[bytes]:
+        """Speech as raw PCM16, at this provider's declared output rate.
+
+        `sample_rate` is accepted and **ignored**, as it always has been: the
+        OpenAI speech endpoint has no rate parameter, so the request cannot ask
+        for one and honouring it would mean resampling on the way out. The rate
+        that is actually used is `output_sample_rate`, which is what the client
+        is told — see `speech_audio` for why that number has to come from
+        somewhere real rather than from whichever of three candidates happened
+        to be nearest.
+        """
         # 'pcm' is raw 24 kHz signed 16-bit little-endian on OpenAI and on
         # Kokoro. Asking for it rather than mp3 keeps a decoder out of the
         # voice path, which is worth a few hundred milliseconds per utterance.
@@ -386,10 +427,27 @@ class OpenAICompatProvider(ChatProvider, EmbeddingProvider, STTProvider, TTSProv
             async with session.post(f'{self.base_url}/audio/speech', json=payload, headers=self._headers()) as resp:
                 if resp.status != 200:
                     raise RuntimeError(f'{self.provider_id} tts: HTTP {resp.status}: {(await resp.text())[:300]}')
-                # Yielded as it arrives. Closing this iterator mid-utterance is
-                # what cancels a synthesis on barge-in.
-                async for chunk in resp.content.iter_chunked(4096):
-                    yield chunk
+                # Read before yielding rather than streaming.
+                #
+                # There is no streaming to preserve — the endpoint answers with
+                # the whole utterance or nothing — and three things have to
+                # happen to the bytes before any of them can be played: the
+                # content type has to be checked (a refusal for mp3 has to
+                # arrive *instead of* hiss, not after it), a WAV or JSON
+                # envelope has to be unwrapped, and the level has to be guarded.
+                # None of those is per-chunk work. A sentence is a few hundred
+                # kilobytes, and this `await` is still cancellable, so barge-in
+                # during the transfer still works.
+                body = await resp.read()
+                content_type = resp.headers.get('Content-Type', '')
+        for piece in _usable(
+            body,
+            content_type,
+            model=model,
+            provider=self.provider_id,
+            rate=self.output_sample_rate,
+        ):
+            yield piece
 
     async def voices(self) -> list[dict[str, Any]]:
         async with self._session() as session:

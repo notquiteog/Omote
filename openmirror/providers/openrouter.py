@@ -23,16 +23,21 @@ asks `/key`, which does refuse.
 
 **Speech comes back at whatever rate the voice was made at.** The rate is in
 the Content-Type — `audio/pcm;rate=24000` from Kokoro and Deepgram, `44100`
-from Fish Audio — while the voice call is told one rate when it opens. Audio
-at any other rate is resampled here rather than played nearly twice as slow.
+from Fish Audio — while the voice call is told one rate when it opens, so audio
+at any other rate is converted rather than played nearly twice as slow.
+
+What the body *is* matters more than what rate it claims. A gateway that
+answers `audio/mpeg` because it ignored `response_format` has those bytes
+forwarded as PCM by anything that trusts the request, and the result is
+full-scale hiss that no volume control reaches. So the content type is checked
+and compressed audio is refused by name — see `openmirror/providers/speech_audio.py`,
+which is where both that and the rate reconciliation live.
 """
 
 from __future__ import annotations
 
-import array
 import base64
 import logging
-import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
@@ -40,7 +45,7 @@ from openmirror.media.params import Param
 from openmirror.net.transport import Transport
 from openmirror.providers.base import GeneratedMedia, ImageProvider, Modality, refused
 from openmirror.providers.hosted_media import HostedMedia, Poll, Submitted, data_uri, sniff
-from openmirror.providers.openai_compat import OpenAICompatProvider
+from openmirror.providers.openai_compat import OpenAICompatProvider, _usable
 
 log = logging.getLogger(__name__)
 
@@ -127,35 +132,6 @@ def _seed(value: Any) -> int | None:
     return int(value)
 
 
-def _declared_rate(content_type: str) -> int | None:
-    match = re.search(r'rate=(\d+)', content_type)
-    return int(match.group(1)) if match else None
-
-
-def _resample(pcm: bytes, source: int, target: int) -> bytes:
-    """16-bit mono PCM from one rate to another, by linear interpolation.
-
-    Not what a studio would use, and it does not need to be: this is speech on
-    its way to a laptop speaker, every rate involved is well above what a voice
-    needs, and the alternative is a dependency.
-    """
-    samples = array.array('h')
-    samples.frombytes(pcm[: len(pcm) // 2 * 2])
-    if not samples or source == target:
-        return samples.tobytes()
-    count = int(len(samples) * target / source)
-    step = source / target
-    last = len(samples) - 1
-    out = array.array('h', bytes(2 * count))
-    for index in range(count):
-        position = index * step
-        left = int(position)
-        a = samples[left]
-        b = samples[left + 1] if left < last else a
-        out[index] = int(a + (b - a) * (position - left))
-    return out.tobytes()
-
-
 # ---------------------------------------------------------------------------
 # Chat, embeddings, dictation and speech
 # ---------------------------------------------------------------------------
@@ -201,18 +177,27 @@ class OpenRouterProvider(OpenAICompatProvider):
             async with session.post(f'{self.base_url}/audio/speech', json=payload, headers=self._headers()) as resp:
                 if resp.status != 200:
                     raise RuntimeError(f'{self.provider_id} tts: HTTP {resp.status}: {(await resp.text())[:300]}')
-                rate = _declared_rate(resp.headers.get('Content-Type', ''))
-                if fmt != 'pcm16' or rate in (None, self.output_sample_rate):
-                    # Streamed as it arrives: closing this iterator is how a
-                    # barge-in stops a synthesis already in flight.
-                    async for chunk in resp.content.iter_chunked(4096):
-                        yield chunk
-                    return
-                # Another rate. Resampled whole rather than chunk by chunk: it
-                # is one sentence, and an interpolator restarted at every chunk
-                # boundary clicks at every one of them.
-                pcm = await resp.read()
-        yield _resample(pcm, rate, self.output_sample_rate)
+                body = await resp.read()
+                content_type = resp.headers.get('Content-Type', '')
+        # The old code read `rate=` out of the content type and, when it was
+        # absent, streamed the bytes untouched — treating "I did not say" as
+        # "it is what I expected". That is how a 44.1 kHz voice came out played
+        # at 24 kHz: half speed, and aliasing on everything above the fold. The
+        # module docstring says speech comes back at whatever rate the voice was
+        # made at, so absence is a real case rather than a formality.
+        #
+        # It also never checked what the body *was*. A gateway that answered
+        # with mp3 had those bytes forwarded as PCM16 and heard as full-scale
+        # static, which no volume setting touches because the signal was never
+        # one. `_usable` refuses that by name instead.
+        for piece in _usable(
+            body,
+            content_type,
+            model=model,
+            provider=self.provider_id,
+            rate=self.output_sample_rate,
+        ):
+            yield piece
 
 
 # ---------------------------------------------------------------------------

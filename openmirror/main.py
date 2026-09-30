@@ -186,7 +186,13 @@ async def lifespan(app: FastAPI):
     await close_search_browser()
 
 
-app = FastAPI(title='openmirror', version='0.1.0', lifespan=lifespan)
+# `openmirror._version` rather than a literal: a hardcoded `0.1.0` here sat
+# beside a `pyproject.toml` saying `0.7.0` for the whole life of the project,
+# and it is exactly the defect `routers/updates.py` exists to avoid. The only
+# cost is importing a module with no dependencies in it, which is free.
+from openmirror._version import __version__ as version  # noqa: E402
+
+app = FastAPI(title='openmirror', version=version, lifespan=lifespan)
 
 # The token is enforced here, once, as middleware — before routing decides
 # anything, so a route added next year is covered without anyone remembering.

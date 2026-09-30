@@ -181,14 +181,41 @@ def test_a_post_that_wants_data_uses_send_and_not_post():
 
     Reading `data.message` off a `Response` is `undefined`, so the button did
     nothing and said nothing. Observed, not hypothesised.
+
+    `updates.js` is in this list because it was the one module with this bug
+    that nothing covered, and it was the worst instance of it: the Updates tab
+    read `.data` off three `post` responses, so a release that had been found,
+    fetched and checksum-verified was reported to the person as "it did not
+    download", and the install path was never reached at all. The feature had
+    never worked in a browser.
     """
     dom = (STATIC / 'dom.js').read_text()
     assert 'export async function send(' in dom
     assert 'detail' in dom
-    for module in (COMMIT, (STATIC / 'mail.js').read_text()):
+    for module in (COMMIT, (STATIC / 'mail.js').read_text(), (STATIC / 'updates.js').read_text()):
         assert 'await post(' not in module, 'a post that is read as data'
         assert 'await send(' in module
-        assert 'const { data, detail } = await send(' in module
+    assert 'const { data, detail } = await send(' in COMMIT
+    assert 'const { data, detail } = await send(' in (STATIC / 'mail.js').read_text()
+
+
+def test_the_update_button_can_still_be_pressed_once_something_is_staged():
+    """A staged download on a browser install used to be a dead end.
+
+    The button was labelled "Install" and disabled by the very `staged` flag
+    that chose the label, with `download()` as its only handler — so the second
+    half of the feature had no reachable control at all, and a tab (where
+    nothing runs the installer for you) had nowhere to go from a verified file
+    on disk.
+    """
+    updates = (STATIC / 'updates.js').read_text()
+    assert "onclick = install;" in updates, 'the button must dispatch to install, not only to download'
+    assert '$(\'#update-apply\').disabled = Boolean(info.downloading);' in updates, (
+        'a staged download must not disable the button that installs it'
+    )
+    assert "Boolean(info.staged) || Boolean(info.downloading)" not in updates
+    # And the two jobs are actually distinct functions, not one thing renamed.
+    assert 'async function download(' in updates and 'async function install(' in updates
 
 
 def test_the_draft_buttons_are_bounded():

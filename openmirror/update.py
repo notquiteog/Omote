@@ -39,6 +39,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import os
 import platform
 import re
 import sys
@@ -75,6 +76,37 @@ MAX_ASSET = 400 * 1024 * 1024
 # address, which is shared by a whole office. An hour between checks costs
 # nothing and a 403 does not.
 CHECK_INTERVAL = 3600
+# How many releases to ask for. This is 10 upstream's default and was 10 here,
+# which is fewer than a burst of release candidates: GitHub returns releases
+# newest-*created* first, not highest-*version* first, so ten rc tags in a
+# fortnight push the stable release that a 0.6 install needs out of the window
+# and the updater reports "nothing newer" while a newer version is sitting
+# there. One hundred covers that and costs one request either way.
+RELEASES_PER_PAGE = 100
+
+
+def github_token() -> str:
+    """A GitHub token from the environment, or ''.
+
+    Read here rather than imported from `agent/git.py` so that the updater has
+    no dependency on the agent package — it runs at start-up, before anything
+    else, and a version check should not be able to fail for a reason that has
+    nothing to do with versioning.
+
+    `GH_TOKEN` as well as `GITHUB_TOKEN` because `gh auth login` exports the
+    first and somebody who has set the CLI up is very likely to have it without
+    reasons to also export the second. It moves this install from 60 requests
+    an hour to 5000, which matters because the rate limit is per address and an
+    address is often a whole office.
+
+    The value is never logged, never put in an exception and never returned to
+    a caller that would show it.
+    """
+    for name in ('GITHUB_TOKEN', 'GH_TOKEN'):
+        token = os.environ.get(name, '').strip()
+        if token:
+            return token
+    return ''
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +241,7 @@ class Release:
     html_url: str = ''
     published: str = ''
     prerelease: bool = False
+    draft: bool = False
     assets: list[Asset] = field(default_factory=list)
 
     @property
@@ -216,21 +249,22 @@ class Release:
         return parse(self.tag)
 
     def checksums(self) -> dict[str, str]:
-        """The `SHA256SUMS.txt` asset, if the release has one.
+        """The published `SHA256SUMS.txt`, if it has been fetched already.
 
-        Parsed lazily and cached, because it is a second network request and
-        asking for it on every check would double the calls against a rate
-        limit that is sixty an hour.
+        This used to be a stub that always returned `{}` and replaced its own
+        `False` "not fetched yet" sentinel with that `{}` on the first call —
+        so the cache was permanently poisoned and the method was, in the end,
+        doing nothing. `fetch_checksums` did the work instead, and still does;
+        what this is now is a read of that work, with a sentinel that cannot
+        collide with the answer.
         """
-        if self._sums is not False:
-            return self._sums
-        self._sums = {}
-        return self._sums
+        return self._sums if isinstance(self._sums, dict) else {}
 
-    _sums: dict[str, str] | bool = field(default=False, repr=False)
+    _sums: dict[str, str] | None = field(default=None, repr=False)
 
     def public(self) -> dict[str, Any]:
         found = self.version
+        chosen = self.pick()
         return {
             'tag': self.tag,
             'version': str(found) if found else self.tag,
@@ -240,7 +274,7 @@ class Release:
             'url': self.html_url,
             'published': self.published,
             'prerelease': self.prerelease,
-            'asset': (self.pick().name if self.pick() else None),
+            'asset': chosen.name if chosen else None,
         }
 
     def pick(self) -> Asset | None:
@@ -255,9 +289,22 @@ def _release_from(raw: dict[str, Any]) -> Release:
         html_url=str(raw.get('html_url') or ''),
         published=str(raw.get('published_at') or ''),
         prerelease=bool(raw.get('prerelease')),
+        # Read even though it is not used here. It is invisible on an
+        # unauthenticated request — GitHub hides drafts from anonymous callers —
+        # and the moment somebody exports `GITHUB_TOKEN`, which the rate limit
+        # above makes likely, drafts start arriving in this list. Filtering them
+        # in `_newest` is a one-line guard that is much cheaper to add now than
+        # to notice later.
+        draft=bool(raw.get('draft')),
         assets=[
             Asset(
-                name=str(a.get('name') or ''),
+                # `Path(name).name` because this string is about to become a
+                # path. GitHub sanitises separators in asset names today, so
+                # this is defence in depth rather than a live hole — but it is
+                # the one place a name from the network becomes a filesystem
+                # path, and the desktop app that later runs it does not check
+                # containment either.
+                name=Path(str(a.get('name') or '')).name,
                 url=str(a.get('browser_download_url') or ''),
                 size=int(a.get('size') or 0),
                 content_type=str(a.get('content_type') or ''),
@@ -279,9 +326,14 @@ def platform_key(system: str | None = None, machine: str | None = None) -> str:
     machine = (machine or platform.machine()).strip().lower()
 
     arch = {
-        'x86_64': 'x64', 'amd64': 'x64', 'x64': 'x64',
-        'arm64': 'arm64', 'aarch64': 'arm64',
-        'x86': 'x86', 'i386': 'x86', 'i686': 'x86',
+        'x86_64': 'x64',
+        'amd64': 'x64',
+        'x64': 'x64',
+        'arm64': 'arm64',
+        'aarch64': 'arm64',
+        'x86': 'x86',
+        'i386': 'x86',
+        'i686': 'x86',
     }.get(machine, machine or 'x64')
 
     if system in ('darwin', 'macos', 'mac'):
@@ -442,8 +494,11 @@ class Updates:
                 'X-GitHub-Api-Version': '2022-11-28',
                 'User-Agent': f'openmirror/{self.state.current}',
             }
+            token = github_token()
+            if token:
+                headers['Authorization'] = f'Bearer {token}'
             try:
-                releases = await self._fetch(API + '/releases?per_page=10', headers)
+                releases = await self._fetch(f'{API}/releases?per_page={RELEASES_PER_PAGE}', headers)
             except NoReleasesYet:
                 # Checked, and there is nothing to check. Not an error, and it
                 # still counts as a check so the hour does not restart it.
@@ -451,8 +506,15 @@ class Updates:
                 self.state.error = ''
                 self.state.latest = None
                 return self.state.public()
-            except aiohttp.ClientError as exc:
-                self.state.error = f'could not reach GitHub ({exc})'
+            except (aiohttp.ClientError, TimeoutError) as exc:
+                # `TimeoutError` is in this tuple because on 3.11+
+                # `asyncio.TimeoutError is TimeoutError` and `TimeoutError` is
+                # an `OSError`, *not* an `aiohttp.ClientError` — so a slow or
+                # unreachable GitHub used to escape as an unhandled 500 rather
+                # than the message written for it here. The one caller that
+                # already had it right was `fetch_checksums`, which is what made
+                # this look like it worked.
+                self.state.error = f'could not reach GitHub ({exc or "it timed out"})'
                 return self.state.public()
             except ValueError as exc:
                 self.state.error = f'GitHub said something unexpected ({exc})'
@@ -474,11 +536,23 @@ class Updates:
                 async with client.get(url, headers=headers) as response:
                     if response.status == 403:
                         # Almost always the unauthenticated rate limit, and
-                        # saying so is more useful than "forbidden".
-                        remaining = response.headers.get('x-ratelimit-remaining', '?')
+                        # saying so is more useful than "forbidden" — but not
+                        # always. GitHub sets `x-ratelimit-remaining: 0` on the
+                        # rate limit and leaves it alone on a genuine refusal,
+                        # so the header is what tells the two apart. Telling them
+                        # apart matters: "nothing is wrong with this install" is
+                        # reassuring, and it is the wrong thing to say to
+                        # somebody whose egress proxy just refused the request.
+                        remaining = response.headers.get('x-ratelimit-remaining', '')
+                        if remaining.strip() == '0':
+                            raise ValueError(
+                                'GitHub rate limit reached (requests left: 0). It resets hourly; '
+                                'nothing is wrong with this install. Setting GITHUB_TOKEN raises '
+                                'the limit from 60 an hour to 5000.'
+                            )
                         raise ValueError(
-                            f'GitHub rate limit reached (requests left: {remaining}). '
-                            f'It resets hourly; nothing is wrong with this install.'
+                            f'GitHub refused the request (HTTP 403){" — a token is set but it is not accepted" if github_token() else ""}. '
+                            'Nothing is wrong with this install; the release list is simply not available.'
                         )
                     if response.status == 404:
                         raise NoReleasesYet(f'{REPO} has published no releases yet')
@@ -495,62 +569,114 @@ class Updates:
         checksum is allowed and said out loud: a release published without
         one is a packaging mistake, and refusing to update from it is a
         support ticket rather than a safety measure.
+
+        The lock is the same one `check` takes. Two `apply` calls at once wrote
+        to the same `.part` path and interleaved their progress counters, which
+        is the exact failure the lock's own docstring names and which only
+        `check` was actually using it for.
         """
         if asset.size and asset.size > MAX_ASSET:
             raise UpdateRefused(f'that release is {asset.size // (1024 * 1024)}MB, which is not an installer')
 
         self.staging.mkdir(parents=True, exist_ok=True)
-        target = self.staging / asset.name
+        # The name has already been reduced to its last segment by
+        # `_release_from`; this is the second check on the same door, and it is
+        # the one that matters because this is the line that joins it to a path.
+        target = (self.staging / Path(asset.name).name).resolve()
+        if target.parent != self.staging.resolve():
+            raise UpdateRefused(f'{asset.name} is not a filename, so it will not be downloaded')
         partial = target.with_suffix(target.suffix + '.part')
 
         headers = {'Accept': 'application/octet-stream', 'User-Agent': f'openmirror/{self.state.current}'}
-        self.state.downloading = True
-        self.state.progress = 0
-        self.state.downloaded = 0
-        self.state.staged = ''
-        try:
-            # transport-exempt: the release artifact named by GitHub, checked
-            # against the checksum published beside it. Same reasoning as
-            # `_fetch` above.
-            async with aiohttp.ClientSession() as client:
-                async with client.get(asset.url, headers=headers) as response:
-                    if response.status >= 400:
-                        raise UpdateRefused(f'GitHub returned HTTP {response.status} for {asset.name}')
-                    total = int(response.headers.get('content-length') or asset.size or 0)
-                    digest = hashlib.sha256()
-                    with partial.open('wb') as handle:
-                        async for chunk in response.content.iter_chunked(256 * 1024):
-                            handle.write(chunk)
-                            digest.update(chunk)
-                            self.state.downloaded += len(chunk)
-                            if total:
-                                self.state.progress = min(99, int(self.state.downloaded * 100 / total))
-            self.state.progress = 100
-        except aiohttp.ClientError as exc:
-            partial.unlink(missing_ok=True)
-            raise UpdateRefused(f'the download did not finish ({exc})') from exc
-        finally:
-            self.state.downloading = False
+        token = github_token()
+        if token:
+            headers['Authorization'] = f'Bearer {token}'
 
-        expected = (sums or {}).get(asset.name, '')
-        actual = digest.hexdigest()
-        if expected and expected.lower() != actual:
+        async with self.state._lock:
+            self.state.downloading = True
+            self.state.progress = 0
+            self.state.downloaded = 0
+            self.state.staged = ''
+            # Anything left by an earlier attempt — an interrupted run, or the
+            # orphan a timeout used to leave behind — is not wanted and must not
+            # be mistaken for a finished download.
             partial.unlink(missing_ok=True)
-            log.error('%s: sha256 %s, expected %s', asset.name, actual, expected)
-            raise UpdateRefused(
-                f'{asset.name} does not match the checksum published with it. It has been deleted and '
-                f'not installed. If this persists the release was cut badly — check the release page.'
-            )
-        partial.replace(target)
-        self.state.staged = str(target)
-        self.state.progress = 100
-        return {
-            'path': str(target),
-            'bytes': self.state.downloaded,
-            'sha256': actual,
-            'verified': bool(expected),
-            'expected': expected,
-        }
+            try:
+                # transport-exempt: the release artifact named by GitHub, checked
+                # against the checksum published beside it. Same reasoning as
+                # `_fetch` above.
+                async with aiohttp.ClientSession() as client:
+                    async with client.get(asset.url, headers=headers, timeout=None) as response:
+                        if response.status >= 400:
+                            raise UpdateRefused(f'GitHub returned HTTP {response.status} for {asset.name}')
+                        total = int(response.headers.get('content-length') or asset.size or 0)
+                        # What the server says it is sending. A truncated
+                        # download from a release with no `SHA256SUMS.txt` was
+                        # previously staged as a success, because the only
+                        # integrity check was a checksum that file may not
+                        # exist to provide.
+                        expected_bytes = total or asset.size
+                        if expected_bytes > MAX_ASSET:
+                            raise UpdateRefused(
+                                f'{asset.name} is {expected_bytes // (1024 * 1024)}MB, which is not an installer'
+                            )
+                        digest = hashlib.sha256()
+                        with partial.open('wb') as handle:
+                            async for chunk in response.content.iter_chunked(256 * 1024):
+                                # Also capped while streaming: `asset.size` is
+                                # GitHub's metadata, not a promise about what is
+                                # on the other end of the connection, and a
+                                # response with no `content-length` was written
+                                # to disk with no limit at all.
+                                self.state.downloaded += len(chunk)
+                                if self.state.downloaded > MAX_ASSET:
+                                    raise UpdateRefused(
+                                        f'{asset.name} is larger than any installer this project publishes; stopped'
+                                    )
+                                handle.write(chunk)
+                                digest.update(chunk)
+                                if expected_bytes:
+                                    self.state.progress = min(99, int(self.state.downloaded * 100 / expected_bytes))
+                if expected_bytes and self.state.downloaded != expected_bytes:
+                    raise UpdateRefused(
+                        f'{asset.name} arrived short — {self.state.downloaded} of {expected_bytes} bytes. '
+                        'It has been deleted and not installed; try again.'
+                    )
+                self.state.progress = 100
+            except (aiohttp.ClientError, TimeoutError) as exc:
+                # `TimeoutError` belongs here for the same reason it belongs in
+                # `check`, and the consequence of it missing was worse than a
+                # 500: the `unlink` only ran in the `ClientError` arm, so every
+                # interrupted download left a `.part` file behind that nothing
+                # ever swept up.
+                partial.unlink(missing_ok=True)
+                raise UpdateRefused(f'the download did not finish ({exc or "it timed out"})') from exc
+            except UpdateRefused:
+                partial.unlink(missing_ok=True)
+                raise
+            finally:
+                self.state.downloading = False
+
+            expected = (sums or {}).get(asset.name, '')
+            actual = digest.hexdigest()
+            if expected and expected.lower() != actual:
+                partial.unlink(missing_ok=True)
+                log.error('%s: sha256 %s, expected %s', asset.name, actual, expected)
+                raise UpdateRefused(
+                    f'{asset.name} does not match the checksum published with it. It has been deleted and '
+                    f'not installed. If this persists the release was cut badly — check the release page.'
+                )
+            partial.replace(target)
+            _make_runnable(target)
+            self.state.staged = str(target)
+            self.state.progress = 100
+            return {
+                'path': str(target),
+                'bytes': self.state.downloaded,
+                'sha256': actual,
+                'verified': bool(expected),
+                'expected': expected,
+            }
 
     async def fetch_checksums(self, release: Release) -> dict[str, str]:
         """The published `SHA256SUMS.txt`, parsed.
@@ -579,9 +705,44 @@ class Updates:
         for line in text.splitlines():
             parts = line.split(None, 1)
             if len(parts) == 2 and len(parts[0]) == 64:
-                out[parts[1].strip().lstrip('*')] = parts[0].lower()
+                # `sha256sum` writes `hash␠␠name` in text mode and `hash␠*name`
+                # in binary mode; the star marks a filename containing a
+                # backslash or newline. So the separator is stripped and *then*
+                # one leading star is removed — not `lstrip('*')`, which eats
+                # every leading star and would silently mangle a filename that
+                # genuinely starts with one.
+                name = parts[1].strip()
+                if name.startswith('*'):
+                    name = name[1:]
+                out[name] = parts[0].lower()
         release._sums = out
         return out
+
+
+def _make_runnable(path: Path) -> None:
+    """Give a staged installer its execute bit, on the platforms that have one.
+
+    This is not tidiness. The desktop app checks the mode before running
+    anything — `is_executable` in `desktop/src-tauri/src/main.rs` refuses a
+    staged file with no `0o111` bits — and a file created with `open('wb')`
+    gets `0o666 & ~umask`, which is `0o644` on an ordinary Linux box. So every
+    AppImage and every `.deb` the updater downloaded was refused by the only
+    thing that could run it, with "is not marked runnable", on every Unix
+    platform and for every release. Windows happened to work, because there the
+    same function returns `true` unconditionally.
+
+    The bit is set *after* the checksum is verified and the file is renamed into
+    place, so there is never a moment at which an unverified download is
+    executable.
+
+    Errors are swallowed deliberately: on Windows there is no execute bit, the
+    call is a no-op, and a filesystem that refuses the mode change is not a
+    reason to throw away a verified download.
+    """
+    try:
+        os.chmod(path, 0o755)
+    except OSError:  # pragma: no cover - platform and filesystem dependent
+        log.debug('could not mark %s runnable', path, exc_info=True)
 
 
 class UpdateRefused(RuntimeError):
@@ -591,11 +752,23 @@ class UpdateRefused(RuntimeError):
 def _newest(releases: list[Any], current: str, allow_prerelease: bool) -> Release | None:
     """The newest release worth offering.
 
-    A prerelease is skipped unless asked for *or* it is the only thing newer
-    than what is installed — otherwise an install sitting on `0.1.0` is shown
-    `0.2.0-rc.1`, which is a thing the author has not promised anybody.
+    A prerelease is skipped unless asked for, which is what the comment
+    elsewhere in this project promises: an install sitting on `0.1.0` is not
+    shown `0.2.0-rc.1`, which is a thing the author has not promised anybody.
+    (This docstring used to add "*or* it is the only thing newer than what is
+    installed", which the code below never did and a test contradicted — the
+    safe promise is the one worth keeping.)
+
+    Drafts are always skipped. GitHub hides them from unauthenticated callers,
+    so this guard does nothing until somebody sets `GITHUB_TOKEN` — and at that
+    moment, without it, the updater would cheerfully offer an unfinished
+    release.
     """
-    found = [r for r in (_release_from(raw) for raw in releases if isinstance(raw, dict)) if r.version]
+    found = [
+        release
+        for release in (_release_from(raw) for raw in releases if isinstance(raw, dict))
+        if release.version and not release.draft
+    ]
     found.sort(key=lambda r: _sort_key(r.version), reverse=True)  # type: ignore[arg-type]
     for release in found:
         if release.prerelease and not allow_prerelease:
@@ -636,6 +809,20 @@ def is_frozen() -> bool:
 
 
 __all__ = [
-    'API', 'Asset', 'NoReleasesYet', 'Release', 'UpdateRefused', 'UpdateState', 'Updates', 'Version',
-    'is_frozen', 'is_newer', 'parse', 'pick_asset', 'platform_key', 'sha256_file',
+    'API',
+    'BODY_LIMIT',
+    'Asset',
+    'NoReleasesYet',
+    'Release',
+    'UpdateRefused',
+    'UpdateState',
+    'Updates',
+    'Version',
+    'github_token',
+    'is_frozen',
+    'is_newer',
+    'parse',
+    'pick_asset',
+    'platform_key',
+    'sha256_file',
 ]

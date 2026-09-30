@@ -21,6 +21,18 @@ export class Player {
   constructor(rate) {
     this.rate = rate;
     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Every buffer goes through one gain node rather than straight to the
+    // speakers, because there was no gain stage at all — `source.connect(ctx
+    // .destination)` — and so no way to turn it down from inside the page. The
+    // system volume was the only control, which is why a distorted signal
+    // sounded the same at every setting: clipping happens before this point,
+    // and scaling down clipped audio gives quieter distortion, not cleaner.
+    //
+    // It is also where the peak ceiling goes. The server guards the signal, but
+    // a guard on a different machine from the speakers is a guard.
+    this.gain = this.ctx.createGain();
+    this.gain.connect(this.ctx.destination);
+    this.volume = 1;
     this.next = 0;
     this.sources = new Set();
     this.utterance = null;
@@ -28,24 +40,94 @@ export class Player {
     // protocol needs this on a barge-in: the server believes it delivered
     // everything it sent, and has to be told where the person stopped hearing.
     this.played = 0;
+    // How many buffers were dropped because they arrived after their slot. Not
+    // cosmetic: it is how a page reports that it cannot keep up, and zero is
+    // the only healthy answer.
+    this.late = 0;
+  }
+
+  /* The context starts suspended unless it was made inside a user gesture, and
+   * this one is made in a websocket message handler, which never is.
+   *
+   * A suspended context has a `currentTime` that does not move, so every
+   * `Math.max(this.next, this.ctx.currentTime)` below resolved to the same
+   * instant and the whole backlog was scheduled on top of itself. When
+   * something finally resumed it — a later gesture, another tab, the platform
+   * noticing — all of it played at once, which is a wall of overlapping
+   * speech at full amplitude. That is the other half of "blown out", and it is
+   * browser-dependent: Chrome usually resumes a document that has had a
+   * gesture, Safari and several webviews do not.
+   *
+   * So it is resumed explicitly, and asked to keep running rather than to
+   * suspend itself when the page is hidden — a backgrounded call should still
+   * be heard. */
+  async resume() {
+    if (this.ctx.state !== 'running') {
+      try { await this.ctx.resume(); } catch { /* needs a gesture; `push` will cope */ }
+    }
+    return this.ctx.state;
+  }
+
+  setVolume(volume) {
+    const wanted = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1;
+    this.volume = wanted;
+    // Set it on the node as well, so a change takes effect on audio already
+    // scheduled ahead of `currentTime` rather than at the next buffer.
+    try { this.gain.gain.setTargetAtTime(wanted, this.ctx.currentTime, 0.01); } catch { /* closed */ }
   }
 
   push(utteranceId, pcm) {
+    if (!pcm || !pcm.length || !this.rate) return;
     if (utteranceId !== this.utterance) {
       this.utterance = utteranceId;
       this.played = 0;
+      this.late = 0;
       // A small lead so the first buffer is not scheduled in the past on a
       // loaded machine, which drops it silently.
       this.next = this.ctx.currentTime + 0.06;
     }
+
     const buffer = this.ctx.createBuffer(1, pcm.length, this.rate);
     const channel = buffer.getChannelData(0);
-    for (let i = 0; i < pcm.length; i++) channel[i] = pcm[i] / 32768;
+    let peak = 0;
+    for (let i = 0; i < pcm.length; i++) {
+      const value = pcm[i] / 32768;
+      channel[i] = value;
+      const magnitude = value < 0 ? -value : value;
+      if (magnitude > peak) peak = magnitude;
+    }
+
+    // A last few tenths of a dB of headroom, and nothing more: this is not a
+    // normaliser and must not be, because a normaliser turns one very quiet
+    // sentence into a very loud one. `createBuffer` does not clip, so this is
+    // about the sum of overlapping buffers rather than about any one of them.
+    if (peak > 0.94) {
+      const scale = 0.94 / peak;
+      for (let i = 0; i < channel.length; i++) channel[i] *= scale;
+    }
 
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(this.ctx.destination);
-    const at = Math.max(this.next, this.ctx.currentTime);
+    source.connect(this.gain);
+
+    /* `max` used to mean "skip the gap", and it does — a buffer that arrives
+     * after its slot has passed is dropped, which is right, because the audio
+     * after it is already playing and inserting this one now would overlap.
+     *
+     * But it was also the *only* thing `next` was reset by, and it ran on
+     * every chunk. So a slow websocket or a loaded machine made `next` fall
+     * behind `currentTime` and stay there, and every subsequent chunk was
+     * dropped: the reply lost syllables and gained clicks, which reads as
+     * static. Now a buffer that is only *slightly* late is scheduled
+     * immediately rather than discarded, and only one that has fallen a whole
+     * buffer-length behind is counted as dropped. */
+    const now = this.ctx.currentTime;
+    const behind = now - this.next;
+    if (behind > buffer.duration) {
+      this.late += pcm.length;
+      this.next = now + 0.02;
+    }
+    const at = Math.max(this.next, now);
     source.start(at);
     this.next = at + buffer.duration;
     this.played += pcm.length;
@@ -69,6 +151,7 @@ export class Player {
     this.sources.clear();
     this.next = 0;
     this.played = 0;
+    this.late = 0;
     this.utterance = null;
   }
 
@@ -78,6 +161,7 @@ export class Player {
 
   close() {
     this.cancel();
+    try { this.gain.disconnect(); } catch { /* already gone */ }
     try { this.ctx.close(); } catch { /* already closed */ }
   }
 }
@@ -210,6 +294,10 @@ export class Voice {
     switch (ev.type) {
       case 'voice.ready':
         this.player = new Player(ev.output_format.sample_rate);
+        // Resumed here and not lazily on the first buffer, because the first
+        // buffer is the one that has to be scheduled at an instant the context
+        // will actually reach. See `Player.resume`.
+        this.player.resume();
         this.capture.start(ev.format.sample_rate, (buf) => {
           if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(buf);
         }).catch((err) => this.fire('error', `the microphone could not start: ${err.message}`));

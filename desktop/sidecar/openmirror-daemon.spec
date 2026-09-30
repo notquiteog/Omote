@@ -10,7 +10,12 @@
 import os
 import pathlib
 
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
+from PyInstaller.utils.hooks import (
+    collect_data_files,
+    collect_dynamic_libs,
+    collect_submodules,
+    copy_metadata,
+)
 
 # Every module, not only the ones an import statement reaches. Providers, tools
 # and routers are found by name at run time in places, and a module that
@@ -21,6 +26,16 @@ hiddenimports = collect_submodules('openmirror')
 # The page itself, the bundled skills and the ComfyUI workflows: everything in
 # the package that is not Python.
 datas = collect_data_files('openmirror')
+
+# openmirror's own distribution metadata, which nothing collects on its own.
+#
+# Dependencies' metadata does come along — their PyInstaller hooks pull it —
+# which is why a frozen daemon had `numpy-2.5.3.dist-info` beside it and no
+# `openmirror-*.dist-info` at all, and so read its own version through
+# `importlib.metadata` and got nothing. The version now lives in
+# `openmirror/_version.py`, which `collect_submodules` above does reach, so this
+# is the second belt rather than the only braces.
+datas += copy_metadata('openmirror')
 
 # sqlite-vec is a loadable SQLite extension that sits beside its __init__ as a
 # plain file, which no import ever names. Without this the release falls back

@@ -431,23 +431,43 @@ fn unique(dir: &Path, name: &str) -> PathBuf {
 /// SHA256 published in the same release (see `openmirror/update.py`). This
 /// function does not re-verify and does not need to: it is the same
 /// filesystem and the same minute. It does check that the file is there, is a
-/// regular file, and is inside the staging directory — a path from the web
-/// layer is a path from a browser, and `sh -c` on one of those is the oldest
-/// bug in this shape of program.
+/// regular file, is runnable, and is inside the staging directory — a path
+/// from the web layer is a path from a browser, and `sh -c` on one of those is
+/// the oldest bug in this shape of program.
+///
+/// That last check used to be described here and not implemented: `grep` for
+/// `canonicalize` in this file found nothing, and the claim was doing the work
+/// of the code. It is written now — `staged_under` — for the reason the rest
+/// of this function exists, not because the docstring said so.
 #[tauri::command]
 fn apply_update(app: AppHandle, path: String) -> Result<String, String> {
     let installer = PathBuf::from(&path);
 
+    if !staged_under(&installer) {
+        return Err(format!(
+            "{path} is not in openmirror's update directory, so this will not run it"
+        ));
+    }
     if !installer.is_file() {
         return Err(format!("{path} is not there any more"));
     }
     // Reject a symlink: the daemon stages a regular file, so a symlink here
-    // means something replaced it between the check and now.
+    // means something replaced it between the check and now. Checked on the
+    // resolved path as well, so a link *into* the staging directory cannot be
+    // used to point somewhere else.
     if installer.symlink_metadata().map(|m| m.file_type().is_symlink()).unwrap_or(false) {
         return Err("that is a link, not the download".into());
     }
     if !is_executable(&installer) {
-        return Err(format!("{} is not marked runnable", installer.display()));
+        // The daemon marks a staged installer runnable after it has verified
+        // the checksum, so this should never fire. It is reported plainly
+        // rather than as a permission error, because when it does fire the
+        // cause is upstream and a message about modes sends somebody looking in
+        // the wrong place.
+        return Err(format!(
+            "{} is not marked runnable — this looks like a packaging fault, not something you did",
+            installer.display()
+        ));
     }
 
     let name = installer.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
@@ -510,6 +530,61 @@ fn relaunch(app: &AppHandle) {
             .spawn();
     }
     app.exit(0);
+}
+
+/// Whether `path` is one of the files the daemon staged, and nothing else.
+///
+/// The daemon stages into `OPENMIRROR_UPDATE_DIR`, or
+/// `OPENMIRROR_DATA_DIR/updates`, or — when neither is set — `data/updates`
+/// relative to wherever it was started. This asks the same question the same
+/// way, from the same settings, so a path cannot be made to look like it is
+/// inside the staging directory by putting a `..` in it or by aiming a link
+/// at it: both sides resolve symlinks and both compare the resolved parent.
+///
+/// Deriving the answer from the page would be no answer at all, which is why
+/// this reads the settings rather than accepting a directory alongside the
+/// path. The daemon is the only thing that knows where it put things; the
+/// hazard of two implementations disagreeing is met by
+/// `update_staging_matches_the_daemon`, which asserts they still agree.
+fn staged_under(path: &Path) -> bool {
+    let Some(staging) = staging_dir() else {
+        return false;
+    };
+    let Ok(staging) = staging.canonicalize() else {
+        return false;
+    };
+    let Ok(resolved) = path.canonicalize() else {
+        // Not there any more, or not readable. Either way it is not something
+        // to run, and the caller's own "is not there any more" message is the
+        // clearer one, so only the containment verdict is reported here.
+        return false;
+    };
+    resolved.parent() == Some(staging.as_path())
+}
+
+/// The daemon's staging directory, found the way `openmirror/config.py` finds
+/// it: an explicit override, then the data directory, then `data/updates`
+/// relative to the directory the daemon runs in — which for a daemon this app
+/// started is the user's home, with `OPENMIRROR_DATA_DIR` pointed at
+/// `~/.openmirror/data`. See `daemon.rs` for how that pair is set.
+fn staging_dir() -> Option<PathBuf> {
+    if let Some(explicit) = non_empty("OPENMIRROR_UPDATE_DIR") {
+        return Some(PathBuf::from(explicit));
+    }
+    let data = match non_empty("OPENMIRROR_DATA_DIR") {
+        Some(set) => PathBuf::from(set),
+        None => home_root()?.join("data"),
+    };
+    Some(data.join("updates"))
+}
+
+fn non_empty(key: &str) -> Option<String> {
+    std::env::var(key).ok().filter(|value| !value.trim().is_empty())
+}
+
+fn home_root() -> Option<PathBuf> {
+    let user = non_empty("HOME").or_else(|| non_empty("USERPROFILE"))?;
+    Some(PathBuf::from(user).join(".openmirror"))
 }
 
 #[cfg(unix)]
@@ -752,5 +827,86 @@ mod tests {
         std::fs::write(dir.join(".env"), b"").unwrap();
         assert_eq!(unique(&dir, ".env"), dir.join(".env (1)"));
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn only_a_staged_file_is_runnable() {
+        /* `apply_update`'s docstring said it checked the path was inside the
+           staging directory. It did not: there was no `canonicalize` anywhere
+           in this file, so the claim was doing the work of the code. This is
+           the code.
+
+           Both sides resolve symlinks and compare the resolved parent, so
+           neither a `..` in the path nor a link aimed at the staging directory
+           gets anything run that the daemon did not put there. */
+        let root = std::env::temp_dir().join(format!(
+            "openmirror-staging-test-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let staging = root.join("updates");
+        let elsewhere = root.join("elsewhere");
+        std::fs::create_dir_all(&staging).unwrap();
+        std::fs::create_dir_all(&elsewhere).unwrap();
+
+        let staged = staging.join("openmirror_1.0.0_amd64.AppImage");
+        let stranger = elsewhere.join("something-else");
+        std::fs::write(&staged, b"x").unwrap();
+        std::fs::write(&stranger, b"x").unwrap();
+
+        // One test rather than two, because both halves mutate the process
+        // environment and cargo runs tests on one thread. Which of these two
+        // loses that race is not something a test should be deciding.
+        let saved_dir = std::env::var_os("OPENMIRROR_DATA_DIR");
+        let saved_update = std::env::var_os("OPENMIRROR_UPDATE_DIR");
+        std::env::set_var("OPENMIRROR_DATA_DIR", &root);
+
+        assert!(staged_under(&staged), "the file the daemon staged must be runnable");
+        assert!(!staged_under(&stranger), "a file elsewhere must not be runnable");
+        assert!(!staged_under(&staging.join("never-downloaded.AppImage")), "a missing file is not runnable");
+
+        #[cfg(unix)]
+        {
+            let out = staging.join("out.AppImage");
+            let _ = std::fs::remove_file(&out);
+            std::os::unix::fs::symlink(&stranger, &out).unwrap();
+            assert!(out.is_file(), "a link to a file is still a file, which is the trap");
+            assert!(!staged_under(&out), "a link out of staging must not be runnable");
+            let _ = std::fs::remove_file(&out);
+
+            let inside = staging.join("real.AppImage");
+            std::fs::write(&inside, b"x").unwrap();
+            let alias = staging.join("alias.AppImage");
+            let _ = std::fs::remove_file(&alias);
+            std::os::unix::fs::symlink(&inside, &alias).unwrap();
+            // Resolves to a file genuinely in staging, so it is allowed — the
+            // symlink refusal in `apply_update` is a second line, and it says
+            // something different.
+            assert!(staged_under(&alias), "a link that stays inside staging is still ours");
+            let _ = std::fs::remove_file(&alias);
+            let _ = std::fs::remove_file(&inside);
+        }
+
+        // The same lookup the daemon's `update_staging` default does, in the
+        // same order. An explicit update directory wins; a blank one counts as
+        // absent, because the daemon's config treats a blank value as absent.
+        std::env::set_var("OPENMIRROR_UPDATE_DIR", "/mnt/big/updates");
+        assert_eq!(staging_dir(), Some(PathBuf::from("/mnt/big/updates")));
+
+        std::env::set_var("OPENMIRROR_UPDATE_DIR", "  ");
+        assert_eq!(staging_dir(), Some(staging.canonicalize().unwrap()));
+
+        std::env::remove_var("OPENMIRROR_UPDATE_DIR");
+        assert_eq!(staging_dir(), Some(staging.canonicalize().unwrap()));
+
+        match saved_dir {
+            Some(value) => std::env::set_var("OPENMIRROR_DATA_DIR", value),
+            None => std::env::remove_var("OPENMIRROR_DATA_DIR"),
+        }
+        match saved_update {
+            Some(value) => std::env::set_var("OPENMIRROR_UPDATE_DIR", value),
+            None => std::env::remove_var("OPENMIRROR_UPDATE_DIR"),
+        }
+        std::fs::remove_dir_all(&root).unwrap();
     }
 }

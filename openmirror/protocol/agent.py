@@ -225,7 +225,7 @@ class QuestionAsked(_Event):
 class TurnCompleted(_Event):
     type: Literal['turn.completed'] = 'turn.completed'
     turn_id: str
-    stop_reason: Literal['end_turn', 'interrupted', 'max_steps', 'error'] = 'end_turn'
+    stop_reason: Literal['end_turn', 'interrupted', 'max_steps', 'looping', 'error'] = 'end_turn'
     usage: dict[str, int] = Field(default_factory=dict)
     #: How full the next request will be, and how much of the allowance that
     #: is. `tokens` is the daemon's own estimate and `limit` is the point the

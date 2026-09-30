@@ -35,6 +35,7 @@ from pathlib import Path
 import pytest
 
 from openmirror import cli
+from openmirror.agent.session import REPEAT_STOP
 from openmirror.providers.base import StreamDone, StreamText, StreamToolUse
 from openmirror.sessions import SessionStore, Stored
 from tests.test_agent import ScriptedProvider
@@ -532,6 +533,117 @@ def test_max_turns_bounds_the_run(runner, tmp_path, capsys):
     assert code == cli.FAILED, 'running out of steps is the agent not having answered'
     assert 'step' in err
     assert provider.calls == 3
+
+
+def test_there_is_no_ceiling_on_a_turn(runner, tmp_path):
+    """A long task is not a failure, so the loop does not impose one.
+
+    There used to be a ceiling of sixty round trips, and it was a guess about
+    somebody else's task that happened to be wrong in the direction that
+    costs the most: sixty is plenty for a small refactor and nowhere near
+    enough for a repository-wide change or an audit that reads everything. The
+    stop also arrived as an error, so the work was simply left half done.
+
+    So the default is no limit at all, and this is the assertion: a provider
+    that works for a hundred and twenty steps and then finishes gets to
+    finish. `--max-turns` above is still there for a run that wants a budget;
+    this is about what happens when nobody asks for one.
+
+    Each step asks for a *different* directory, because that is what a long task
+    looks like — a migration, an audit, a read of every file. A model that
+    called one tool with one set of arguments a hundred and twenty times would
+    not be doing a long task; it would be the loop the guard below is for, and
+    making this test use one would have been making it assert the opposite of
+    what it says.
+    """
+    long_task = 120
+
+    class Persistent:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def stream(self, _request):  # noqa: ANN001
+            self.calls += 1
+            if self.calls < long_task:
+                yield StreamToolUse(
+                    id=f'c{self.calls}', name='list_dir', input={'path': f'step{self.calls}'}
+                )
+                yield StreamDone(stop_reason='tool_use')
+            else:
+                yield StreamText(text='finished')
+                yield StreamDone()
+
+        async def models(self):
+            return []
+
+    provider = runner(None, impl=Persistent())
+    assert cli.main(['run', '-p', 'a long job', '--root', str(tmp_path), '--quiet']) == cli.OK
+    assert provider.calls == long_task, 'the turn was cut short by a step limit'
+
+
+def test_a_model_stuck_in_a_loop_is_still_stopped(runner, tmp_path):
+    """The ceiling is gone, so the thing that catches a runaway has to work.
+
+    Sixty identical calls to a tool with no side effects is the failure the
+    old step limit was catching by accident. It is caught now by the repeat
+    guard, and the point of this test is that removing the ceiling did not
+    remove the protection with it.
+
+    The guard escalates rather than refusing once. On the sixth identical call
+    the call is denied *and the model is told, in the tool result it is already
+    reading, that it is looping* — which usually works, because a model that
+    reads it stops. This one does not read it, so the seventh identical call
+    ends the turn. Without that second step "no ceiling" means no exit at all:
+    this test hung instead of failing, which is the shape of the bug.
+    """
+    class Stuck:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def stream(self, _request):  # noqa: ANN001
+            self.calls += 1
+            yield StreamToolUse(id=f'c{self.calls}', name='list_dir', input={'path': '.'})
+            yield StreamDone(stop_reason='tool_use')
+
+        async def models(self):
+            return []
+
+    provider = runner(None, impl=Stuck())
+    code = cli.main(['run', '-p', 'go', '--root', str(tmp_path), '--quiet'])
+    assert code != cli.OK, 'a loop that never ends is not a successful answer'
+    assert provider.calls < 60, 'the repeat guard did not stop it, so only the ceiling did'
+    assert provider.calls <= REPEAT_STOP + 1, 'it should have stopped as soon as it was told'
+
+
+def test_a_model_that_answers_the_warning_is_left_alone(runner, tmp_path):
+    """The guard's first move is an intervention, not a termination.
+
+    A model told it is repeating usually stops and says something useful, and
+    ending the turn there would throw away everything it had got right. So this
+    one repeats five times — one past the warning, one short of being cut off —
+    and then finishes normally.
+    """
+    patient = REPEAT_STOP - 1
+
+    class ReadsTheWarning:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def stream(self, _request):  # noqa: ANN001
+            self.calls += 1
+            if self.calls <= patient:
+                yield StreamToolUse(id=f'c{self.calls}', name='list_dir', input={'path': '.'})
+                yield StreamDone(stop_reason='tool_use')
+            else:
+                yield StreamText(text='I was looking in the wrong place; it is in src.')
+                yield StreamDone()
+
+        async def models(self):
+            return []
+
+    provider = runner(None, impl=ReadsTheWarning())
+    assert cli.main(['run', '-p', 'where is it', '--root', str(tmp_path), '--quiet']) == cli.OK
+    assert provider.calls == patient + 1, 'the turn ended early on a model that was making progress'
 
 
 def test_the_clock_stops_a_run_that_will_not_finish(runner, tmp_path, capsys):

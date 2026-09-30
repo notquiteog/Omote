@@ -30,36 +30,46 @@ from pydantic import BaseModel, Field
 
 from openmirror.agent.manager import manager
 from openmirror.config import config
-from openmirror.update import REPO, UpdateRefused, Updates, is_newer
+from openmirror.update import BODY_LIMIT, REPO, UpdateRefused, Updates, is_newer
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix='/api/update')
 
-def version() -> str:
-    """What this install is, from its own metadata.
 
-    A literal here was a second place for the version to be wrong, and the CI
-    check only looks at pyproject.toml and Cargo.toml — so a bump could pass
-    every check and still ship a daemon that reports the old number to the
-    updater, which is a daemon that never offers itself an update.
+def version() -> str:
+    """What this install is.
+
+    `openmirror/_version.py` first, and it is not a close second: it is a module
+    of the package, so the wheel, an editable install and a PyInstaller bundle
+    all carry it, and a frozen daemon is the only install for which the update
+    path below matters at all. It used to fall through to `0.0.0` there — the
+    bundle has no `pyproject.toml` beside it and the spec did not collect the
+    project's own distribution metadata — and `0.0.0` is older than everything
+    ever published, so every release counted as newer and the updater was one
+    request away from handing an install on 0.7.0 a build of 0.1.0.
+
+    The other two sources stay as fallbacks, because a source checkout where
+    someone has edited `pyproject.toml` and not the module is better served by
+    the file they just touched.
     """
-    # The file first, and the installed metadata second, which is the opposite
-    # of the usual order and is right for both cases.
-    #
-    # A frozen daemon has no pyproject.toml beside it, so it reads the
-    # metadata frozen in with it — authoritative, and the only option. A
-    # daemon running from a source tree *does* have one, and there the
-    # installed metadata is the stale one: an editable install still says
-    # 0.1.0 the moment pyproject is bumped, so a version read from it would
-    # keep reporting the number this checkout stopped being several commits
-    # ago, and would offer itself a downgrade.
+    try:
+        from openmirror._version import __version__
+
+        if __version__:
+            return str(__version__)
+    except ImportError:  # pragma: no cover - a partial install
+        pass
+
     import tomllib
     from pathlib import Path
 
     pyproject = Path(__file__).resolve().parents[2] / 'pyproject.toml'
     try:
-        return str(tomllib.loads(pyproject.read_text())['project']['version'])
+        text = tomllib.loads(pyproject.read_text())
+        declared = text['project'].get('version')
+        if declared:
+            return str(declared)
     except (OSError, KeyError, ValueError):
         pass
     from importlib.metadata import PackageNotFoundError
@@ -68,6 +78,9 @@ def version() -> str:
     try:
         return installed('openmirror')
     except PackageNotFoundError:
+        # Not a number anybody should compare against, so say so rather than
+        # pretending: `is_newer` refuses to act on an unparseable version, and
+        # that refusal is the safe direction.
         return '0.0.0'
 
 
@@ -133,7 +146,15 @@ async def apply(body: ApplyBody) -> dict[str, Any]:
     if release is None or (body.tag and body.tag != release.tag):
         # Somebody named a tag we have not fetched. Check first, so the answer
         # is about a release that exists.
-        await updates.check(force=True, allow_prerelease=body.prerelease or bool(body.tag))
+        #
+        # `allow_prerelease` is `body.prerelease` and nothing else. It used to be
+        # `body.prerelease or bool(body.tag)`, on the theory that naming a
+        # release candidate was asking for one — which it is, but a stable
+        # install has no way to *become* a candidate install, so `apply` is the
+        # wrong verb for that opinion and the flag is where it belongs. As it
+        # stood, naming any tag opted a stable install into candidates, which
+        # contradicts what the README promises.
+        await updates.check(force=True, allow_prerelease=body.prerelease)
         release = updates.state.latest
     if release is None:
         raise HTTPException(status_code=404, detail='no release newer than this one was found')
@@ -165,14 +186,14 @@ async def apply(body: ApplyBody) -> dict[str, Any]:
         **fetched,
         'tag': release.tag,
         'version': str(release.version or release.tag),
-        'notes': (release.body or '')[:600],
+        'notes': (release.body or '')[:BODY_LIMIT],
         'url': release.html_url,
         'frozen': config.is_frozen,
         'next': (
             'the app will offer to install it and restart'
             if config.is_frozen
             else f'this is a pip install, not a bundled app: run `pip install --upgrade '
-                 f'git+https://github.com/{REPO}@{release.tag}` to move to {release.tag}'
+            f'git+https://github.com/{REPO}@{release.tag}` to move to {release.tag}'
         ),
     }
 
