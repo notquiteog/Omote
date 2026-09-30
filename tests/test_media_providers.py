@@ -13,12 +13,17 @@ import base64
 import hashlib
 import hmac
 import json
+import subprocess
+import tempfile
+from pathlib import Path
 
 import pytest
 
+import openmirror.media.edit as edit_ops
 from openmirror.media.params import coerce
 from openmirror.providers.hosted_media import HostedMedia, Poll, Submitted, sniff, urls_in
 from openmirror.providers.openapi_form import params_from_openapi
+from openmirror.providers.registry import NoProviderError, ProviderRegistry
 
 # ---------------------------------------------------------------------------
 # A model's schema becomes a form
@@ -603,3 +608,231 @@ async def test_a_key_the_model_made_up_is_refused_before_anything_is_written(tmp
     tool = ComposeMusicTool(None)
     graded = tool.assess({'key': 'Q sharp major', 'progression': 'I-V'}, None)
     assert graded.invalid and 'C major' in graded.invalid
+
+
+# --- editing -----------------------------------------------------------------
+
+
+def _image(tmp_path, size=(400, 300), colour=(255, 0, 0)):
+    from PIL import Image
+
+    path = tmp_path / 'picture.png'
+    Image.new('RGB', size, colour).save(path)
+    return path
+
+
+def test_a_picture_is_cropped_and_the_result_is_a_real_file(tmp_path):
+    from openmirror.media.edit import image
+
+    source = _image(tmp_path)
+    target = tmp_path / 'cropped.png'
+    said = image('crop', str(source), str(target), {'left': 10, 'top': 20, 'width': 100, 'height': 50})
+
+    assert said['operation'] == 'crop'
+    from PIL import Image
+
+    with Image.open(target) as made:
+        assert made.size == (100, 50)
+
+
+async def test_an_edit_records_the_operation_and_not_the_bytes(tmp_path):
+    """The sidecar is what makes an edit reproducible, and a recipe holding a
+    megabyte of base64 is a sidecar no tool can open."""
+    from openmirror.media.service import MediaService
+
+    service = MediaService(registry=ProviderRegistry(), store=_store(tmp_path / 'media'))
+    source = _image(tmp_path)
+    stored = service.store.add(
+        source.read_bytes(), kind='image', media_type='image/png', prompt='a red rectangle',
+    )
+
+    job = service.edit('crop', [stored.id], params={'left': 1, 'top': 1, 'width': 20, 'height': 20})
+    await job.task
+    assert job.state == 'done', job.error
+
+    recipe = service.store.get(job.media[0].id).params
+    assert recipe['operation'] == 'crop'
+    assert recipe['inputs'] == [stored.id], 'the input is recorded as an id'
+    assert not any(isinstance(v, (bytes, bytearray)) for v in recipe.values()), 'no bytes in a recipe'
+    assert job.media[0].filename.endswith('.png'), (
+        f'a cropped PNG was stored as {job.media[0].filename}, which nothing will open'
+    )
+
+
+def test_an_edit_takes_ids_and_never_a_path(tmp_path):
+    """The one operation where reading an arbitrary file off the disk is most
+    tempting, and the ids are the only thing that stops it."""
+    from openmirror.media.service import MediaService
+
+    service = MediaService(registry=ProviderRegistry(), store=_store(tmp_path / 'media'))
+    secret = _image(tmp_path)
+    with pytest.raises(NoProviderError) as caught:
+        service.edit('crop', [str(secret)], params={'width': 10, 'height': 10})
+    assert 'no stored file' in str(caught.value)
+
+
+def test_a_transparent_png_survives_being_converted_to_a_jpeg(tmp_path):
+    """It loses the alpha channel — it has to — and it comes out on white
+    rather than on black.
+
+    Flattening onto black is what a naive save does, and it turns a logo with
+    transparent edges into a logo with black edges.
+    """
+    from PIL import Image
+
+    from openmirror.media.edit import image
+
+    source = tmp_path / 'alpha.png'
+    Image.new('RGBA', (40, 40), (0, 0, 0, 0)).save(source)
+    target = tmp_path / 'flat.jpg'
+    image('convert', str(source), str(target), {'format': 'JPEG', 'quality': 92})
+
+    with Image.open(target) as made:
+        assert made.mode == 'RGB'
+        # Fully transparent became fully white.
+        # `getextrema` rather than `getdata`: the latter is a flat tuple of
+        # channels and comparing it to a number is comparing a tuple to an int.
+        assert min(channel[0] for channel in made.getextrema()) > 200
+
+
+def test_an_operation_it_does_not_know_is_refused(tmp_path):
+    from openmirror.media.edit import EditRefused, image
+
+    _image(tmp_path)
+    with pytest.raises(EditRefused) as caught:
+        image('rm-rf', str(tmp_path / 'picture.png'), str(tmp_path / 'o.png'), {})
+    assert 'rm-rf' in str(caught.value)
+
+
+def test_a_number_outside_what_the_operation_accepts_is_refused_with_the_range(tmp_path):
+    """A sentence beats handing ffmpeg a 100000x speed and waiting."""
+    from openmirror.media.edit import EditRefused, image
+
+    _image(tmp_path)
+    with pytest.raises(EditRefused) as caught:
+        image('resize', str(tmp_path / 'picture.png'), str(tmp_path / 'o.png'), {'factor': 5000})
+    assert 'between 0.01 and 32' in str(caught.value)
+
+
+def test_a_crop_with_no_size_is_refused(tmp_path):
+    from openmirror.media.edit import EditRefused, image
+
+    _image(tmp_path)
+    with pytest.raises(EditRefused):
+        image('crop', str(tmp_path / 'picture.png'), str(tmp_path / 'o.png'), {'width': 0, 'height': 10})
+
+
+@pytest.mark.skipif(edit_ops.ffmpeg() is None, reason='ffmpeg is not installed')
+def test_a_clip_is_trimmed(tmp_path):
+    from openmirror.media.edit import probe, video
+
+    source = _clip(tmp_path)
+    target = tmp_path / 'trimmed.mp4'
+    said = video('trim', str(source), str(target), {'start': 1, 'length': 2})
+    assert said == {'operation': 'trim', 'start': 1.0, 'length': 2.0}
+    found = probe(str(target))
+    assert 1.0 < found['duration'] < 3.0
+
+
+@pytest.mark.skipif(edit_ops.ffmpeg() is None, reason='ffmpeg is not installed')
+def test_what_a_clip_is_gets_reported_before_it_is_trimmed(tmp_path):
+    """"How long is the clip I just imported" is the question before every trim,
+    and answering it by opening the file in a player is a worse answer."""
+    from openmirror.media.edit import probe
+
+    found = probe(str(_clip(tmp_path)))
+    assert found['duration'] > 3
+    assert found['has_video'] and found['has_audio']
+
+
+@pytest.mark.skipif(edit_ops.ffmpeg() is None, reason='ffmpeg is not installed')
+def test_two_clips_join_in_order(tmp_path):
+    from openmirror.media.edit import concat
+
+    first = _clip(tmp_path, name='a', colour='red')
+    second = _clip(tmp_path, name='b', colour='blue')
+    target = tmp_path / 'joined.mp4'
+    concat([str(first), str(second)], str(target))
+    assert target.stat().st_size > 0
+
+
+def _clip(tmp_path, *, name='a', colour='red'):
+    """A two-second clip, made with ffmpeg's own test source."""
+    binary = edit_ops.ffmpeg()
+    assert binary, 'the test needs ffmpeg'
+    out = tmp_path / f'{name}.mp4'
+    subprocess.run(
+        [binary, '-y', '-f', 'lavfi', '-i', 'testsrc=size=160x120:rate=10:duration=2',
+         '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2', '-shortest',
+         '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', str(out)],
+        capture_output=True, check=True, timeout=120,
+    )
+    del colour
+    return out
+
+
+def test_a_video_operation_without_ffmpeg_says_what_to_install(tmp_path):
+    """The refusal is the feature. A trim that half-works is worse than one
+    that tells you what is missing."""
+    if edit_ops.ffmpeg() is not None:
+        pytest.skip('ffmpeg is installed here, so the refusal cannot be observed')
+    from openmirror.media.edit import EditUnavailable, video
+
+    with pytest.raises(EditUnavailable) as caught:
+        video('trim', '/tmp/nothing.mp4', '/tmp/out.mp4', {'start': 0, 'length': 1})
+    said = str(caught.value)
+    assert 'openmirror[video]' in said, 'and it should say how to get one'
+
+
+def test_an_editor_is_not_a_modality():
+    """Every generator in this project is somebody else's model over a network,
+    so the registry is the right place for them. An editor is a binary on this
+    disk, and putting it in the registry would imply an install that can fail
+    to answer. So it is asked of the machine instead."""
+    from openmirror.media.service import MediaService
+
+    service = MediaService(registry=ProviderRegistry(), store=_store(tmp_path_path()))
+    found = service.can_edit()
+    assert set(found) <= {'image', 'video', 'audio'}
+    for kind, editors in found.items():
+        assert all(one in ('ffmpeg', 'pillow', 'gimp') for one in editors), (kind, editors)
+
+
+def tmp_path_path():
+    return Path(tempfile.mkdtemp())
+
+
+def test_gimp_will_not_run_an_arbitrary_procedure():
+    """A Script-Fu expression is code.
+
+    It is evaluated by an interpreter with access to every PDB procedure —
+    including `gimp-file-delete` — so passing a model-supplied string through
+    unfiltered would be handing arbitrary code execution to anything that could
+    reach this, in a project whose whole argument is that the agent's reach is
+    bounded. The name comes from a table written here; only numbers and two
+    paths are interpolated.
+    """
+    from openmirror.providers.gimp import build_script
+
+    for hostile in ('gimp-quit', '(gimp-file-delete "/etc/passwd")', 'anything'):
+        with pytest.raises(KeyError):
+            build_script(hostile, '/tmp/a.png', '/tmp/o.png', {})
+
+    # And the two paths are quoted, so a filename with a space or a quote in it
+    # is still a filename.
+    script = build_script('unsharp', "/tmp/a b's.png", '/tmp/out.png', {'amount': 3})
+    assert 'unsharp' in script
+    assert "a b" in script
+
+
+def test_gimp_numbers_are_clamped_to_what_the_procedure_accepts():
+    from openmirror.providers.gimp import GimpError, build_script
+
+    # GIMP clamps these itself; refusing here means the value in the sidecar is
+    # the value that ran.
+    with pytest.raises(GimpError) as caught:
+        build_script('unsharp', '/tmp/a.png', '/tmp/o.png', {'amount': 99})
+    assert 'between 1 and 5' in str(caught.value)
+
+    with pytest.raises(GimpError):
+        build_script('levels', '/tmp/a.png', '/tmp/o.png', {'low': 200, 'high': 10})

@@ -28,7 +28,9 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from openmirror.media.edit import EditRefused, EditUnavailable
 from openmirror.media.service import KINDS
+from openmirror.providers.gimp import GimpError
 from openmirror.providers.registry import NoProviderError
 
 log = logging.getLogger(__name__)
@@ -76,6 +78,45 @@ async def describe(kind: str = 'image', provider: str | None = None, model: str 
         return await _service().describe(kind, provider, model)
     except NoProviderError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get('/editors')
+async def editors(kind: str = '') -> dict[str, Any]:
+    """What can be done to a picture or a clip on *this* machine.
+
+    Asked of the machine rather than declared, and that is the whole point: a
+    trim button on a box with no ffmpeg is a button that fails on the first
+    press. An editor is a binary on this disk — Pillow, ffmpeg, GIMP — so it
+    is not a provider in the registry, and this endpoint is where the panel
+    asks what it has.
+    """
+    return {'editors': _service().editors(kind)}
+
+
+class Edit(BaseModel):
+    operation: str
+    inputs: list[str]
+    params: dict[str, Any] = {}
+
+
+@router.post('/edit')
+async def make_edit(body: Edit) -> dict[str, Any]:
+    """Change a stored file. Ids, not paths — see the note on `Upload`.
+
+    This is the one operation where reading an arbitrary path off the disk is
+    most tempting, and ids are the only thing that stops it: a caller can name
+    a file here only if this server put it in its own store.
+    """
+    try:
+        job = _service().edit(body.operation, body.inputs, params=body.params)
+    except NoProviderError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except (EditRefused, EditUnavailable, GimpError) as exc:
+        # 400 rather than 502: the request cannot be carried out as written,
+        # which is the difference between "your parameters are wrong" and
+        # "the thing we asked is wrong".
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return job.to_json()
 
 
 @router.get('/providers')

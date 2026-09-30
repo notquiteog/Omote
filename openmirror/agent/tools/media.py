@@ -19,12 +19,15 @@ plausible-looking one.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
 from openmirror.agent.tools.base import Assessment, Output, Tool, ToolContext, ToolError
+from openmirror.media.edit import EditRefused, EditUnavailable
 from openmirror.music import midi
 from openmirror.protocol.agent import Risk
+from openmirror.providers.gimp import GimpError
 from openmirror.providers.registry import NoProviderError
 
 
@@ -540,4 +543,137 @@ def media_tools(service: Any) -> list[Tool]:
         tools += [GenerateVideoTool(service), MediaJobTool(service), ImportWorkflowTool(service)]
 
     tools.append(ComposeMusicTool(service))
+    # Editing is offered when there is something here that can edit, which is
+    # asked of the machine rather than of the registry — see
+    # `MediaService.can_edit` for why an editor is not a modality.
+    if service.can_edit():
+        tools += [EditMediaTool(service), MediaEditParamsTool(service)]
     return tools
+
+
+class EditMediaTool(Tool):
+    name = 'edit_media'
+    description = (
+        'Change a picture, a video or a clip somebody already has, and keep the result '
+        'alongside the original. This is editing, not generating: nothing new is invented and '
+        'nothing is overwritten.\n\n'
+        'Images: crop, resize, rotate, flip, sharpen, convert format. These need no extra '
+        'anything — Pillow does them.\n\n'
+        'Video and audio: trim, cut out the middle, join two clips together, pull frames out, '
+        'change the speed, drop the sound, take the sound out on its own, burn in a subtitle '
+        'track, take a still. These need ffmpeg, and `media_edit_params` will tell you if this '
+        'machine has it.\n\n'
+        'You name files by the id the server gave them — upload one first, or use an id from '
+        'generate_image. A path will not work and there is deliberately no way to pass one.\n\n'
+        'This is a write: it makes a new file. It does not modify the original and it does not '
+        'delete anything, so a bad trim costs nothing but the time.'
+    )
+    input_schema = {
+        'type': 'object',
+        'properties': {
+            'operation': {
+                'type': 'string',
+                'description': 'trim, cut, concat, frames, speed, mute, audio, subtitles, poster '
+                               'for video; crop, resize, rotate, flip, convert, sharpen for images.',
+            },
+            'inputs': {
+                'type': 'array',
+                'items': {'type': 'string'},
+                'description': 'Stored media ids. Two for concat, one otherwise.',
+            },
+            'params': {
+                'type': 'object',
+                'description': 'The arguments for that operation: start and length for a trim, '
+                               'factor for a speed change, and so on. media_edit_params lists them.',
+            },
+        },
+        'required': ['operation', 'inputs'],
+    }
+
+    def __init__(self, service: Any) -> None:
+        self.service = service
+
+    def assess(self, args: dict[str, Any], ctx: ToolContext) -> Assessment:
+        operation = str(args.get('operation') or '').strip()
+        inputs = args.get('inputs') or []
+        if not operation:
+            return Assessment(risk=Risk.WRITE, summary='', invalid='operation is required')
+        if not isinstance(inputs, list) or not inputs:
+            return Assessment(risk=Risk.WRITE, summary='', invalid='inputs is required')
+        # A write, because it makes a file — and the summary names the file,
+        # so the approval prompt says which one.
+        said = f'{operation} {inputs[0]}'
+        return Assessment(risk=Risk.WRITE, summary=said[:100])
+
+    async def run(self, args: dict[str, Any], ctx: ToolContext) -> Output:
+        try:
+            job = self.service.edit(
+                str(args['operation']),
+                [str(one) for one in args['inputs']],
+                params=args.get('params') or {},
+            )
+        except NoProviderError as exc:
+            raise ToolError(str(exc)) from exc
+        except (EditUnavailable, EditRefused, GimpError) as exc:
+            # Turned into an `invalid` on an empty Output, which is how this
+            # codebase hands a model something to try something else about. An
+            # exception becomes a refused turn, and a tool result in prose
+            # does not reliably get read.
+            return Output(content='', display={'error': str(exc)})
+
+        try:
+            await job.task
+        except asyncio.CancelledError:
+            raise
+        if job.state == 'failed':
+            raise ToolError(job.error or 'the edit failed without saying why')
+
+        made = [m.to_json() for m in job.media]
+        lines = [f'  {m["id"]} — {m["url"]}' for m in made]
+        return Output(
+            content=(
+                f'{job.params.get("operation")} produced {len(made)} file'
+                f'{"s" if len(made) != 1 else ""}:\n' + '\n'.join(lines)
+                + '\n\nThe original is untouched. Each result has the operation and its arguments in '
+                'its sidecar, so you can change one thing and run it again.'
+            ),
+            display={'media': made, 'operation': job.params.get('operation')},
+        )
+
+
+class MediaEditParamsTool(Tool):
+    name = 'media_edit_params'
+    description = (
+        'What can be done to a picture or a clip on this machine, and what each operation needs. '
+        'Ask before editing: a machine with no ffmpeg cannot trim a video and saying so is better '
+        'than discovering it.'
+    )
+    input_schema = {
+        'type': 'object',
+        'properties': {'kind': {'type': 'string', 'description': "'image', 'video' or 'audio'."}},
+        'required': [],
+    }
+
+    def __init__(self, service: Any) -> None:
+        self.service = service
+
+    def assess(self, args: dict[str, Any], ctx: ToolContext) -> Assessment:
+        return Assessment(risk=Risk.READ, summary='ask what can be edited on this machine')
+
+    async def run(self, args: dict[str, Any], ctx: ToolContext) -> Output:
+        editors = self.service.editors(str(args.get('kind') or ''))
+        if not editors:
+            return Output(
+                content=(
+                    'Nothing on this machine can edit files. Images need Pillow (the desktop '
+                    "extra); video and audio need ffmpeg, which the video extra bundles."
+                ),
+                display={'editors': []},
+            )
+        lines = []
+        for one in editors:
+            lines.append(f'  {one["id"]} — {one["label"]}')
+            lines.append(f'    {one["params"][0]["help"]}')
+            if one['params'][0].get('options'):
+                lines.append(f'    operations: {", ".join(one["params"][0]["options"])}')
+        return Output(content='\n'.join(lines), display={'editors': editors})

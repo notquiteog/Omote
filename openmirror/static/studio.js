@@ -1004,12 +1004,139 @@ export function stopPolling() {
 
 export async function openStudio() {
   await loadGallery(true);
+  await loadEditors();
+  // The file picker needs the gallery, so it is filled from what is already
+  // there rather than asking again.
+  // `shots` is what the gallery holds; `gallery` is the filter, which is a
+  // string. Easy to confuse and the picker would come up empty.
+  editState.files = shots.map((one) => ({ id: one.id, filename: one.filename, kind: one.kind }));
   if (!schema.length) await describe();
   // A job started here and left running — by switching to Code mode, or by
   // reloading the page — is still running on the server, so the strip picks it
   // back up rather than pretending the work was lost with the view of it.
   const data = await json('/api/media/jobs');
   if (data && (data.jobs || []).some((j) => j.state === 'queued' || j.state === 'running')) watchJobs();
+}
+
+/* ------------------------------------------------------------- editing ----
+ *
+ * A separate panel from the form above, and deliberately: an edit has a file
+ * and an operation and *no prompt*, and a form that asked for all three would
+ * make the person type into a box that is ignored.
+ *
+ * The operations come from the server rather than being written here, because
+ * the three back ends do not offer the same ones — Pillow cannot trim a video
+ * and GIMP cannot rotate a file without flattening it — and a list written in
+ * the client is a list that offers failures. It also means installing ffmpeg
+ * adds a whole panel that was not in this build.
+ */
+
+let editState = { editors: [], files: [] };
+// The edit form's inputs, held rather than looked up. They are built here
+// rather than declared in the page, because there is one of each per operation
+// and the operations come from the server — so `document.querySelector` on a
+// string would be a lookup for an id that does not exist until this function
+// has run. `test_studio_client.py` asserts that every id the client reaches
+// for is on the page, which is the right contract and the reason this is a
+// variable and not an id.
+let editFields = {};
+
+async function loadEditors() {
+  const data = await json('/api/media/editors');
+  if (!data) return;
+  editState.editors = data.editors || [];
+  if (!editState.editors.length) {
+    $('#studio-edit-form').textContent =
+      'Nothing on this machine can edit files. Pictures need Pillow (the desktop extra); clips '
+      + 'and audio need ffmpeg, which the video extra bundles.';
+    return;
+  }
+  paintEditors();
+}
+
+function paintEditors() {
+  const box = $('#studio-edit-form');
+  box.textContent = '';
+
+  const form = el('form', 'edit-form');
+  const op = el('select');
+  op.id = 'studio-edit-op';
+  for (const one of editState.editors) {
+    const group = document.createElement('optgroup');
+    group.label = one.label;
+    for (const name of (one.params[0].options || [])) {
+      const option = el('option', '', name);
+      option.value = `${one.id}:${name}`;
+      group.appendChild(option);
+    }
+    op.appendChild(group);
+  }
+  const opLabel = el('label', '', 'Do what');
+  opLabel.htmlFor = 'studio-edit-op';
+
+  const file = el('select');
+  file.id = 'studio-edit-file';
+  for (const item of editState.files) {
+    const option = el('option', '', `${item.filename} (${item.kind})`);
+    option.value = item.id;
+    file.appendChild(option);
+  }
+  const fileLabel = el('label', '', 'File');
+  fileLabel.htmlFor = 'studio-edit-file';
+
+  const start = el('input');
+  start.type = 'number';
+  start.id = 'studio-edit-start';
+  start.min = '0';
+  start.step = '0.5';
+  start.value = '0';
+  const startLabel = el('label', '', 'Start (s)');
+  startLabel.htmlFor = 'studio-edit-start';
+
+  const length = el('input');
+  length.type = 'number';
+  length.id = 'studio-edit-length';
+  length.min = '0';
+  length.step = '0.5';
+  length.value = '5';
+  const lengthLabel = el('label', '', 'Length (s)');
+  lengthLabel.htmlFor = 'studio-edit-length';
+
+  const go = el('button', 'primary', 'Do it');
+  go.type = 'submit';
+  form.append(opLabel, op, fileLabel, file, startLabel, start, lengthLabel, length, go);
+  box.appendChild(form);
+  editFields = { op, file, start, length };
+  form.onsubmit = startEdit;
+}
+
+async function startEdit(event) {
+  event.preventDefault();
+  const operation = editFields.op.value.split(':')[1];
+  const note = $('#studio-edit-note');
+  note.textContent = 'working…';
+  const params = { operation };
+  if (operation === 'trim') {
+    params.start = Number(editFields.start.value) || 0;
+    params.length = Number(editFields.length.value) || 5;
+  }
+  const res = await post('/api/media/edit', {
+    operation,
+    inputs: [editFields.file.value],
+    params,
+  });
+  if (!res) {
+    note.textContent = 'the daemon is not reachable';
+    return;
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    note.textContent = body.detail || 'it would not start';
+    return;
+  }
+  note.textContent = 'done — the new file is below';
+  await tickJobs();
+  await loadGallery(true);
 }
 
 export function wireStudio(providers = []) {
@@ -1074,6 +1201,8 @@ export function wireStudio(providers = []) {
   };
 
   wireLightbox();
+
+  $('#studio-edit').ontoggle = () => { if (!$('#studio-edit').open) return; loadEditors(); };
 
   // This runs again every time a connection is added or removed, and the form
   // on screen was built from what the old set of providers could do. Rebuilt

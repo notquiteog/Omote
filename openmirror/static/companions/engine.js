@@ -118,6 +118,10 @@ const TOOL_STATES = {
   // being decided here — and it is not 'desktop'; the animal has no opinion
   // about spreadsheets.
   finance: 'reading',
+  // Editing a file somebody already has is working on their work, which reads
+  // from where they are sitting.
+  edit_media: 'reading',
+  media_edit_params: 'reading',
   system_info: 'reading',
   display_info: 'reading',
   package_search: 'browsing',

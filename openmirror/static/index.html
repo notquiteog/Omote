@@ -390,6 +390,22 @@
         </div>
       </form>
 
+        <!-- Editing, not generating. Separate from the form above on purpose:
+             an edit has a file and an operation and no prompt, and a panel
+             that asked for both would make the person type into a box that is
+             ignored. -->
+        <details id="studio-edit" class="studio-edit">
+          <summary>Edit something you already have</summary>
+          <p class="explain">
+            Trim, cut, join, pull frames out, change the speed, drop the sound or burn in
+            subtitles for a clip; crop, resize, rotate, flip, sharpen or convert for a picture.
+            Nothing is overwritten — every edit is a new file beside the original, with the
+            operation recorded so you can change one thing and run it again.
+          </p>
+          <div id="studio-edit-form" class="studio-edit-form"></div>
+          <p id="studio-edit-note" class="meta"></p>
+        </details>
+
       <div class="studio-out">
         <div class="studio-bar">
           <div class="studio-filters" role="group" aria-label="Filter">

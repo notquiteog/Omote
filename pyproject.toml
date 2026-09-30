@@ -31,6 +31,13 @@ tor = ["aiohttp-socks>=0.9"]
 # autopilot; the browser tools work without it.
 desktop = ["mss>=9.0", "pillow>=10.0"]
 browser = ["playwright>=1.45"]
+# Editing video and audio. `imageio-ffmpeg` is here rather than `ffmpeg`
+# because it *bundles* a static binary: an extra that shells out to something
+# the user has to install separately is an extra that does not work, and this
+# one buys trim, cut, join, frames, speed, mute, extract-audio and burned-in
+# subtitles. An ffmpeg already on PATH is preferred — see
+# openmirror/media/edit.py.
+video = ["imageio-ffmpeg>=0.5"]
 # Reading PDFs. xlsx is done in the standard library because a spreadsheet is a
 # zip of XML and there is no reason to make people install anything for it;
 # a PDF is a font-and-geometry format, and a hand-written extractor gets the

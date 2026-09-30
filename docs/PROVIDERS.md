@@ -315,3 +315,50 @@ client has nothing to send.
 Nothing is encrypted. Anything that can read the file can read the key,
 exactly as with `.env`, and pretending otherwise would be worse than saying
 so.
+
+---
+
+## Editing, which is not a provider
+
+There is no image-editing *provider* here, and the absence is a decision rather
+than a gap.
+
+Every generator in this project is somebody else's model reached over a
+network, and those live in `openmirror/providers/catalog.py` because they can be
+swapped: one connection, a different key, a different service, and the panel
+redraws itself. An **editor** is a binary on this disk — Pillow, ffmpeg, GIMP —
+and putting it in the registry would imply an install that can fail to answer.
+So `MediaService.can_edit()` asks the machine, and `/api/media/editors` reports
+what it found.
+
+| editor | needs | does |
+|---|---|---|
+| `pillow` | the `desktop` extra | crop, resize, rotate, flip, sharpen, convert, contact sheet |
+| `ffmpeg` | the `video` extra, or a binary on `PATH` | trim, cut, join, frames, speed, mute, extract audio, burn in subtitles, still |
+| `gimp` | GIMP installed | flatten, desaturate, invert, autocrop, unsharp, emboss, edge, blur, spread, levels, gamma, rotate |
+
+`imageio-ffmpeg` is the extra rather than a plain `ffmpeg` because it *bundles*
+a static binary. An extra that shells out to something the user has to install
+separately is an extra that does not work.
+
+**GIMP, and not Photoshop.** Photoshop's scripting is `.jsx` run by
+`Photoshop.exe -r`, which needs Photoshop installed and running on Windows or
+macOS; its current generation is UXP, a sandboxed plugin model with its own
+bundler and signing story. That is a different product on a different platform,
+and an adapter for it would work on roughly none of the machines this runs on.
+GIMP's `gimp --batch` is a real integration with no network and no running
+application, which is why it is here.
+
+**The Script-Fu allowlist is load-bearing.** A Script-Fu expression is *code*,
+evaluated with access to every PDB procedure — including `gimp-file-delete`.
+Passing a model-supplied string through would hand arbitrary code execution to
+anything that could reach this, in a project whose whole argument is that the
+agent's reach is bounded. So `build_script` takes the *name* of a procedure
+from a table written in `openmirror/providers/gimp.py` and builds the expression
+itself; only numbers and two paths are interpolated, and the numbers are clamped
+to what the procedure accepts so the value in the sidecar is the value that ran.
+
+**An edit records what it did, and nothing else.** The recipe beside the result
+is the operation and its arguments, with the inputs as stored media *ids* — never
+bytes, never a path. An editor is the one operation where reading an arbitrary
+file off the disk is most tempting, and the ids are the only thing that stops it.

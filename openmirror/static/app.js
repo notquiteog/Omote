@@ -431,6 +431,8 @@ const VERBS = {
   finance: 'Checked the ledger',
   generate_music: 'Composed music',
   compose_music: 'Wrote a score',
+  edit_media: 'Edited',
+  media_edit_params: 'Asked what can be edited',
   agent: 'Delegated',
   skill: 'Used the skill',
   lsp: 'Asked the language server',

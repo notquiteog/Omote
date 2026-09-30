@@ -46,8 +46,10 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
+from openmirror.media import edit as edit_ops
 from openmirror.media.params import Param, coerce, unknown_keys
 from openmirror.media.store import Media, MediaStore
 from openmirror.providers.base import Modality
@@ -157,6 +159,181 @@ class MediaService:
         """
         available = self.registry.capabilities()
         return {kind for kind in KINDS if available.get(kind)}
+
+    def can_edit(self) -> dict[str, list[str]]:
+        """Which editors this machine has, by the kind of file they handle.
+
+        Asked of the machine rather than assumed, for the same reason
+        `can_generate` is: a `trim` button on a machine with no ffmpeg is a
+        button that fails on the first press, and a tool list containing
+        something that cannot work is a list the model reasons about instead of
+        doing the task.
+
+        Note what this is *not*: a modality. Every generator in this project is
+        somebody else's model reached over a network, and the registry is the
+        right place for those because they can be swapped. An editor is a
+        binary on this disk — Pillow, ffmpeg, GIMP — so it belongs to the
+        machine and asking the registry would imply an install that could fail
+        to answer.
+        """
+        found = edit_ops.capabilities()
+        out: dict[str, list[str]] = {}
+        for kind in ('image', 'video', 'audio'):
+            editors = found.for_kind(kind)
+            if editors:
+                out[kind] = editors
+        return out
+
+    def editors(self, kind: str = '') -> list[dict[str, Any]]:
+        """What each editor on this machine can be asked to do.
+
+        Drawn from the back ends rather than listed here, because the two do
+        not offer the same operations and a `convert` that only works for
+        images is a control that fails half the time.
+        """
+        out: list[dict[str, Any]] = []
+        for one_kind, names in self.can_edit().items():
+            if kind and kind != one_kind:
+                continue
+            for name in names:
+                if name == 'ffmpeg':
+                    params = [Param('operation', 'Do what', 'enum',
+                                    default='trim', options=list(edit_ops.VIDEO_OPERATIONS),
+                                    group='edit',
+                                    help='What to do to it. Every one of these is a real editor '
+                                         'operation and none of them re-encodes more than it has to.')]
+                elif name == 'pillow':
+                    params = [Param('operation', 'Do what', 'enum',
+                                    default='crop', options=list(edit_ops.IMAGE_OPERATIONS),
+                                    group='edit',
+                                    help='What to do to it. Deterministic and reversible, which is '
+                                         'why it is the first thing offered for a picture.')]
+                else:
+                    params = [Param('operation', 'Do what', 'string', group='edit',
+                                    help='A Script-Fu procedure name, e.g. '
+                                         'gimp-image-flatten or plug-in-unsharp.')]
+                out.append({
+                    'id': name,
+                    'kind': one_kind,
+                    'label': f'{name} ({one_kind})',
+                    'params': [p.to_json() for p in params],
+                })
+        return out
+
+    def edit(
+        self,
+        operation: str,
+        inputs: list[str],
+        *,
+        kind: str = '',
+        editor: str = '',
+        params: dict[str, Any] | None = None,
+    ) -> Job:
+        """Change a stored file and keep the result beside it.
+
+        `inputs` are **stored media ids**, never paths and never data URIs.
+        That is the same rule every generation parameter follows here, and it
+        is the load-bearing one: an editor is the operation where reading an
+        arbitrary file off the disk is most tempting, and the only thing
+        standing between it and `open('/etc/passwd')` is that a caller can name
+        a file here only if this server put it in its own store.
+        """
+        if not inputs:
+            raise NoProviderError('an edit needs at least one input')
+        paths: list[str] = []
+        kinds: list[str] = []
+        for media_id in inputs:
+            found = self.store.path(media_id)
+            if found is None:
+                raise NoProviderError(
+                    f'no stored file with id {media_id!r}. Upload the file first, or use an id this '
+                    'server issued.'
+                )
+            paths.append(str(found))
+            kinds.append(self.store.get(media_id).kind)
+
+        first = kind or kinds[0]
+        available = self.can_edit().get(first, [])
+        if not available:
+            raise NoProviderError(
+                f'this machine cannot edit {first} files. It has: '
+                + (', '.join(k for k, v in self.can_edit().items()) or 'nothing that edits')
+                + '.'
+            )
+        chosen = editor or available[0]
+        if chosen not in available:
+            raise NoProviderError(
+                f'{chosen} cannot edit {first} files here. It can: {", ".join(available)}.'
+            )
+
+        params = dict(params or {})
+        params.pop('operation', None)
+        job = Job(
+            id=uuid.uuid4().hex[:16],
+            kind='edit',
+            provider=chosen,
+            model='',
+            prompt=str(operation),
+            params={'operation': operation, 'inputs': list(inputs), **params},
+        )
+        job.note = 'starting'
+        self.jobs[job.id] = job
+        job.task = asyncio.create_task(self._run_edit(job, chosen, operation, paths, params))
+        return job
+
+    async def _run_edit(self, job: Job, chosen: str, operation: str, paths: list[str], params: dict[str, Any]):
+        try:
+            job.state = 'running'
+            # Scratch space beside the store, because ffmpeg and GIMP both want
+            # a real path to write to and neither accepts bytes.
+            scratch = self.store.root.parent / 'edit'
+            scratch.mkdir(parents=True, exist_ok=True)
+            target = scratch / f'{job.id}{edit_ops.scratch_suffix(chosen, operation)}'
+
+            if chosen == 'gimp':
+                from openmirror.providers.gimp import GimpProvider
+
+                outcome = await GimpProvider().run(operation, paths, target, params)
+                media_type = outcome['media_type']
+            elif chosen == 'ffmpeg':
+                media_type = edit_ops.guess_media_type(target)
+                edit_ops.video(operation, paths[0], str(target), params,
+                               second=str(self._second(paths)) if len(paths) > 1 else '',
+                               subtitles=str(params.get('subtitle_file') or ''))
+            else:
+                outcome = edit_ops.image(operation, paths[0], str(target), params)
+                media_type = outcome.pop('media_type', '')
+            if not media_type:
+                media_type = edit_ops.guess_media_type(target)
+
+            job.media = [
+                self.store.add(
+                    target.read_bytes(),
+                    kind=job.kind,
+                    media_type=media_type,
+                    prompt=f'{operation}: {job.params.get("inputs")}',
+                    provider=chosen,
+                    params=job.params,
+                )
+            ]
+            target.unlink(missing_ok=True)
+            job.state = 'done'
+        except (edit_ops.EditUnavailable, edit_ops.EditRefused) as exc:
+            log.info('edit %s failed: %s', job.id, exc)
+            job.state = 'failed'
+            job.error = str(exc)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            log.exception('edit %s failed', job.id)
+            job.state = 'failed'
+            job.error = str(exc)
+        finally:
+            job.finished_at = time.time()
+
+    @staticmethod
+    def _second(paths: list[str]) -> Path | None:
+        return Path(paths[1]) if len(paths) > 1 else None
 
     def providers(self, kind: str = '') -> list[dict[str, Any]]:
         """Who could answer for this kind of generation.
