@@ -34,7 +34,8 @@ Adapter = Literal[
     # OpenAI's shapes for four modalities and its own for images and video,
     # with a model list per modality. See openmirror.providers.openrouter.
     'openrouter',
-    # Image and video, which is where the shapes stop being interchangeable.
+    # Image, video and music, which is where the shapes stop being
+    # interchangeable.
     # Every one of these is a submit-poll-download job API that agrees with
     # the others about nothing except that structure — see
     # openmirror.providers.hosted_media, which is the part they do share.
@@ -65,6 +66,7 @@ STT = frozenset({Modality.STT})
 TTS = frozenset({Modality.TTS})
 IMAGE = frozenset({Modality.IMAGE})
 VIDEO = frozenset({Modality.VIDEO})
+MUSIC = frozenset({Modality.MUSIC})
 
 
 HOSTS: tuple[Host, ...] = (
@@ -335,7 +337,7 @@ HOSTS: tuple[Host, ...] = (
         adapter='replicate',
         base_url='https://api.replicate.com/v1',
         env_key='REPLICATE_API_TOKEN',
-        modalities=IMAGE | VIDEO,
+        modalities=IMAGE | VIDEO | MUSIC,
         note='Most of the field behind one key — and it publishes each model\'s input schema, so '
              'the controls for a model this build has never heard of are still the right ones, with '
              'its real ranges and its author\'s own descriptions. The model box takes any owner/name '
@@ -347,14 +349,23 @@ HOSTS: tuple[Host, ...] = (
         adapter='fal',
         base_url='https://queue.fal.run',
         env_key='FAL_KEY',
-        modalities=IMAGE | VIDEO,
+        modalities=IMAGE | VIDEO | MUSIC,
         lists_models=False,
         note='The other route to most of the same models, which is worth having: a model being down '
              'or rate-limited on one of these is not the end of the road. fal publishes no listing '
              'endpoint, so the models offered come from its documentation — any endpoint path can be '
              'typed in, and the form is still built from fal\'s own schema for it.',
+        # Seedance and Seedream are ByteDance's, and they are the two models
+        # here that existed only inside `fal.py`'s own list — which means the
+        # panel offered them if you already knew the id and had no way to find
+        # them otherwise. They belong in `fallback_models`, which is what a
+        # fresh connection actually offers.
         fallback_models=('fal-ai/flux-pro/v1.1-ultra', 'fal-ai/flux/dev', 'fal-ai/nano-banana',
-                         'fal-ai/veo3', 'fal-ai/kling-video/v2/master/text-to-video', 'fal-ai/wan-t2v'),
+                         'fal-ai/bytedance/seedream/v4/text-to-image',
+                         'fal-ai/veo3', 'fal-ai/kling-video/v2/master/text-to-video',
+                         'fal-ai/bytedance/seedance/v1/pro/text-to-video',
+                         'fal-ai/wan-t2v',
+                         'fal-ai/stable-audio', 'fal-ai/ace-step'),
     ),
     Host(
         id='bfl',
@@ -375,7 +386,7 @@ HOSTS: tuple[Host, ...] = (
         adapter='stability',
         base_url='https://api.stability.ai',
         env_key='STABILITY_API_KEY',
-        modalities=IMAGE | VIDEO,
+        modalities=IMAGE | VIDEO | MUSIC,
         lists_models=False,
         note='Stable Image for stills. Its video model is image-to-video only — there is no text '
              'path — and it takes one of exactly three input sizes.',

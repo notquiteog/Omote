@@ -23,6 +23,7 @@ import json
 from typing import Any
 
 from openmirror.agent.tools.base import Assessment, Output, Tool, ToolContext, ToolError
+from openmirror.music import midi
 from openmirror.protocol.agent import Risk
 from openmirror.providers.registry import NoProviderError
 
@@ -43,14 +44,22 @@ class MediaParamsTool(_MediaTool):
     input_schema = {
         'type': 'object',
         'properties': {
-            'kind': {'type': 'string', 'description': "'image' or 'video'. Default image."},
+            'kind': {
+                'type': 'string',
+                'description': "'image', 'video' or 'music'. Default image.",
+            },
             'provider': {'type': 'string', 'description': 'Leave empty for the configured one.'},
             'model': {'type': 'string'},
         },
     }
 
     def assess(self, args: dict[str, Any], ctx: ToolContext) -> Assessment:
-        return Assessment(risk=Risk.READ, summary=f'ask what the {args.get("kind", "image")} generator can do')
+        kind = str(args.get('kind') or 'image')
+        if kind not in ('image', 'video', 'music'):
+            return Assessment(
+                risk=Risk.READ, summary='', invalid="kind must be 'image', 'video' or 'music'"
+            )
+        return Assessment(risk=Risk.READ, summary=f'ask what the {kind} generator can do')
 
     async def run(self, args: dict[str, Any], ctx: ToolContext) -> Output:
         try:
@@ -292,24 +301,243 @@ class ImportWorkflowTool(_MediaTool):
         )
 
 
+class GenerateMusicTool(_MediaTool):
+    name = 'generate_music'
+    description = (
+        'Make a piece of music from words. This takes minutes, so it returns a job id '
+        'immediately — check it with media_job.\n\n'
+        'Describe the genre, the instrumentation and the mood; that is what these models '
+        'respond to. Set instrumental true for music with no singing: a model asked for '
+        '"instrumental" in the words still writes a vocal line surprisingly often, and the '
+        'flag is the reliable way to say it.\n\n'
+        'For a score you will finish yourself — something to drop into FL Studio, Ableton or '
+        'Logic — use compose_music instead. That writes a MIDI file, which is editable; this '
+        'writes a recording, which is not.'
+    )
+    input_schema = {
+        'type': 'object',
+        'properties': {
+            'prompt': {'type': 'string', 'description': 'Genre, instruments, mood. In words.'},
+            'provider': {'type': 'string'},
+            'model': {'type': 'string'},
+            'params': {
+                'type': 'object',
+                'description': 'bars, bpm, instrumental, n, seed — media_params lists what this '
+                               'backend actually takes.',
+            },
+        },
+        'required': ['prompt'],
+    }
+
+    def assess(self, args: dict[str, Any], ctx: ToolContext) -> Assessment:
+        prompt = (args.get('prompt') or '').strip()
+        if not prompt:
+            return Assessment(risk=Risk.NETWORK, summary='', invalid='a prompt is required')
+        shown = prompt if len(prompt) <= 70 else prompt[:67] + '...'
+        return Assessment(risk=Risk.NETWORK, summary=f'generate music: {shown!r} (minutes)')
+
+    async def run(self, args: dict[str, Any], ctx: ToolContext) -> Output:
+        try:
+            job = self.service.start_music(
+                args['prompt'],
+                provider=args.get('provider'),
+                model=args.get('model'),
+                params=args.get('params') or {},
+            )
+        except NoProviderError as exc:
+            raise ToolError(str(exc)) from exc
+
+        return Output(
+            content=(
+                f'Started music job {job.id} on {job.provider}. This takes minutes. '
+                f'Check it with media_job("{job.id}") — do not poll it more than once every '
+                'twenty seconds or so, and tell the person it is running rather than sitting '
+                'silently waiting for it.'
+            ),
+            display=job.to_json(),
+        )
+
+
+class ComposeMusicTool(Tool):
+    name = 'compose_music'
+
+    def __init__(self, service: Any = None) -> None:
+        # The media service, for the store — and optional, because composing a
+        # MIDI file needs no backend at all. Without one the file is still
+        # produced and just is not filed, which is the right failure for a
+        # tool whose whole point is that it works on a machine with nothing
+        # configured.
+        self.service = service
+
+    description = (
+        'Write a score as a MIDI file, rather than a recording. This is the one to use for '
+        'anything the person is going to finish themselves — a loop to drop into FL Studio, '
+        'a chord progression to write a melody over, a part for another instrument.\n\n'
+        'You decide the music; the file is written for you. Choose a key and a progression '
+        '("A minor, ii–V–I", "C major, I–V–vi–IV") and say how many bars, and you get a chord '
+        'part held a bar at a time with a bass underneath it, ending back on the key so a loop '
+        'lands somewhere. Add your own notes on top with the notes parameter if you want a '
+        'melody — pitch is a MIDI number where 60 is middle C, and start and length are in '
+        'beats.\n\n'
+        'It does not write FL Studio\'s own .flp format, which is proprietary and unreadable '
+        'from outside the application, and it will not pretend to. It writes a Standard MIDI '
+        'File, which FL Studio, Ableton, Logic, Reaper and Cubase all import — and it is the '
+        'same either way whether the person has FL Studio or not.'
+    )
+    input_schema = {
+        'type': 'object',
+        'properties': {
+            'key': {
+                'type': 'string',
+                'description': 'e.g. "A minor", "C major". D, E, F, G, A and B, major or minor.',
+            },
+            'progression': {
+                'type': 'string',
+                'description': 'Named ("I–V–vi–IV", "ii–V–I", "12-bar blues", "turnaround") or '
+                               'Roman numerals separated by hyphens ("bVII-I-V-i").',
+            },
+            'bars': {'type': 'integer', 'description': 'How long. Default 8.'},
+            'bpm': {'type': 'number', 'description': 'Default 120.'},
+            'swing': {
+                'type': 'number',
+                'description': '0 for straight, up to about 0.6 for swung. The off-beat lands '
+                               'between the beats rather than on the next one, which is what '
+                               'swing is.',
+            },
+            'title': {'type': 'string'},
+            'notes': {
+                'type': 'array',
+                'description': 'Optional melody: {pitch, start, length, velocity}. Pitch is a '
+                               'MIDI number (60 is middle C, 69 is A440); start and length are '
+                               'in beats.',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'pitch': {'type': 'integer'},
+                        'start': {'type': 'number'},
+                        'length': {'type': 'number'},
+                        'velocity': {'type': 'integer'},
+                    },
+                    'required': ['pitch', 'start', 'length'],
+                },
+            },
+        },
+        'required': ['key', 'progression'],
+    }
+
+    def assess(self, args: dict[str, Any], ctx: ToolContext) -> Assessment:
+        key = str(args.get('key') or '').strip()
+        progression = str(args.get('progression') or '').strip()
+        if not key:
+            return Assessment(risk=Risk.WRITE, summary='', invalid='key is required')
+        if not progression:
+            return Assessment(risk=Risk.WRITE, summary='', invalid='progression is required')
+        if key not in midi.KEYS:
+            return Assessment(
+                risk=Risk.WRITE,
+                summary='',
+                invalid=f'key must be one of: {", ".join(sorted(midi.KEYS))}',
+            )
+        # Graded from the arguments rather than from the name: a four-bar loop
+        # and a sixty-bar one are the same tool and neither is a change to
+        # anything that already exists.
+        return Assessment(risk=Risk.WRITE, summary=f'write a MIDI score: {key}, {progression}')
+
+    async def run(self, args: dict[str, Any], ctx: ToolContext) -> Assessment | Output:
+        key = str(args['key']).strip()
+        progression = str(args['progression']).strip()
+        bars = max(1, min(512, int(args.get('bars') or 8)))
+        bpm = float(args.get('bpm') or 120)
+        swing = max(0.0, min(0.7, float(args.get('swing') or 0.0)))
+        title = str(args.get('title') or '')
+
+        try:
+            song = midi.arrange(key, progression, bars=bars, bpm=bpm, swing=swing, title=title)
+        except midi.MidiError as exc:
+            # Raised rather than passed back as prose: a progression that
+            # cannot be written is a refusal, and a refusal in the tool result
+            # is what lets the model try a different one rather than explaining
+            # the format to the person.
+            return Assessment(risk=Risk.WRITE, summary='', invalid=str(exc))
+
+        melody = args.get('notes') or []
+        if melody:
+            part = song.track(name='melody', program=0, channel=2, volume=104)
+            for item in melody:
+                try:
+                    part.add(
+                        int(item['pitch']),
+                        float(item.get('start', 0)),
+                        float(item.get('length', 1)),
+                        int(item.get('velocity', 96)),
+                    )
+                except (KeyError, TypeError, ValueError) as exc:
+                    return Assessment(
+                        risk=Risk.WRITE,
+                        summary='',
+                        invalid=f'a note needs pitch, start and length as numbers, and one of them is not: {exc}',
+                    )
+
+        data = midi.render(song)
+
+        # Written through the media store rather than straight to a path, so
+        # the result has the same sidecar as everything else the panel shows —
+        # the key, the progression and the tempo — and so it can be reproduced
+        # by changing one thing and running it again.
+        if self.service is not None:
+            media = self.service.store.add(
+                data,
+                kind='music',
+                media_type='audio/midi',
+                prompt=f'{key} {progression}',
+                params={'key': key, 'progression': progression, 'bars': bars, 'bpm': bpm, 'swing': swing},
+            )
+            return Output(
+                content=(
+                    f'Wrote a {bars}-bar score in {key} ({progression}) at {bpm:g} bpm. '
+                    f'{len(melody)} melody notes.\n'
+                    f'  {media.id} — {media.filename}\n\n'
+                    'It is a Standard MIDI File. Open it in FL Studio, Ableton, Logic, Reaper or '
+                    'Cubase, and edit it there — the chords and bass are meant to be a starting '
+                    'point rather than a finished arrangement.'
+                ),
+                display={'media': [media.to_json()], 'key': key, 'progression': progression},
+            )
+
+        return Output(content=f'Wrote {len(data)} bytes of MIDI.', display={'bytes': len(data)})
+
+
 def media_tools(service: Any) -> list[Tool]:
     """The generation tools this install can actually serve.
 
     Nothing is offered that would fail on its first call. An install with a
     diffusion server and no video backend gets `generate_image` and not
-    `generate_video`; one with neither gets none of this at all, and the model
-    is never told it can make pictures on a machine that cannot.
+    `generate_video`; one with neither gets none of the generators, and the
+    model is never told it can make pictures on a machine that cannot.
+
+    **`compose_music` is the exception, and it is offered on an install with
+    no backend at all.** Composing a MIDI file needs nothing configured, costs
+    nothing, and cannot fail on infrastructure — the only way it refuses is a
+    progression that cannot be written, which is a refusal the model can act
+    on rather than an error to recover from. It is also the only path to
+    "make me something for FL Studio", so withholding it on a machine with no
+    music model connected would leave the most reliable way to make music
+    unavailable on exactly the installs that could least afford to be told no.
     """
     kinds = service.can_generate()
-    if not kinds:
-        return []
+    tools: list[Tool] = []
 
-    tools: list[Tool] = [MediaParamsTool(service)]
+    if kinds:
+        tools.append(MediaParamsTool(service))
     if 'image' in kinds:
         tools.append(GenerateImageTool(service))
+    if 'music' in kinds:
+        tools.append(GenerateMusicTool(service))
     if 'video' in kinds:
         # The other three only mean anything with video: a video is a job, so
         # it needs something to check on, and a job needs a workflow template
         # to run — which `import_workflow` is how you get.
         tools += [GenerateVideoTool(service), MediaJobTool(service), ImportWorkflowTool(service)]
+
+    tools.append(ComposeMusicTool(service))
     return tools

@@ -25,18 +25,23 @@ you ── websocket ──▶ openmirror ───┤  chat       Perch │ Ant
                      on this machine     enforced when the route resolves
 ```
 
-Six ways to use it, one at a time, because typing at an agent, talking to
-one, and watching one work are different kinds of attention:
+Two ways to use it, one at a time, because a conversation and a place to make
+things are different kinds of attention:
 
 | | |
 |---|---|
-| **Code** | type back and forth, with tool cards, diffs and approvals |
-| **Talk** | one button, and then only your voice — it speaks its questions and says when it is waiting |
-| **Live** | OpenAI's realtime API — speech to speech, no text in the middle |
-| **Autopilot** | a goal and a live view of a screen it is driving. No chat |
-| **Studio** | images and video, with every knob the backend actually has |
-| **Search** | the agent's own search backend, without the agent |
+| **Chat** | type back and forth, with tool cards, diffs and approvals — or press **Talk** or **Live** and use your voice instead |
+| **Studio** | images, video and music, with every knob the backend actually has |
 | **Browser** | which browser it drives — Chromium, your Chrome, Firefox, WebKit, or a path |
+
+Everything else is a tool or a drawer inside Chat rather than a place of its
+own. Search and mail are drawers that open *over* the conversation — they are
+tools the agent has always had, and a tool you can also visit is strictly worse
+than a tool. Working unattended is the `autopilot` tool, because the decision
+of whether a long job wants working on without checking in is one a model makes
+better than a rail button, and it has no separate permission level: see
+[AUTONOMY.md](docs/AUTONOMY.md). The argument for all of it is in
+[MODES.md](docs/MODES.md).
 
 ---
 

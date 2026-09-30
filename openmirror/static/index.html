@@ -356,6 +356,12 @@
         <div class="studio-kind" role="group" aria-label="What to make">
           <button type="button" class="seg on" data-kind="image">Image</button>
           <button type="button" class="seg" data-kind="video">Video</button>
+          <!-- Music is a third kind and not a flag on video: a music model is
+               asked for a length in bars and returns a .wav, a video model is
+               asked for a resolution and returns an .mp4, and the two lists
+               have almost nothing in common. Offering the video models here
+               would be offering failures. -->
+          <button type="button" class="seg" data-kind="music">Music</button>
         </div>
         <label class="field">
           <span>Prompt</span>
@@ -390,6 +396,7 @@
             <button type="button" class="seg on" data-filter="">All</button>
             <button type="button" class="seg" data-filter="image">Images</button>
             <button type="button" class="seg" data-filter="video">Video</button>
+            <button type="button" class="seg" data-filter="music">Music</button>
           </div>
           <input id="studio-search" class="studio-search" placeholder="Search prompts" autocomplete="off">
           <div class="spacer"></div>

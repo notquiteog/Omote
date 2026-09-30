@@ -394,3 +394,73 @@ async def test_asking_twice_only_costs_one_request(monkeypatch):
     assert await provider._show_capabilities('x') == []
     assert await provider._show_capabilities('x') == []
     assert len(calls) == 1, 'a failure is remembered, not retried on every call'
+
+
+# --- the models this was asked for by name ----------------------------------
+
+
+def test_seedance_is_reachable_without_being_typed_in():
+    """Seedance appeared in `fal.py`'s list of known models and nowhere else.
+
+    One entry inside a `KNOWN` dictionary is not "supported" — it means the
+    panel offers it if you already know the id and go looking. It was not in
+    any `fallback_models`, so a fresh install had no way to reach it that did
+    not involve a person reading fal's documentation first. The same was true
+    of Seedream, its image sibling.
+    """
+    fal = catalog.HOSTS_BY_ID['fal']
+    assert any('seedance' in model for model in fal.fallback_models), (
+        'Seedance is not offered on a fresh fal connection'
+    )
+    assert any('seedream' in model for model in fal.fallback_models), (
+        'Seedream is not offered on a fresh fal connection'
+    )
+
+    from openmirror.providers.fal import KNOWN
+
+    assert any('seedance' in ident for ident, _ in KNOWN['video'])
+    assert any('seedream' in ident for ident, _ in KNOWN['image'])
+
+
+def test_the_models_that_were_named_have_a_host_that_serves_them():
+    """Seedance, Seedream, Stable Audio and ACE-Step, each reachable by name.
+
+    Not "in a list somewhere" — each has to be in the `fallback_models` of a
+    host whose declared modalities include the kind it makes. A model named in
+    a host that does not serve music is a model the picker will never offer,
+    which is the failure this is written to prevent.
+    """
+    wanted = {
+        'seedance': 'video',
+        'seedream': 'image',
+        'stable-audio': 'music',
+        'ace-step': 'music',
+    }
+    for needle, kind in wanted.items():
+        modality = Modality(kind)
+        homes = [
+            host.id for host in catalog.HOSTS
+            if modality in host.modalities and any(needle in m for m in host.fallback_models)
+        ]
+        assert homes, f'no host serves {needle} as {kind}'
+
+
+def test_music_is_a_modality_somebody_actually_serves():
+    """A modality nothing is registered for is a kind that appears in the picker
+    and fails on the first call.
+
+    That is the specific failure the "nothing is offered that would fail" rule
+    in the media service exists to prevent, and a modality added without a
+    provider is how it comes back.
+    """
+    serving = [
+        host.id for host in catalog.HOSTS
+        if Modality.MUSIC in host.modalities
+    ]
+    assert serving, 'Modality.MUSIC exists and nothing serves it'
+
+    from openmirror.providers.connections import build, from_host
+
+    for host_id in serving:
+        _, impls = build(from_host(host_id, api_key='k'))
+        assert Modality.MUSIC in impls, f'{host_id} declares music and does not build one'

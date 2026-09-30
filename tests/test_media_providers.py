@@ -355,3 +355,251 @@ async def test_every_media_provider_offers_a_form_without_being_asked_anything()
         for param in params:
             assert param.label, f'{provider.provider_id}.{param.name}'
             assert param.group, f'{provider.provider_id}.{param.name}'
+
+
+# --- music -------------------------------------------------------------------
+
+
+def _store(tmp_path):
+    from openmirror.media.store import MediaStore
+
+    return MediaStore(tmp_path / 'media')
+
+
+class FakeAudio(HostedMedia):
+    """A music service: same submit-poll-download shape, audio out.
+
+    Deliberately not a `Fake` with a different constant. The point of the shape
+    is that music is *not* a video job with a different content type — the
+    media service used to route any kind that was not `image` to a video
+    modality, and the failure that produced was a music request answered with
+    an mp4 and no complaint from anything.
+    """
+
+    provider_id = 'fake-audio'
+
+    def __init__(self, **kw):
+        super().__init__('https://example.invalid', 'k', timeout=5, **kw)
+        # Three 'running' answers before it succeeds, so the test crosses the
+        # submit-poll-download loop rather than skipping it — the loop is the
+        # same one video uses and the point is that music uses it too.
+        self.script = [
+            Poll(state='queued', note='waiting'),
+            Poll(state='running', progress=0.5),
+            Poll(state='done', outputs=['https://example.invalid/a.wav']),
+        ]
+        self.submitted = None
+
+    async def submit(self, prompt, *, model, **kw):
+        self.submitted = {'prompt': prompt, 'model': model, **kw}
+        return Submitted(id='m-1', poll_url='https://example.invalid/m/1')
+
+    async def check(self, job):
+        return self.script.pop(0) if self.script else Poll(state='running')
+
+    async def download(self, url):
+        return b'RIFF\x24\x08\x00\x00WAVEfmt ', 'audio/wav'
+
+    async def models(self, kind: str = ''):
+        return [{'id': 'test-tune', 'provider': self.provider_id, 'label': 'Test Tune',
+                 'note': 'one model, for the picker'}]
+
+    async def describe(self, model: str = '', **kw):
+        from openmirror.media.params import common_music
+
+        return common_music()
+
+    async def generate(self, prompt, *, model='', progress=None, **kw):
+        # The `MusicProvider` signature, which is not the video one: no `n`, no
+        # `size`, and everything else by keyword. A music backend that took
+        # `n` and `size` would be a video backend with a music model.
+        return await self.run(prompt, model=model, progress=progress, **kw)
+
+
+def test_audio_bytes_are_recognised_from_their_own_magic():
+    """Sniffed, not taken from a header, because several of these services
+    return `application/octet-stream` for everything — and a file stored with
+    the wrong extension is a file nothing will open."""
+    from openmirror.providers.hosted_media import sniff
+
+    assert sniff(b'RIFF\x24\x08\x00\x00WAVEfmt ') == 'audio/wav'
+    assert sniff(b'OggS\x00\x02') == 'audio/ogg'
+    assert sniff(b'fLaC\x00\x00\x00"') == 'audio/flac'
+    assert sniff(b'MThd\x00\x00\x00\x06') == 'audio/midi'
+    assert sniff(b'ID3\x03\x00') == 'audio/mpeg'
+    # An MPEG frame sync is eleven set bits, not one of sixteen literals.
+    assert sniff(b'\xff\xe0\x00\x00') == 'audio/mpeg'
+    assert sniff(b'\xff\xfa\x00\x00') == 'audio/mpeg'
+    # And nothing above may have broken what was there.
+    assert sniff(b'\x89PNG\r\n\x1a\n') == 'image/png'
+    assert sniff(b'\x00\x00\x00\x18ftypmp42') == 'video/mp4'
+    assert sniff(b'RIFF\x24\x08\x00\x00WEBPVP8 ') == 'image/webp'
+
+
+def test_a_mp3_is_recognised_however_it_arrives():
+    """Extension, declared type and magic all say mp3, because three services
+    each use one of them."""
+    from openmirror.providers.hosted_media import sniff
+
+    assert sniff(b'whatever', url='https://x/y.mp3') == 'audio/mpeg'
+    assert sniff(b'whatever', 'audio/mpeg') == 'audio/mpeg'
+    assert sniff(b'ID3\x03', 'application/octet-stream') == 'audio/mpeg'
+
+
+def test_the_store_knows_what_to_call_an_audio_file():
+    """The whole reason `Modality.MUSIC` was not enough on its own: a type with
+    no entry in this table is not refused, it is stored as `.bin`."""
+    from openmirror.media.store import EXTENSIONS
+
+    assert EXTENSIONS['audio/mpeg'] == '.mp3'
+    assert EXTENSIONS['audio/wav'] == '.wav'
+    assert EXTENSIONS['audio/midi'] == '.mid'
+
+
+async def test_a_music_job_reaches_the_provider_as_bytes_and_lands_in_the_store(tmp_path):
+    from openmirror.media.service import MediaService
+    from openmirror.providers.base import Modality, ProviderInfo
+    from openmirror.providers.registry import ProviderRegistry
+
+    audio = FakeAudio()
+    registry = ProviderRegistry()
+    registry.register(
+        ProviderInfo('fake-audio', 'Fake audio', {Modality.MUSIC}, local=False), {Modality.MUSIC: audio}
+    )
+    service = MediaService(registry=registry, store=_store(tmp_path))
+
+    assert 'music' in service.can_generate()
+    job = service.start_music('lo-fi hip hop, upright bass', params={'bars': 16, 'instrumental': True})
+    await job.task
+
+    assert job.state == 'done', job.error
+    assert audio.submitted['prompt'] == 'lo-fi hip hop, upright bass'
+    # `bars` is a music parameter, not a video one, and it has to arrive as
+    # itself rather than being dropped by a video-shaped signature.
+    assert audio.submitted['bars'] == 16
+    assert audio.submitted['instrumental'] is True
+    assert job.media[0].media_type == 'audio/wav'
+    assert job.media[0].filename.endswith('.wav')
+    assert job.media[0].kind == 'music'
+    stored = service.store.path(job.media[0].id)
+    assert stored is not None and stored.suffix == '.wav'
+
+
+async def test_a_music_job_never_resolves_to_a_video_provider(tmp_path):
+    """The bug the kind table was written for.
+
+    `_resolve` used to be `Modality.IMAGE if kind == 'image' else
+    Modality.VIDEO`, so every kind that was not an image meant video. Adding
+    music to that expression does not make the else mean "video" — it makes it
+    mean "everything that is not an image", and a music job was answered with
+    a cheerful mp4 from a diffusion backend.
+    """
+    from openmirror.media.service import MediaService, _modality
+    from openmirror.providers.base import Modality, ProviderInfo
+    from openmirror.providers.registry import NoProviderError, ProviderRegistry
+
+    registry = ProviderRegistry()
+    registry.register(
+        ProviderInfo('video-only', 'Video only', {Modality.VIDEO}),
+        {Modality.VIDEO: object()},
+    )
+    service = MediaService(registry=registry, store=_store(tmp_path))
+
+    assert _modality('music') is Modality.MUSIC
+    with pytest.raises(NoProviderError) as caught:
+        service.start_music('anything')
+    assert 'music' in str(caught.value)
+
+    # And a kind nobody has heard of is refused by name, not folded into video.
+    with pytest.raises(NoProviderError) as caught:
+        _modality('audio')
+    assert "'audio'" in str(caught.value)
+
+
+async def test_composing_a_score_needs_no_backend_at_all(tmp_path):
+    """The exception that proves the rule above.
+
+    Nothing is offered that would fail on its first call — and composing a
+    MIDI file cannot fail, because there is nothing to be configured. Refusing
+    it on an install with no music model connected would leave the most
+    reliable way to make music unavailable on exactly the installs that could
+    least afford to be told no.
+    """
+    from openmirror.agent.runtime import default_tools, media_tools
+    from openmirror.media.service import MediaService
+    from openmirror.providers.registry import ProviderRegistry
+
+    registry = ProviderRegistry()
+    service = MediaService(registry=registry, store=_store(tmp_path))
+    assert service.can_generate() == set(), 'nothing is connected, and it says so'
+
+    names = {tool.name for tool in media_tools(service)}
+    assert 'compose_music' in names
+    assert 'generate_music' not in names, 'a music generator on a machine with none'
+
+    # And `default_tools` is not where this lives — the media service hands it
+    # out — so the check above is the whole of it.
+    assert not any(tool.name == 'generate_music' for tool in default_tools())
+
+
+async def test_a_melody_goes_into_the_file_and_the_stores_note_of_it(tmp_path):
+    from openmirror.agent.tools.base import ToolContext
+    from openmirror.agent.tools.media import ComposeMusicTool
+    from openmirror.media.service import MediaService
+    from openmirror.music.midi import read_notes
+    from openmirror.protocol.agent import Risk
+    from openmirror.providers.registry import ProviderRegistry
+
+    service = MediaService(registry=ProviderRegistry(), store=_store(tmp_path))
+    tool = ComposeMusicTool(service)
+
+    graded = tool.assess({'key': 'A minor', 'progression': 'ii-V-I'}, None)
+    assert graded.risk is Risk.WRITE
+    assert graded.invalid is None
+
+    out = await tool.run(
+        {'key': 'A minor', 'progression': 'ii-V-I', 'bars': 4,
+         'notes': [{'pitch': 60, 'start': 0, 'length': 2}, {'pitch': 64, 'start': 2, 'length': 2}]},
+        ToolContext(root=tmp_path, cwd=tmp_path, emit=None, ask=None, session_id='s'),
+    )
+
+    assert 'A minor' in out.content
+    assert 'FL Studio' in out.content, 'the point of a MIDI file is the DAW that opens it'
+    assert '.flp' in (ComposeMusicTool.description or '')
+
+    stored = service.store.get(out.display['media'][0]['id'])
+    # The sidecar is what makes a piece reproducible: change one thing, run it
+    # again, and the only difference is the thing you changed.
+    assert stored.params['key'] == 'A minor'
+    assert stored.params['progression'] == 'ii-V-I'
+
+    found = service.store.path(out.display['media'][0]['id'])
+    assert found is not None, 'the score was reported as stored and is not'
+    assert found.suffix == '.mid', f'a MIDI score stored as {found.name}, which nothing will open'
+    tracks = read_notes(found.read_bytes())
+    assert any(len(track) > 2 for track in tracks), 'the melody is a third track'
+
+
+async def test_an_unwritable_progression_is_refused_rather_than_explained(tmp_path):
+    """A refusal the model can read is what lets it try a different one. The
+    same message to the person is a lecture about chord notation."""
+    from openmirror.agent.tools.base import ToolContext
+    from openmirror.agent.tools.media import ComposeMusicTool
+    from openmirror.media.service import MediaService
+    from openmirror.providers.registry import ProviderRegistry
+
+    tool = ComposeMusicTool(MediaService(registry=ProviderRegistry(), store=_store(tmp_path)))
+    out = await tool.run(
+        {'key': 'C major', 'progression': 'flibbertigiget'},
+        ToolContext(root=tmp_path, cwd=tmp_path, emit=None, ask=None, session_id='s'),
+    )
+    assert out.invalid, 'a progression that cannot be written must be an invalid, not prose'
+    assert 'I–V–vi–IV' in out.invalid, 'and it should say what it does know'
+
+
+async def test_a_key_the_model_made_up_is_refused_before_anything_is_written(tmp_path):
+    from openmirror.agent.tools.media import ComposeMusicTool
+
+    tool = ComposeMusicTool(None)
+    graded = tool.assess({'key': 'Q sharp major', 'progression': 'I-V'}, None)
+    assert graded.invalid and 'C major' in graded.invalid

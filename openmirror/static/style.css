@@ -1267,6 +1267,19 @@ body.call-live #live-button {
 .autopilot-narration .step.bad { color: var(--danger); }
 .autopilot-foot { flex: none; display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 
+/* A MIDI score has no picture and will never have one. The card says what the
+   file is and what opens it, rather than rendering a broken <audio> control
+   that clicks and does nothing. */
+.midi-card {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  min-height: 90px; padding: 14px;
+  font-size: 13px; color: var(--ink);
+  border: 1px dashed var(--edge); border-radius: var(--radius);
+  text-decoration: none; text-align: center;
+}
+.midi-card:hover { border-color: var(--accent); }
+.shot-card audio { width: 100%; }
+
 /* --- studio ---------------------------------------------------------------
  *
  * Two columns: a form that can grow to thirty controls without becoming a

@@ -1,42 +1,56 @@
-# The seven modes
+# The two modes
 
-Not tabs over a shared workspace. Typing at an agent, talking to one, and
-watching one work are different kinds of attention, and a layout that keeps a
-text box on screen during a voice call is a layout that tells you to type.
+Not tabs over a shared workspace. A conversation and a place to make things
+are genuinely different kinds of attention, and one at a time is the honest
+arrangement. Everything else this app can do is a *tool* or a *drawer* inside
+the conversation, and the argument for that is below rather than assumed.
 
-One is on screen at a time, chosen from the rail on the left. Each hands back
-what it holds when you leave it — a microphone left open because somebody
-clicked away is a microphone left open.
+There were seven of these once: Code, Talk, Live, Autopilot, Studio, Search and
+Mail. Reducing them to two was not tidying. Each of the other five was a place
+a decision had been pushed out to, and each push cost something real.
 
-## Code
+* **Talk and Live** were modes because a microphone is a different kind of
+  attention. They still are — which is why there is a call surface that gives
+  the composer back rather than covering it, and an `Escape` that ends it. But
+  they are not *places*, and treating them as places meant a rail of seven
+  buttons where two could only be reached through a third: a "talk" button that
+  had to switch mode before it could open the microphone. There are two buttons
+  in the bar now. Each opens the microphone and starts listening; each pressed
+  again ends the call. You are still in the conversation, and you can read what
+  it said when the call stops.
+* **Search and Mail** were modes because "look this up" and "read my inbox"
+  were not expressible as messages. They are: they are tools, and they have
+  always been tools. What the modes added was a *second* way to reach one
+  store, and two ways to reach one store is two places for it to be wrong.
+  They are **drawers** now — opened over the conversation, closed by anything
+  else, and the conversation handed back. The rule that made them modes worth
+  having is kept: a drawer that leaks is a whole inbox open behind whatever
+  you went on to do.
+* **Autopilot** was a mode because somebody had to press the button, and that is
+  the one thing the harness is better at. It is the `autopilot` tool now: the
+  model decides a long job needs working on unattended, exactly as it decides
+  anything else, and it competes on the same terms as reading a file or
+  running the tests. The run is a turn, so it is in the transcript and can be
+  read afterwards — which a mode's live view could never offer.
 
-The one everything else is measured against: a transcript, tool cards with the
-risk grade on them, inline diffs, approve and deny, and a receipt at the end
-of each turn saying what changed and offering to put it back.
+## Chat
+
+A transcript, tool cards with the risk grade on them, inline diffs, approve and
+deny, and a receipt at the end of each turn saying what changed and offering to
+put it back.
 
 The controls that qualify *the next thing you say* — approval mode, model,
 working root, provider — sit under the box you type in rather than in a title
 bar three hundred pixels away.
 
-## Talk
+Beside them are two buttons:
 
-One button, and then only your voice.
+**Talk** opens the microphone and starts listening. Press it again and the call
+ends. Barge-in works the way it does everywhere else in openmirror: talk over
+it and the synthesis is killed server-side, the client drops what it has
+buffered, and the history records only what you actually heard.
 
-The button is in the bar and it does the whole thing: switches the app, opens
-the microphone, starts listening. A "talk mode" that then needs a second
-control to actually start talking is two buttons wearing one coat.
-
-There is no composer here on purpose. Acting on the machine is a tick box, off
-by default and decided per call, because consenting to be listened to is not
-the same as consenting to have commands run — and the voice gateway enforces
-that separately, so the box only decides whether an agent session is attached
-at all.
-
-Barge-in works the way it does everywhere else in openmirror: talk over it and the
-synthesis is killed server-side, the client drops what it has buffered, and
-the history records only what you actually heard.
-
-**It speaks its questions, and says when it is waiting.** This was the mode's
+*It speaks its questions, and says when it is waiting.* This was the mode's
 worst failure for a while: only assistant prose was spoken, so when the agent
 asked something or stopped for an approval the call simply went quiet, and
 somebody not looking at a screen had no way to know the machine was waiting on
@@ -49,63 +63,63 @@ turn. Answering out loud while it is still reading the question out stops the
 speech and keeps the turn, because cancelling there would throw away the work
 the answer was about to unblock.
 
-**Nothing is ever guessed.** "Go" and "no" are one phoneme apart, and
-"don't do it" contains "do it" — so a refusal wins whenever both appear, and
-anything that is neither is repeated back rather than resolved to the likelier
-reading. Refusing an ambiguous utterance costs a repeat; approving one costs
-whatever the tool was about to do.
+*Nothing is ever guessed.* "Go" and "no" are one phoneme apart, and "don't do
+it" contains "do it" — so a refusal wins whenever both appear, and anything
+that is neither is repeated back rather than resolved to the likelier reading.
+Refusing an ambiguous utterance costs a repeat; approving one costs whatever
+the tool was about to do.
 
-**Money and secrets need a word that is not a mishearing.** A bare "yes" will
-not spend anything: those need "confirm", which is not a word that turns up in
+*Money and secrets need a word that is not a mishearing.* A bare "yes" will not
+spend anything: those need "confirm", which is not a word that turns up in
 conversation by accident and is not a plausible mistranscription of "no". It
 says so when it asks, not after.
 
 `Ctrl+Shift+T` from anywhere. `Escape` stops whatever is talking.
 
-## Live
-
-OpenAI's realtime API: speech to speech, one model, no text in the middle.
-
-What you gain is latency and prosody — the model hears *how* something was
-said and answers before a transcript would have existed. What you give up is
-choice, and the pane says so: it is one vendor's model, it cannot be pointed
-at your own hardware, and everything said in the room goes to them while it is
-open. Ordinary Talk routes dictation, thinking and speech separately, so each
-of those can stay on your machine.
+**Live** is next to it: OpenAI's realtime API, speech to speech, one model, no
+text in the middle. What you gain is latency and prosody — the model hears *how*
+something was said and answers before a transcript would have existed. What you
+give up is choice, and the button says so: it is one vendor's model, it cannot
+be pointed at your own hardware, and everything said in the room goes to them
+while it is open. Ordinary Talk routes dictation, thinking and speech
+separately, so each of those can stay on your machine.
 
 Its tool calls go through the same approval path as the typed loop. If the
 policy says a human decides, the model waits — and it is told, in the tool
-result, that it is waiting on a person, so it says so out loud rather than
-going quiet.
+result, that it is waiting on a person, so it says so out loud rather than going
+quiet.
 
-## Autopilot
+### Autopilot, as a card
 
-A goal, and a window. No composer, no transcript, no tool cards: a live view
-of a screen it is driving and one line of what it is doing.
+When the model decides a job wants working on unattended, it calls the
+`autopilot` tool. What comes back is a card in the transcript: the screen it is
+driving while it runs, one line per thing it did, and a stop button.
 
-It gets a screen of its own by default — see [AUTONOMY.md](AUTONOMY.md) — so
-you keep using your computer while you watch. Running on *your* screen is
-possible and has to be asked for in words; the refusal happens before anything
-moves.
+It gets a screen of its own by default — see [AUTONOMY.md](AUTONOMY.md) — so you
+keep using your computer while you watch. Running on *your* screen is possible
+and has to be asked for in words; the refusal happens before anything moves.
 
 The picture and the narration come down separate channels, which is not an
 accident. The narration is small, ordered and replayed to a client that
-reconnects; the video is large, continuous and worthless five seconds later.
-On one channel you would either store an hour of stale frames to replay, or
-lose the record of what happened when someone reloads the page.
+reconnects; the video is large, continuous and worthless five seconds later. On
+one channel you would either store an hour of stale frames to replay, or lose
+the record of what happened when someone reloads the page.
 
-If it stops to ask something, the question appears in Code, with the full
-context around it.
+When the run ends the card folds itself away and leaves the narration, which is
+still true. That is the one thing a mode's live view could not do.
+
+If it stops to ask something, the question appears in the transcript with the
+full context around it.
 
 ## Studio
 
-Images and video, with every control the backend actually has.
+Images, video and music, with every control the backend actually has.
 
-The panel is drawn from what the server says: ask an A1111 and its own
-samplers, schedulers, upscalers and LoRA names come back as real dropdowns,
-each with a sentence explaining what it does. Nothing in the client knows what
-a sampler is, so installing one on the diffusion box adds it here with no
-release in between.
+The panel is drawn from what the server says: ask an A1111 and its own samplers,
+schedulers, upscalers and LoRA names come back as real dropdowns, each with a
+sentence explaining what it does. Nothing in the client knows what a sampler
+is, so installing one on the diffusion box adds it here with no release in
+between.
 
 "Everything else" is a fold, not a lock. Every parameter is present and
 settable; the ones you need most days are open and the other twenty are one
@@ -121,6 +135,37 @@ Every result is stored as a file plus a JSON sidecar holding the prompt, the
 seed the backend *actually used*, and every setting. A picture you cannot
 reproduce is a picture you cannot iterate on.
 
+### Music
+
+A third kind, and not a flag on video: a music model is asked for a length in
+bars and returns a `.wav`, a video model is asked for a resolution and returns
+an `.mp4`, and the two lists have almost nothing in common. So the picker offers
+what the connected host actually has for music — Stable Audio, ACE-Step,
+DiffRhythm and the rest through fal or Replicate, which is also how you reach
+Suno-hosted models, since Suno has no API of its own.
+
+It is a job, like video, because a piece takes minutes.
+
+**Scores rather than recordings.** `compose_music` is the tool for anything you
+are going to finish yourself. You give it a key and a progression — "A minor,
+ii–V–I" — and it writes a chord part held a bar at a time with a bass
+underneath, ending back on the key so a loop lands somewhere, as a Standard MIDI
+File. FL Studio, Ableton, Logic, Reaper and Cubase all import that.
+
+It does not write FL Studio's `.flp` format. That is a proprietary binary, and
+there is no honest way to produce one from outside the application; a tool that
+claimed to would either be reverse-engineering a format that changes or
+shelling out to an FL Studio that may not be installed. It also does not host
+plugins, because that is a C++ audio graph and a different product. The `.mid`
+is what the format allows, and it is the same either way whether you have FL
+Studio or not.
+
+Deciding the music is the part worth delegating — a chord progression, a bass
+line that follows the harmony, a piece that turns before the end — and writing
+the file is the part that must not be. So the model arranges and
+`openmirror/music/midi.py` renders, in a hundred lines of standard library with
+a round-trip test, because a MIDI file nothing else can open is not a file.
+
 ### Bringing a ComfyUI workflow
 
 None ship, because a template names the checkpoints and custom nodes your
@@ -129,48 +174,51 @@ ComfyUI has. Bringing yours is one command — see
 The prompt, seed, size and sampler settings are found and turned into
 controls, and what it found is reported back so you can see whether it worked.
 
-## Search
+
+## The drawers
+
+Two things that are not a message, opened *over* the conversation rather than
+replacing it.
+
+### Search
 
 The agent's search backend, without the agent.
 
 Worth having for a reason that is not obvious: that backend is configured
 once, with a key, and is usually better than a browser tab — a self-hosted
 SearxNG, or a Brave key that does not track you. Looking something up should
-not have to cost a model turn.
+not have to cost a model turn, and someone who only wanted the links gets the
+links.
 
 Results can be read in place, through the same fetch the agent uses — so the
 private-address guard applies to a person clicking a link, not only to a model
 following one.
 
-
-## Mail
+### Mail
 
 Your inbox, opened without leaving what you were doing. Folders with unread
 counts, a list, a reader, and a composer.
 
-It is a mode rather than a dialog for the reason the others are: reading a
-message is a different kind of attention from writing to an agent about it,
-and switching to it should not be possible halfway through a reply.
-
 Three things it does that a mail client does not:
 
-* **The agent reads the same inbox.** The `mail` tool and this pane are two
+* **The agent reads the same inbox.** The `mail` tool and this drawer are two
   doors onto one store, so "what came in today" costs you nothing and "draft
   a reply to the Acme thread" costs the agent one turn. Neither is a copy of
-  the other, and nothing is cached twice.
+  the other, and nothing is cached twice. This is the part that was true when
+  mail was a mode too, and it is the part that made it worth having.
 * **"Write it for me" fills the composer and stops.** It sends the one
   message being answered to whichever model this install routes chat to, and
   puts a draft in a box that is already open, already addressed and already
   subject-lined. Sending is a separate button on purpose — see
   [AUTONOMY.md](AUTONOMY.md).
-* **Listing a folder does not mark it read.** The server uses `BODY.PEEK` and
-  the `$seen` keyword is only touched when you open a message, so the unread
-  count is still true after you have looked through the list.
+* **Listing a folder does not mark it read.** The server uses `BODY.PEEK`
+  and the `$seen` keyword is only touched when you open a message, so the
+  unread count is still true after you have looked through the list.
 
 ## Where the commit bar lives
 
-Not a mode — it is in the Code header, and it only appears when your working
-root is a git repository with something in it. It counts *changed files* rather
+Not a mode or a drawer — it is in the Chat header, and it only appears when
+your working root is a git repository with something in it. It counts *changed files* rather
 than lines, because that is the number that answers "is there anything to do
 here", and a diffstat of a reformat is large and says nothing.
 

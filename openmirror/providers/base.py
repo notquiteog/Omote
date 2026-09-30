@@ -423,13 +423,20 @@ class MusicProvider(abc.ABC):
     ) -> list[GeneratedMedia]: ...
 
     @abc.abstractmethod
-    def describe(self, *, model: str = '', **kw: Any) -> list[Param]:
+    async def describe(self, model: str = '', **kw: Any) -> list[Param]:
         """What this model can be told, as controls.
 
         Same contract as the image and video providers and for the same reason:
         nothing in the client knows what a sampler or a bar length is, so
         installing a model on the box adds its controls here with no release in
         between.
+
+        `model` is positional-or-keyword because the media service calls it
+        that way — `describer(model)` — and a keyword-only parameter here is a
+        `TypeError` on the first call rather than a compile error. It is
+        `async` for the reason the module docstring on `media/params.py` gives:
+        the choices are asked of the server rather than listed here, because a
+        hard-coded sampler or tempo list is wrong within a month.
         """
 
 

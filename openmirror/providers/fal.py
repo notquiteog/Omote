@@ -81,6 +81,19 @@ KNOWN: dict[str, tuple[tuple[str, str], ...]] = {
         ('fal-ai/luma-dream-machine', 'Luma Ray — cheap, good camera movement'),
         ('fal-ai/mochi-v1', 'Mochi 1 — open weights, Apache licensed'),
     ),
+    # Music. Most of these are reachable through an aggregator rather than from
+    # the maker directly, which is the honest way to put them here: Suno has no
+    # public API of its own, and the services that host Suno-hosted models are
+    # the same ones hosting Stable Audio and ACE-Step. Nothing below asks for a
+    # key anybody does not already have.
+    'music': (
+        ('fal-ai/stable-audio', 'Stable Audio — Stability, instrumental and vocal, the usual default'),
+        ('fal-ai/ace-step', 'ACE-Step — open weights, lyric-conditioned, the strongest at vocals'),
+        ('fal-ai/minimax-music-2', 'MiniMax Music 2 — long-form, with a lyric track'),
+        ('fal-ai/cassetteai-music-generator', 'CassetteAI — cassette warmth, short loops'),
+        ('fal-ai/yue-music', 'Yue — Chinese-language vocal models'),
+        ('fal-ai/diffrhythm', 'DiffRhythm — full song from lyrics, up to four minutes'),
+    ),
 }
 
 

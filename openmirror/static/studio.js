@@ -79,6 +79,7 @@ function status(text, tone = '') {
    with no bounds is a lie about what is allowed. */
 function control(param) {
   if (param.kind === 'image') return imageControl(param);
+  if (param.kind === 'notes') return notesControl(param);
 
   const row = el('div', 'param');
   const top = el('div', 'top');
@@ -156,6 +157,56 @@ function control(param) {
   }
 
   if (param.help) row.appendChild(el('div', 'why', param.help));
+  return row;
+}
+
+/* A list of notes, which is a parameter like any other and looks nothing like one.
+ *
+ * A piano roll would be the obvious thing to build and is the wrong thing to
+ * ship: it is a week of work, it will not be good, and the person who wants to
+ * arrange a part properly is going to open the file in a DAW anyway. What is
+ * wanted here is a way to *say* the notes so the agent can be specific about a
+ * melody — so this is a JSON textarea that shows exactly what it will send.
+ *
+ * It reports rather than blocks: bad JSON is a sentence under the box and the
+ * previous list is kept, because refusing to send the form at all on a stray
+ * comma is worse than sending the notes that were there before. */
+function notesControl(param) {
+  const row = el('div', 'param');
+  const top = el('div', 'top');
+  const label = el('label', '', param.label);
+  label.htmlFor = `p-${param.name}`;
+  top.appendChild(label);
+  top.appendChild(el('span', 'value', ''));
+  row.appendChild(top);
+
+  const input = el('textarea');
+  input.rows = 5;
+  input.id = `p-${param.name}`;
+  input.placeholder = '[{"pitch": 60, "start": 0, "length": 2}, {"pitch": 64, "start": 2, "length": 2}]';
+  const current = values.has(param.name) ? values.get(param.name) : param.default;
+  input.value = current ? JSON.stringify(current, null, 1) : '';
+
+  const why = el('div', 'why', 'A list of {pitch, start, length, velocity}. '
+    + 'Pitch is a MIDI number — 60 is middle C, 69 is A440 — and start and length are in beats.');
+  row.append(input, why);
+
+  const read = () => {
+    const text = input.value.trim();
+    if (!text) return [];
+    try {
+      const parsed = JSON.parse(text);
+      why.classList.remove('bad');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      why.classList.add('bad');
+      why.textContent = `that is not JSON: ${err.message}. The notes from before are still being sent.`;
+      return values.has(param.name) ? values.get(param.name) : [];
+    }
+  };
+  input.oninput = () => { values.set(param.name, read()); markChanged(); };
+
+  if (param.help) row.appendChild(el('div', 'meta', param.help));
   return row;
 }
 
@@ -288,7 +339,7 @@ function markChanged() {
   // The button says what pressing it will actually do, which changes with the
   // kind and with whether anything is in flight.
   const make = $('#studio-make');
-  make.textContent = kind === 'video' ? 'Render it' : 'Make it';
+  make.textContent = kind === 'video' ? 'Render it' : kind === 'music' ? 'Compose it' : 'Make it';
 }
 
 /* ----------------------------------------------------------------- form */
@@ -421,7 +472,9 @@ function paintModels(current) {
     ? 'pick one, or type any id this backend knows'
     : kind === 'video'
       ? 'no workflow templates installed'
-      : 'no models';
+      : kind === 'music'
+        ? 'no music models here — use the agent for a MIDI score instead'
+        : 'no models';
 }
 
 function collect() {
@@ -576,6 +629,25 @@ function card(item, index) {
     box.onmouseleave = () => video.pause();
     box.appendChild(video);
     box.appendChild(el('span', 'badge', 'video'));
+  } else if (item.kind === 'music' || item.media_type === 'audio/midi') {
+    // MIDI is not playable in a browser and does not pretend to be: a score is
+    // for a DAW, so the card offers the file and says what opens it. A
+    // generated .wav, on the other hand, plays.
+    if (item.media_type === 'audio/midi') {
+      const link = el('a', 'midi-card', 'MIDI score');
+      link.href = item.url;
+      link.download = item.filename || 'score.mid';
+      link.textContent = item.filename || 'score.mid';
+      box.appendChild(link);
+      box.appendChild(el('div', 'snippet', 'Open it in FL Studio, Ableton, Logic or Reaper.'));
+    } else {
+      const audio = document.createElement('audio');
+      audio.src = item.url;
+      audio.controls = true;
+      audio.preload = 'metadata';
+      box.appendChild(audio);
+    }
+    box.appendChild(el('span', 'badge', item.media_type === 'audio/midi' ? 'midi' : 'audio'));
   } else {
     const img = document.createElement('img');
     img.src = item.url;
@@ -748,6 +820,25 @@ function paintShot() {
     video.loop = true;
     video.autoplay = true;
     stage.appendChild(video);
+  } else if (item.kind === 'music' || item.media_type === 'audio/midi') {
+    if (item.media_type === 'audio/midi') {
+      // Same reasoning as the card: a MIDI file is not something a browser
+      // plays, and pretending otherwise with an <audio> tag gives a control
+      // that clicks and does nothing.
+      const link = el('a', 'midi-card', item.filename || 'score.mid');
+      link.href = item.url;
+      link.download = item.filename || 'score.mid';
+      stage.appendChild(link);
+      stage.appendChild(el('p', 'explain',
+        'A Standard MIDI File. Open it in FL Studio, Ableton, Logic, Reaper or Cubase — it is '
+        + 'editable there, which is the point of writing a score rather than a recording.'));
+    } else {
+      const audio = document.createElement('audio');
+      audio.src = item.url;
+      audio.controls = true;
+      audio.autoplay = true;
+      stage.appendChild(audio);
+    }
   } else {
     const img = document.createElement('img');
     img.src = item.url;
@@ -889,7 +980,16 @@ async function make(event) {
   }
 
   const job = await res.json();
-  status(kind === 'video' ? 'started — video takes minutes' : 'started');
+  // Video and music both take minutes, and saying "started" for a two-minute
+  // job reads as a hang. Image and audio-to-image finish quickly enough that
+  // the same message would be noise.
+  status(
+    kind === 'video'
+      ? 'started — video takes minutes'
+      : kind === 'music'
+        ? 'started — music takes minutes'
+        : 'started'
+  );
   // Somewhere for the result to land, so the grid does not sit unchanged for
   // ninety seconds looking like nothing happened.
   skeletons(kind === 'image' ? Number(params.n) || 1 : 1);

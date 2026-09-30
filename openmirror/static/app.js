@@ -428,6 +428,8 @@ const VERBS = {
   todo: 'Updated the to-dos',
   propose_plan: 'Proposed a plan',
   autopilot: 'Working unattended',
+  generate_music: 'Composed music',
+  compose_music: 'Wrote a score',
   agent: 'Delegated',
   skill: 'Used the skill',
   lsp: 'Asked the language server',

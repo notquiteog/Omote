@@ -186,9 +186,20 @@ cannot recur silently.
 
 ## Running unattended, on a screen
 
-Autopilot is the mode where the questions on this page stop being theoretical:
-there is a goal, there is a screen, and there is nobody answering. Four things
-are worth knowing before you start one.
+Autopilot is where the questions on this page stop being theoretical: there is
+a goal, there is a screen, and there is nobody answering.
+
+It used to be a mode, with a rail button and a box to type the goal into. It is
+the `autopilot` tool now, and that is the better shape for it: the decision of
+whether a job wants working on unattended is one a model can make well, having
+seen the same conversation the tool list was assembled from. A rail button
+meant it could only start when a person decided in advance that this was the
+kind of request it was — which is a thing you cannot know at the moment you ask.
+
+So: ask for the thing. "Migrate this module and run the tests" does not want
+autopilot — it wants a normal turn, and the model will have one. "Book a hotel
+in Tbilisi for the 14th to the 21st, two people, under 120 a night" does, and
+the model will reach for it. Four things are worth knowing either way.
 
 **It refuses to take your screen unless you say so in words.** The check
 happens before anything moves, so "this would take your mouse" is something
@@ -196,10 +207,9 @@ you are told rather than something you discover when the cursor jumps. Without
 Xvfb installed there is no screen it can have to itself, and the run is
 refused rather than quietly borrowing yours.
 
-**The approval policy is the same one.** There is no separate autopilot mode
+**The approval policy is the same one.** There is no separate autopilot level
 in the policy and there must not be — the temptation to add one is exactly how
-an agent ends up with permissions nobody granted it, in a mode nobody was
-watching. What autopilot changes is the *prompt*: it is told to finish rather
+an agent ends up with permissions nobody granted it, while nobody was watching. What autopilot changes is the *prompt*: it is told to finish rather
 than to check in. `trusted` is the honest default for it, and it still stops
 for anything destructive, for money and for secrets.
 

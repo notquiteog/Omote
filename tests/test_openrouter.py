@@ -174,13 +174,28 @@ def _fast_polling(monkeypatch):
 
 # -- one key, six kinds ------------------------------------------------------
 
+#: What OpenRouter is claimed to serve, written out rather than derived from
+#: `Modality`. `Modality` gained MUSIC and this list did not grow, on purpose:
+#: there is no OpenRouter audio-generation endpoint this project knows the shape
+#: of, and registering one speculatively is how you get a `music` kind that
+#: resolves to a 404. The rule this project follows everywhere else is that a
+#: tool is not offered unless it can work — so if a music endpoint appears with
+#: a published API, this list grows and the provider is written. Deriving the
+#: expectation from the enum instead would have quietly demanded exactly that.
+OPENROUTER_MODALITIES = frozenset({
+    Modality.CHAT, Modality.EMBEDDING, Modality.STT, Modality.TTS,
+    Modality.IMAGE, Modality.VIDEO,
+})
+
 
 def test_one_key_builds_all_six():
     conn = connections.from_host('openrouter', api_key=KEY)
     assert conn.adapter == 'openrouter'
     _, impls = connections.build(conn)
 
-    assert set(impls) == set(Modality)
+    assert set(impls) == OPENROUTER_MODALITIES, (
+        f'OpenRouter serves {sorted(set(impls))}, which is not what it is claimed to serve'
+    )
     for modality in (Modality.CHAT, Modality.EMBEDDING, Modality.STT, Modality.TTS):
         assert isinstance(impls[modality], OpenRouterProvider)
         assert impls[modality].kind is modality

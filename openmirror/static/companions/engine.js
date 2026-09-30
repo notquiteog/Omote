@@ -110,6 +110,10 @@ const TOOL_STATES = {
   // creatures, and the wait looks the same from outside either way.
   generate_image: 'running',
   generate_video: 'running',
+  generate_music: 'running',
+  // Writing a score is composing, not waiting, and it is fast — but from
+  // outside it is still work happening, which is what 'running' already says.
+  compose_music: 'running',
   system_info: 'reading',
   display_info: 'reading',
   package_search: 'browsing',

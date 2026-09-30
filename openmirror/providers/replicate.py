@@ -50,6 +50,11 @@ API = 'https://api.replicate.com/v1'
 COLLECTIONS = {
     'image': ('text-to-image', 'image-editing'),
     'video': ('text-to-video', 'image-to-video'),
+    # Replicate files music under its own names, and the two are worth asking
+    # about separately: `text-to-audio` is a whole piece, and
+    # `text-to-music` is a score and an arrangement rather than a recording —
+    # which is the one that comes back as a MIDI or a set of stems.
+    'music': ('text-to-audio', 'text-to-music', 'audio-generation'),
 }
 
 

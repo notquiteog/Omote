@@ -223,7 +223,13 @@ def build(conn: Connection) -> tuple[ProviderInfo, dict[Modality, Any]]:
         classes = {'replicate': ReplicateProvider, 'fal': FalProvider, 'stability': StabilityProvider,
                    'runway': RunwayProvider, 'luma': LumaProvider}
         shared = one(classes[conn.adapter], timeout=long_running)
+        # Music only where it is actually hosted. Stability has a music model
+        # and Runway and Luma do not, and offering a `music` kind that resolves
+        # to an image provider is the exact failure `_modality` was written to
+        # stop — so this is a list rather than a guess.
         impls = {Modality.IMAGE: shared, Modality.VIDEO: shared}
+        if conn.adapter in ('replicate', 'fal', 'stability'):
+            impls[Modality.MUSIC] = shared
     elif conn.adapter in ('kling', 'minimax'):
         from openmirror.providers.kling import KlingProvider
         from openmirror.providers.minimax import MiniMaxProvider
