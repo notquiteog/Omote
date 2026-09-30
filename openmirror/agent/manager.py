@@ -274,6 +274,7 @@ class SessionManager:
             calendar=cfg if cfg.calendar_enabled else None,
             hr=cfg if cfg.hr_enabled else None,
             finance=cfg if getattr(cfg, 'finance_enabled', False) else None,
+            trips=cfg if getattr(cfg, 'trips_enabled', True) else None,
             browser=browser,
             stage=stage,
             media=media,

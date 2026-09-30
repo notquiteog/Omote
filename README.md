@@ -43,6 +43,21 @@ better than a rail button, and it has no separate permission level: see
 [AUTONOMY.md](docs/AUTONOMY.md). The argument for all of it is in
 [MODES.md](docs/MODES.md).
 
+### The tools that are not a generation
+
+Three things the agent can do that are not "make me a picture":
+
+| | |
+|---|---|
+| **`trip`** | plan a trip and check it. Asks for the details in one coherent set, keeps the answers on disk across turns, works out an itinerary, and checks it against the dates, the budget and the calendar. Booking stays a browser task and stops at the button that takes money. |
+| **`finance`** | their money as a local ledger. Accounts, transactions imported from a statement they already have, categories they write rules for, savings goals. Read-only: no action here moves money, and no bank API is contacted. |
+| **`edit_media`** | change a picture, a clip or an audio file. Crop, trim, join, speed, subtitles, convert — with ffmpeg, Pillow and GIMP behind it, and only the ones this machine actually has. Nothing is overwritten. |
+
+None of them reaches a network it was not given, and all three refuse rather
+than guess: an amount with no currency, a time with no timezone offset, a leg
+outside the trip's dates. The reasoning for each is at the top of the module.
+
+
 ---
 
 ## Parity, and where it stops

@@ -54,6 +54,7 @@ TOOLSETS: dict[str, tuple[str, ...]] = {
     'calendar': ('calendar',),
     'hr': ('hr',),
     'finance': ('finance',),
+    'trip': ('trip',),
     'todo': ('todo',),
     'agents': ('agent',),
     'skills': ('skill',),
@@ -144,6 +145,23 @@ def finance_tools(cfg: Any) -> list[Tool]:
     from openmirror.finance.store import Ledger
 
     return build(Ledger(getattr(cfg, 'finance_db', '')))
+
+
+def trip_tools(cfg: Any) -> list[Tool]:
+    """The `trip` tool.
+
+    On by default, unlike the ledgers: there is nothing to configure, nothing
+    to import and nothing that can fail. A tool that plans and checks a trip
+    costs nothing and refuses to book, so withholding it would leave the one
+    request this is good at — "plan me a trip" — unavailable on an install that
+    has nothing set up, which is every fresh install.
+    """
+    if not getattr(cfg, 'trips_enabled', True):
+        return []
+    from openmirror.agent.tools.trip import trip_tools as build
+    from openmirror.trips.plan import Trips
+
+    return build(Trips(getattr(cfg, 'trips_dir', '')))
 
 
 def calendar_tools(cfg: Any) -> list[Tool]:
@@ -307,6 +325,10 @@ def build_session(
     # `calendar` take, for the same reason: the flag and the database path both
     # live on the config and neither belongs in the caller.
     finance: Any = None,
+    # The config, for the trip planner. On by default and with nothing to
+    # configure — see `trip_tools`. Defaults to the real config so a caller
+    # that says nothing about trips gets them, which is the point.
+    trips: Any = None,
     toolset: list[str] | None = None,
     mcp: Any = None,
     checkpoints: Any = None,
@@ -348,6 +370,16 @@ def build_session(
     }
     policy = ApprovalPolicy(mode=Mode(mode), **permissions)
     chosen = tools if tools is not None else default_tools()
+    if trips is None:
+        # Planning a trip cannot fail and costs nothing, so "not mentioned" means
+        # on. A caller that wants it off says so, and a project file that wants
+        # it off says so — see `PROJECT_CAN_ONLY_LOWER`.
+        try:
+            from openmirror.config import config as _default_cfg
+
+            trips = _default_cfg
+        except Exception:  # noqa: BLE001 - never the reason a session fails to start
+            log.debug('could not read the default config for the trip planner', exc_info=True)
 
     # In read-only mode the tools that can change things are left out entirely
     # rather than registered and refused. A model that can see `write_file`
@@ -381,6 +413,7 @@ def build_session(
         chosen = [*chosen, *hr_tools(hr)]
     if finance is not None:
         chosen = [*chosen, *finance_tools(finance)]
+    chosen = [*chosen, *trip_tools(trips)]
     if browser is not None:
         chosen = [*chosen, *browser_tools(browser)]
     if stage is not None:

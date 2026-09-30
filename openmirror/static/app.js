@@ -429,6 +429,7 @@ const VERBS = {
   propose_plan: 'Proposed a plan',
   autopilot: 'Working unattended',
   finance: 'Checked the ledger',
+  trip: 'Planned a trip',
   generate_music: 'Composed music',
   compose_music: 'Wrote a score',
   edit_media: 'Edited',

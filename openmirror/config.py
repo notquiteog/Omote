@@ -169,6 +169,17 @@ class Config:
         else Path(os.getenv('OPENMIRROR_DATA_DIR', './data')) / 'hr.db'
     )
 
+    # --- trips ---------------------------------------------------------------
+    # Planning only. A trip is a plan, a total and a check against the dates,
+    # the budget and the calendar — booking it is a browser task that stops
+    # where it has always stopped, at the button that takes money.
+    trips_enabled: bool = field(default_factory=lambda: _bool('OPENMIRROR_TRIPS', True))
+    trips_dir: Path = field(
+        default_factory=lambda: Path(os.getenv('OPENMIRROR_TRIPS_DIR', ''))
+        if os.getenv('OPENMIRROR_TRIPS_DIR')
+        else Path(os.getenv('OPENMIRROR_DATA_DIR', './data')) / 'trips'
+    )
+
     # --- money --------------------------------------------------------------
     # A local ledger of accounts, transactions, categories and goals. Off by
     # default, and read-only: not a connector to anyone's bank, because a

@@ -122,6 +122,9 @@ const TOOL_STATES = {
   // from where they are sitting.
   edit_media: 'reading',
   media_edit_params: 'reading',
+  // Planning a trip is reading and writing the same thing at once, which from
+  // outside is thinking.
+  trip: 'thinking',
   system_info: 'reading',
   display_info: 'reading',
   package_search: 'browsing',

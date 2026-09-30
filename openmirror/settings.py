@@ -76,6 +76,10 @@ PROJECT_CAN_NARROW: dict[str, Any] = {
     # about what this install is allowed to read, and it is the operator's —
     # the same direction as `hr_enabled` above and for the same reason.
     'finance_enabled': False,
+    # A project can turn trip *planning* off. It cannot turn it on in a way
+    # that widens anything — planning cannot book or spend — so this is in the
+    # narrowable list rather than the can-only-lower one.
+    'trips_enabled': False,
     'mail_enabled': False,
     'calendar_enabled': False,
     'unconfined': False,
@@ -119,7 +123,7 @@ KNOWN = {
     'desktop_virtual_size', 'desktop_yield_to_user', 'system_tools_enabled', 'media_dir', 'image_timeout',
     'video_timeout', 'realtime_model', 'realtime_voice', 'realtime_url', 'browser_enabled',
     'browser_profile', 'browser_headless', 'browser_engine', 'browser_channel', 'browser_executable',
-    'hr_enabled', 'hr_db', 'finance_enabled', 'finance_db', 'mail_enabled', 'mail_accounts', 'mail_address', 'mail_password_env',
+    'hr_enabled', 'hr_db', 'finance_enabled', 'finance_db', 'trips_enabled', 'trips_dir', 'mail_enabled', 'mail_accounts', 'mail_address', 'mail_password_env',
     'mail_imap_host', 'mail_smtp_host', 'mail_protocol', 'calendar_enabled', 'calendar_dir',
     'calendar_hours_start', 'calendar_hours_end', 'update_check_enabled', 'update_check_on_start',
     'update_staging', 'hooks_enabled', 'hooks_allow_untrusted', 'hooks_timeout', 'auth_token',
