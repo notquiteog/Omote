@@ -98,8 +98,17 @@ work = pathlib.Path(tempfile.mkdtemp())
 for n in range(40):
     (work / f'module{n}.py').write_text(f'def f{n}():\n    return {n}\n')
 
-env = {**os.environ, 'OPENMIRROR_TOKEN': '', 'OPENMIRROR_PORT': PORT}
+# `exit_with_stdin` makes the daemon stop when the other end of its stdin goes
+# away — how the desktop app says "I am gone". Left unset, it inherits whatever
+# the shell running the suite happens to have, and under pytest the inherited
+# stdin is already at EOF, so the daemon answered "Uvicorn running" and quit
+# before the first healthz: every run of this file failed with "no daemon".
+# The pipe below is the other half: `stdin=PIPE` stays open until we close it,
+# so the daemon has a live parent end regardless of what pytest's own stdin is.
+env = {**os.environ, 'OPENMIRROR_TOKEN': '', 'OPENMIRROR_PORT': PORT,
+       'OPENMIRROR_EXIT_WITH_STDIN': '0'}
 proc = subprocess.Popen([PY, '-m', 'openmirror.main'], cwd=HERE, env=env,
+                        stdin=subprocess.PIPE,
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 for _ in range(100):
     try:
