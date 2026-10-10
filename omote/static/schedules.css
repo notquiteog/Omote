@@ -1,0 +1,22 @@
+#schedules-dialog { width: min(900px, calc(100vw - 32px)); min-width: 0; }
+.schedule-top, .schedule-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.schedule-top h2, .schedule-heading h3 { margin: 0; }
+.schedule-intro { max-width: 70ch; line-height: 1.6; color: var(--dim); font-size: 13px; }
+.schedule-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.schedule-card, .schedule-run { border: 1px solid var(--edge); border-radius: 12px; padding: 16px; margin-top: 12px; overflow-wrap: anywhere; }
+.schedule-heading h3 { font-size: 15px; }
+.schedule-card .meta, .schedule-run .meta { line-height: 1.6; }
+.schedule-prompt { font-size: 13px; white-space: pre-wrap; max-height: 100px; overflow: auto; }
+.schedule-history { margin-top: 12px; }
+.schedule-result { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; line-height: 1.6; max-height: 400px; overflow: auto; }
+#schedule-form { margin: 20px 0; padding: 18px; border: 1px solid var(--edge); border-radius: 14px; }
+.schedule-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+#schedule-form input:not([type=checkbox]), #schedule-form select, #schedule-form textarea { width: 100%; box-sizing: border-box; background: var(--raise); border: 1px solid var(--edge); color: var(--ink); border-radius: 8px; padding: 9px 12px; font: inherit; }
+#schedule-form textarea { margin-top: 6px; resize: vertical; min-height: 96px; }
+#schedule-days { border: 1px solid var(--edge); border-radius: 10px; margin: 0 0 12px; }
+#schedule-days label { display: inline-flex; align-items: center; gap: 5px; margin: 8px; }
+#schedule-days input, #schedule-enabled { width: auto !important; display: inline !important; }
+#schedule-form details { margin: 12px 0; }
+#schedule-form details > .schedule-grid { margin-top: 12px; }
+#schedule-status { line-height: 1.6; }
+@media (max-width: 600px) { #schedules-dialog { padding: 18px; } .schedule-grid { grid-template-columns: 1fr; } .schedule-top { align-items: flex-start; } .schedule-card { padding: 12px; } }

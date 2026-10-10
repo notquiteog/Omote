@@ -17,6 +17,7 @@
 
 import { companion, caption } from './companions/index.js';
 import { openConnections, wireConnections } from './connections.js';
+import { wireSchedules } from './schedules.js';
 import { openSetup, updateSetup, wireOnboarding } from './onboarding.js';
 import { handleFileKey, resetFiles, wireFiles } from './files.js';
 import { clear as clearAttachments, pending as pendingAttachments, wireAttachments } from './attachments.js';
@@ -418,6 +419,7 @@ function renderDiff(text) {
    skimming a transcript is actually reading for. Anything not listed falls
    back to its own name in monospace, which is honest about being a tool. */
 const VERBS = {
+  schedule: 'Updated scheduled work',
   read_file: 'Read',
   read_files: 'Read',
   outline: 'Sketched',
@@ -1202,6 +1204,23 @@ function handleAgentEvent(ev) {
 
   switch (ev.type) {
     case 'session.started':
+      for (const message of ev.restored_messages || []) {
+        state.turnNode = null;
+        for (const block of message.content || []) {
+          if (block.type === 'text') {
+            if (message.role === 'user') userTurn(block.text);
+            else appendText(block.text);
+          } else if (block.type === 'thinking') appendThinking(block.text);
+          else if (block.type === 'tool_use' || block.type === 'tool_result') {
+            const details = el('details', 'notice');
+            details.append(el('summary', '', block.type === 'tool_use' ? `Saved tool call · ${block.name}` : `Saved tool result · ${block.tool_use_id}${block.is_error ? ' · error' : ''}`),
+              el('pre', 'schedule-result', block.type === 'tool_use' ? JSON.stringify(block.input, null, 2) : block.content));
+            append(details);
+          } else if (block.note) notice(block.note);
+        }
+        flushStream();
+      }
+      state.turnNode = null;
       // The promise, spelled out, once: what this session may do without
       // asking. The chips under the composer carry the short forms of the
       // same facts, so repeating the model here would only crowd the title.
@@ -2330,7 +2349,7 @@ function wireMobileNavigation() {
   sidebar.addEventListener('click', (event) => {
     if (!open) return;
     const action = event.target.closest('[data-mode], #nav-new, #new-session, #nav-rewind, #nav-review, '
-      + '#open-memory, #open-settings, #worktree-open, #hooks-open, #sessions li[aria-current]');
+      + '#open-memory, #open-schedules, #open-settings, #worktree-open, #hooks-open, #sessions li[aria-current]');
     if (action && !action.disabled) queueMicrotask(() => {
       const dialog = document.querySelector('dialog[open]');
       if (dialog) dialog.addEventListener('close', () => {
@@ -2430,6 +2449,16 @@ wireWorktrees({ sessionId });
 refreshWorktrees();
 wireFiles({ sessionId, request: (path) => json(path) });
 wireAttachments();
+wireSchedules({ onOpenChat: async id => {
+  const listing = await json('/api/sessions');
+  let target = listing?.sessions?.find(s => s.id === id);
+  if (!target) {
+    const response = await api(`/api/sessions/${encodeURIComponent(id)}/resume`, { method: 'POST' });
+    if (!response?.ok) throw new Error('This chat could not be reopened. Check your provider connection.');
+    target = (await response.json()).session;
+  }
+  go('chat'); openSession(target); await loadSessions();
+} });
 // Search replaces the session list while there is a query, so putting the
 // ordinary list back is a re-render rather than an undo — and the live poll
 // must not fight it, which is why the render is what the poll calls.

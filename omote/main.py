@@ -31,6 +31,7 @@ from omote.routers import media as media_router
 from omote.routers import memory as memory_router
 from omote.routers import providers as providers_router
 from omote.routers import realtime as realtime_router
+from omote.routers import schedules as schedules_router
 from omote.routers import search as search_router
 from omote.routers import updates as updates_router
 from omote.routers import voice as voice_router
@@ -168,7 +169,39 @@ async def lifespan(app: FastAPI):
 
     asyncio.create_task(_update_check())
 
+    from omote.agent.approval import Mode
+    from omote.providers.registry import resolve_chat
+    from omote.scheduling import Scheduler, ScheduleStore
+
+    async def scheduled_session(spec):
+        root = Path(spec.root)
+        if not await asyncio.to_thread(root.is_dir):
+            raise ValueError('The scheduled project folder is no longer available.')
+        impl, model, _ = await resolve_chat(spec.provider or None, spec.model or None)
+        return await manager.create(
+            root=root, provider=impl, model=model, mode=Mode(spec.mode),
+            title=spec.name, memory=memory_router.service, media=media_router.service,
+            user_id=config.default_user, toolset=spec.tools,
+        )
+
+    async def finish_scheduled_session(session):
+        # turn.completed precedes Stop hooks and transcript persistence. Give
+        # that finalization a bounded chance to settle before closing resources.
+        try:
+            async with asyncio.timeout(10):
+                await session.wait_for_turn()
+        except (asyncio.CancelledError, TimeoutError):
+            pass
+        await manager.close(session.id, 'scheduled run finished')
+
+    schedules_router.service = Scheduler(ScheduleStore(config.data_dir / 'schedules.db'), scheduled_session,
+                                        finish_session=finish_scheduled_session)
+    schedules_router.service.start()
+    app.state.scheduler = schedules_router.service
     yield
+    await schedules_router.service.stop()
+    schedules_router.service.store.close()
+    schedules_router.service = None
 
     # Cancelled rather than awaited: it is a rebuild of derived data and the
     # rows it did not reach are still pending, so the next start-up finishes
@@ -240,6 +273,7 @@ app.include_router(comfyui_router.router)
 app.include_router(workbench_router.router)
 app.include_router(creative_router.router)
 app.include_router(search_router.router)
+app.include_router(schedules_router.router)
 app.include_router(browser_router.router)
 app.include_router(updates_router.router)
 app.include_router(git_router.router)

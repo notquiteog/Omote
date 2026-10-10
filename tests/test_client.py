@@ -13,8 +13,10 @@ parser fails loudly here instead of quietly passing.
 
 import re
 from pathlib import Path
+from typing import get_args
 
 from omote.agent.approval import Mode
+from omote.scheduling import Schedule
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = ROOT / 'omote' / 'static'
@@ -57,8 +59,8 @@ def test_the_approval_modes_the_page_offers_are_real():
     An `<option>` whose value is not a `Mode` used to be a cosmetic mistake.
     Since these selects send it, it is now an error message on a click.
 
-    Two of them now, and they are not identical: the composer chip and the
-    new-session dialog offer every mode. There used to be a third — autopilot's
+    The composer chip and new-session dialog offer every mode. Scheduled
+    tasks offer the smaller set their API accepts. There used to be a third — autopilot's
     own select, which offered everything except `read_only` on the grounds that
     a run nobody is answering cannot do anything in that mode anyway. Autopilot
     is a tool now, so the subset it offered moved into the tool's schema, where
@@ -73,7 +75,7 @@ def test_the_approval_modes_the_page_offers_are_real():
         for attrs, block in re.findall(r'<select([^>]*)>(.*?)</select>', html, re.S)
         if re.search(r'<option value="(read_only|ask)"', block)
     ]
-    assert len(offered) == 2, f'expected two mode selects, found {len(offered)}'
+    assert len(offered) == 3, f'expected three mode selects, found {len(offered)}'
 
     real = {m.value for m in Mode}
     for where, block in offered:
@@ -83,3 +85,6 @@ def test_the_approval_modes_the_page_offers_are_real():
     # Two of them create or change a session and offer every mode.
     full = [where for where, block in offered if block == real]
     assert len(full) == 2, f'expected the composer chip and the dialog to offer all of them, got {full}'
+
+    scheduled = next(block for where, block in offered if 'schedule-mode' in where)
+    assert scheduled == set(get_args(Schedule.model_fields['mode'].annotation))

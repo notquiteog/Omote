@@ -86,6 +86,7 @@ const TOOL_STATES = {
   // that is where its hands are — but it is not waiting for you, which is the
   // whole distinction the mode it replaced was drawing.
   autopilot: 'desktop',
+  schedule: 'writing',
   web_search: 'browsing',
   web_fetch: 'browsing',
   research: 'browsing',

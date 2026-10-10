@@ -43,6 +43,14 @@ PhotoCraft and other local integrations may still need their own installations;
 see the relevant sections below. Studio links directly to provider setup when a
 feature is not configured and offers **Try again** after connection failures.
 
+## Work that returns on a schedule
+
+Open **Scheduled → New task** to save a daily briefing, weekly project review,
+one-time follow-up or recurring research task. Each run has its own chat, uses the
+chosen permissions and exposes questions, approvals and results. Keep Omote running
+on an awake computer. **Pause** prevents future runs; **Stop run** ends current work.
+See [Scheduled tasks](SCHEDULES.md) for time zones, recovery and stored data.
+
 ## Images, video, and the full ComfyUI editor
 
 Use **Studio → Generate** for provider-specific image and video forms, reference

@@ -205,7 +205,7 @@ async function go(hit) {
   }
   const session = await res.json();
   clear();
-  if (onOpen) onOpen(session.id);
+  if (onOpen) onOpen(session.session.id);
 }
 
 /* The share button. A download rather than a link, because there is nowhere to

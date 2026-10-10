@@ -126,6 +126,8 @@ class _Event(BaseModel):
 
 
 class SessionStarted(_Event):
+    # Historical blocks are display-only; they never recreate approvals or run tools.
+    restored_messages: list[dict[str, Any]] = Field(default_factory=list)
     type: Literal['session.started'] = 'session.started'
     cwd: str
     model: str

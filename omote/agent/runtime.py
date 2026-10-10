@@ -58,6 +58,7 @@ TOOLSETS: dict[str, tuple[str, ...]] = {
     'photocraft': ('photocraft',),
     'creative': ('creative_library',),
     'todo': ('todo',),
+    'schedules': ('schedule',),
     'agents': ('agent',),
     'skills': ('skill',),
     'ask': ('ask_user',),
@@ -98,10 +99,12 @@ def resolve_toolset(names: list[str]) -> set[str] | None:
 
 def default_tools() -> list[Tool]:
     from omote.agent.tools.photocraft import PhotoCraftTool
+    from omote.agent.tools.schedule import ScheduleTool
     from omote.creative.tools import creative_tools
 
     return [
         PhotoCraftTool(),
+        ScheduleTool(),
         *creative_tools(),
         ReadTool(),
         ReadFilesTool(),

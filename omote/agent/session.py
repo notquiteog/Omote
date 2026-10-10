@@ -464,6 +464,8 @@ class AgentSession:
     # -- lifecycle ----------------------------------------------------------
 
     async def start(self) -> None:
+        from omote.sessions import encode_block
+
         self._restore()
         await self._emit(
             SessionStarted(
@@ -473,6 +475,8 @@ class AgentSession:
                 effort=self.effort,
                 policy=self.policy.describe() + ('' if self.confined else '  ·  UNCONFINED: the whole filesystem'),
                 tools=sorted(self.tools),
+                restored_messages=[{'role': message.role, 'content': [encode_block(block) for block in message.content]}
+                                   for message in self.messages],
             )
         )
 
@@ -482,6 +486,7 @@ class AgentSession:
 
         return Stored(
             id=self.id, title=self.title, root=str(self.root), model=self.model,
+            provider=str(getattr(self.provider, 'provider_id', '') or ''),
             toolset=list(self.toolset),
             messages=[
                 {'role': message.role, 'content': [encode_block(b) for b in message.content]}
@@ -785,6 +790,15 @@ class AgentSession:
             return False
         fut.set_result(answer)
         return True
+
+    @property
+    def has_background_results(self) -> bool:
+        return bool(self._notes)
+
+    async def wait_for_turn(self) -> None:
+        """Wait for turn finalization without letting a watcher cancel the turn."""
+        if self._turn is not None:
+            await asyncio.shield(self._turn)
 
     def interrupt(self) -> bool:
         if self._turn and not self._turn.done():

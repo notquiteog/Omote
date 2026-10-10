@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="/static/workspace.css">
 <link rel="stylesheet" href="/static/creative.css">
 <link rel="stylesheet" href="/static/onboarding.css">
+<link rel="stylesheet" href="/static/schedules.css">
 <!-- The theme, before the first paint. A module arrives after the stylesheet
      and the page flashes the wrong theme at somebody who chose dark months
      ago; the flash happens on every load and is the reason this is here
@@ -90,6 +91,7 @@
     <button class="nav-row" id="nav-new">
       <svg class="ic"><use href="#i-new"></use></svg><span>New chat</span>
     </button>
+    <button class="nav-row" id="open-schedules" type="button"><svg class="ic"><use href="#i-list"></use></svg><span>Scheduled</span></button>
     <button class="nav-row" id="nav-rewind" disabled>
       <svg class="ic"><use href="#i-undo"></use></svg><span>Rewind</span>
     </button>
@@ -899,5 +901,34 @@
 
 <script src="/static/app.js" type="module"></script>
 <script src="/static/native.js" type="module"></script>
+
+<dialog id="schedules-dialog" aria-labelledby="schedules-title">
+  <div class="schedule-top"><h2 id="schedules-title">Scheduled tasks</h2><button id="schedules-close" type="button" class="ghost" aria-label="Close scheduled tasks">Close</button></div>
+  <p class="schedule-intro">Save a task once and let Omote return to it. Runs use your connected models and tools, with the permissions you choose. Keep this computer awake and Omote running. Missed times are combined into one catch-up run.</p>
+  <div class="schedule-actions"><button id="schedule-new" type="button" class="primary">New task</button><button id="schedule-refresh" type="button">Refresh</button></div>
+  <p id="schedule-status" class="setup-status" role="status"></p>
+  <form id="schedule-form" hidden>
+    <h3 id="schedule-form-title">New scheduled task</h3>
+    <label>Task name<input id="schedule-name" required maxlength="120" placeholder="Morning briefing"></label>
+    <label>What should Omote do?<textarea id="schedule-prompt" required maxlength="32000" placeholder="Review yesterday’s notes and prepare a concise briefing with sources."></textarea></label>
+    <label>Project folder<input id="schedule-root" required placeholder="Folder on the computer running Omote"></label>
+    <div class="schedule-grid">
+      <label>Repeat<select id="schedule-cadence"><option value="daily">Daily</option><option value="weekly">Selected weekdays</option><option value="interval">Every few minutes or hours</option><option value="once">Once</option><option value="manual">Only when I run it</option></select></label>
+      <label id="schedule-time-field">Time<input id="schedule-time" type="time" value="09:00" required></label>
+      <label id="schedule-zone-field">Time zone<input id="schedule-timezone" required placeholder="Asia/Tokyo"></label>
+      <label id="schedule-interval-field" hidden>Every (minutes)<input id="schedule-interval" type="number" min="1" max="525600" value="60" required></label>
+      <label id="schedule-once-field" hidden>Date and time (your device’s time zone)<input id="schedule-once" type="datetime-local"></label>
+    </div>
+    <fieldset id="schedule-days" hidden><legend>Days</legend><label><input type="checkbox" value="0">Mon</label><label><input type="checkbox" value="1">Tue</label><label><input type="checkbox" value="2">Wed</label><label><input type="checkbox" value="3">Thu</label><label><input type="checkbox" value="4">Fri</label><label><input type="checkbox" value="5">Sat</label><label><input type="checkbox" value="6">Sun</label></fieldset>
+    <div class="schedule-grid"><label>Permissions<select id="schedule-mode"><option value="ask">Ask first</option><option value="read_only">Read only</option><option value="auto_edit">Allow file edits; ask before commands</option><option value="trusted">Allow commands; ask before destructive actions</option></select></label><label>Run time limit (minutes)<input id="schedule-limit" type="number" min="1" max="1440" value="60" required></label></div>
+    <p class="schedule-intro">Questions and approval requests wait in the run’s chat. Pause prevents future runs; Stop ends an active run. Connected providers may charge for usage.</p>
+    <details><summary>Model and tools</summary><div class="schedule-grid"><label>Provider ID (optional)<input id="schedule-provider" placeholder="Use my default provider"></label><label>Model (optional)<input id="schedule-model" placeholder="Use my default model"></label></div><label>Tool names or groups (optional)<input id="schedule-tools" placeholder="All available tools"></label><p class="schedule-intro">Separate names with commas, for example read_file, glob, grep. Leave blank to use all available tools. Your permission mode still applies.</p></details>
+    <label><input id="schedule-enabled" type="checkbox" checked> Schedule enabled</label>
+    <div class="schedule-actions"><button id="schedule-save" type="submit" class="primary">Save task</button><button id="schedule-cancel" type="button">Cancel</button></div>
+  </form>
+  <div id="schedule-list"></div>
+  <h3>Recent runs</h3><div id="schedule-runs"></div>
+</dialog>
+
 </body>
 </html>

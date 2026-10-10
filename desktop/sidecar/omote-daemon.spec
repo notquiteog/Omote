@@ -26,6 +26,9 @@ hiddenimports = collect_submodules('omote')
 # The page itself, the bundled skills and the ComfyUI workflows: everything in
 # the package that is not Python.
 datas = collect_data_files('omote')
+# Windows has no system IANA time-zone database. Scheduled tasks need this
+# package's data even when the freezer runs on a machine with zoneinfo files.
+datas += collect_data_files('tzdata')
 
 # omote's own distribution metadata, which nothing collects on its own.
 #

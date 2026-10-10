@@ -61,6 +61,7 @@ function fill(value) {
   $('#wb-dirty').textContent = saved ? `Version ${saved.revision}` : 'Imported draft';
   dirty = !saved;
   note(saved ? `Loaded ${saved.name} · version ${saved.revision}.` : 'Workflow imported. Save a version to keep it.');
+  $('#wb-comparison').replaceChildren();
   inspect();
 }
 async function list() {
@@ -82,13 +83,16 @@ async function list() {
 }
 async function versions() {
   const picker = $('#wb-version'); picker.replaceChildren();
+  const baseline = $('#wb-compare-version'); baseline.replaceChildren();
   if (!saved) return;
   const data = await request(`/workflows/${saved.id}/versions`);
   for (const item of data.versions) {
     const option = el('option', '', `v${item.revision} · ${new Date(item.created * 1000).toLocaleString()}${item.notes ? ' · ' + item.notes : ''}`);
     option.value = item.revision; picker.appendChild(option);
+    baseline.appendChild(option.cloneNode(true));
   }
   picker.value = saved.revision;
+  baseline.value = data.versions.find(item => item.revision < saved.revision)?.revision || saved.revision;
 }
 async function save(copy = false) {
   if (!draft) throw new Error('Import or capture a workflow first.');
@@ -210,6 +214,7 @@ export function wireWorkbench() {
     <div class="creative-actions"><button id="wb-save" class="primary small">Save version</button><button id="wb-copy" class="ghost small">Save copy</button></div>
     <label class="wb-field">Version<select id="wb-version" aria-label="Workflow version"></select></label>
     <div class="creative-actions"><button id="wb-load" class="ghost small">Load in editor</button><button id="wb-export" class="ghost small">Export JSON</button><button id="wb-delete" class="ghost small">Delete saved</button></div>
+    <details><summary>Compare saved versions</summary><p class="meta">Review changes to the loaded saved version. Unsaved edits are excluded.</p><label class="wb-field">Compare from<select id="wb-compare-version" aria-label="Comparison baseline"></select></label><button id="wb-compare" class="ghost small">Compare versions</button><div id="wb-comparison" aria-live="polite"></div></details>
     <details open><summary>API node inspector</summary><p id="wb-node-count" class="meta"></p><select id="wb-node" aria-label="Inspect node"></select><div id="wb-inputs"></div>
     <div class="creative-actions"><button id="wb-catalog" class="ghost small">Load node schemas</button><button id="wb-validate" class="ghost small">Validate</button></div></details>
     <button id="wb-run" class="primary">Run saved version</button>
@@ -247,7 +252,7 @@ export function wireWorkbench() {
       const graph = Array.isArray(data.nodes) ? data : data.graph || data.workflow || null;
       const prompt = graph === data ? null : data.prompt || (!graph ? data : null);
       fill({ name: file.name.replace(/\.json$/i, ''), graph, prompt });
-      $('#wb-version').replaceChildren(); note('Imported locally. Save a version before running.');
+      $('#wb-version').replaceChildren(); $('#wb-compare-version').replaceChildren(); note('Imported locally. Save a version before running.');
     } catch (error) { note(error.message); } finally { event.target.value = ''; }
   };
   $('#wb-version').onchange = async () => {
@@ -261,7 +266,7 @@ export function wireWorkbench() {
     await bridge('load', { graph: draft.graph }); note('Loaded in the native editor.');
   });
   action('#wb-export', () => { if (!draft) throw new Error('Select a workflow first.'); jsonDownload(draft.graph || draft.prompt, `${$('#wb-name').value || 'workflow'}.json`); });
-  action('#wb-delete', async () => { if (!saved || !confirm('Delete this saved workflow and every local version?')) return; await request(`/workflows/${saved.id}`, 'DELETE'); saved = null; draft = null; dirty = false; for (const id of ['#wb-name', '#wb-project', '#wb-notes']) $(id).value = ''; $('#wb-version').replaceChildren(); $('#wb-dirty').textContent = ''; inspect(); await list(); note('Saved workflow and its versions deleted.'); });
+  action('#wb-delete', async () => { if (!saved || !confirm('Delete this saved workflow and every local version?')) return; await request(`/workflows/${saved.id}`, 'DELETE'); saved = null; draft = null; dirty = false; for (const id of ['#wb-name', '#wb-project', '#wb-notes']) $(id).value = ''; $('#wb-version').replaceChildren(); $('#wb-compare-version').replaceChildren(); $('#wb-comparison').replaceChildren(); $('#wb-dirty').textContent = ''; inspect(); await list(); note('Saved workflow and its versions deleted.'); });
   action('#wb-catalog', async () => { catalog = (await request(`/connections/${provider()}/nodes`)).nodes; fields(); note(`Loaded ${Object.keys(catalog).length} installed node schemas.`); });
   action('#wb-validate', async () => {
     if (!draft?.prompt) throw new Error('Capture an API prompt from the editor or import API JSON first.');
@@ -272,6 +277,22 @@ export function wireWorkbench() {
     if (!saved || dirty) throw new Error('Save the current draft as a version before running it.');
     await request('/runs', 'POST', { workflow_id: saved.id, revision: saved.revision, provider: decodeURIComponent(provider()) });
     note('Queued this saved version. Check Run history for progress and keep its outputs in your library.'); await refreshRuns();
+  });
+  action('#wb-compare', async () => {
+    if (!saved) throw new Error('Save or select a workflow first.');
+    const result = await request(`/workflows/${saved.id}/compare?before=${$('#wb-compare-version').value}&after=${saved.revision}`);
+    const box = $('#wb-comparison'); box.replaceChildren();
+    box.append(el('p', 'meta', `v${result.before_revision} → v${result.after_revision}: ${result.total} changes (${result.counts.added} added, ${result.counts.removed} removed, ${result.counts.changed} changed).`));
+    for (const change of result.changes) {
+      const row = el('details', 'wb-change');
+      row.append(el('summary', '', `${change.kind} · ${change.path}`));
+      for (const [label, value] of [['Before', change.before], ['After', change.after]]) {
+        row.append(el('strong', '', label), el('pre', '', value === null ? '(absent)' : value));
+      }
+      box.append(row);
+    }
+    if (result.truncated) box.append(el('p', 'meta', 'Showing the first 250 changes. Export each version to review the complete workflows.'));
+    note(`Compared saved versions ${result.before_revision} and ${result.after_revision}.`);
   });
   action('#wb-refresh-runs', refreshRuns);
   $('#studio-graph').addEventListener('click', () => { list().catch((e) => note(e.message)); });

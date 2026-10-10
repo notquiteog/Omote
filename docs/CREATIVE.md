@@ -52,6 +52,13 @@ workflow JSON and API JSON can also be imported.
 Native JSON alone must be loaded and captured through ComfyUI to obtain its API
 prompt before it can run from Omote.
 
+**Compare saved versions** shows additions, removals and changed values between
+any two revisions, including API inputs, graph links and custom Nodes 2.0 metadata.
+Choose a baseline and compare it to the currently loaded saved revision. Unsaved
+edits are excluded. The comparison is local and does not contact ComfyUI or execute
+a graph. Large comparisons show the first 250 changes with shortened value previews;
+export the versions to inspect everything. Arrays use their stored index order.
+
 **Load node schemas** reads the actual installed node catalog. **Validate** checks
 required inputs, available choices, numeric bounds, missing nodes, output slots
 and dependency cycles. Custom-node runtime checks still belong to ComfyUI.

@@ -481,7 +481,7 @@ def test_the_json_export_is_exactly_what_the_store_holds(store):
     write(store, 'aaa111', ['a retry here'], title='Retry work')
     body = as_json(store.load('aaa111'))
     assert set(body) == {
-        'id', 'title', 'root', 'model', 'policy', 'toolset', 'messages', 'created', 'updated', 'unfinished',
+        'id', 'title', 'root', 'model', 'provider', 'policy', 'toolset', 'messages', 'created', 'updated', 'unfinished',
     }
     assert body['id'] == 'aaa111' and body['title'] == 'Retry work'
     assert body['messages'] == [{'role': 'user', 'content': [{'type': 'text', 'text': 'a retry here'}]}]

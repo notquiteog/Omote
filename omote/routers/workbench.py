@@ -152,6 +152,18 @@ def versions(ident: str):
         return {'versions': [dict(r) for r in db.execute('SELECT revision,created,notes FROM versions WHERE workflow_id=? ORDER BY revision DESC', (ident,))]}
 
 
+@router.get('/workflows/{ident}/compare')
+def compare_versions(ident: str, before: int = Query(ge=1), after: int = Query(ge=1)):
+    from omote.workflow_diff import compare
+
+    with database() as db:
+        older = snapshot(db, ident, before)
+        newer = snapshot(db, ident, after)
+    fields = ('name', 'project', 'notes', 'graph', 'prompt')
+    return {'before_revision': before, 'after_revision': after,
+            **compare({key: older[key] for key in fields}, {key: newer[key] for key in fields})}
+
+
 @router.post('/workflows/{ident}/versions')
 def save_version(ident: str, body: Snapshot):
     with database() as db:

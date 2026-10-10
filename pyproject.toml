@@ -16,6 +16,7 @@ dependencies = [
   "pydantic>=2.9",
   "aiohttp>=3.10",
   "websockets>=13.0",
+  "tzdata>=2024.1",  # IANA time zones on Windows and frozen desktop installs.
   # Memory only. Brute-force cosine over a few thousand quantised vectors,
   # which is a dot product, not a vector database.
   "numpy>=1.26",

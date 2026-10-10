@@ -6,7 +6,7 @@ The desktop workspace includes chat and coding tools, browser and computer contr
 background workers, image/video generation, and two voice pipelines. **Studio →
 Advanced · ComfyUI** opens your connected ComfyUI installation's full graph editor,
 including Nodes 2.0 when supported by that installation. The workbench adds saved
-versions, schema validation, run history, and output imports. **Characters & assets**
+versions, version comparison, schema validation, run history, and output imports. **Characters & assets**
 keeps reusable character references, generation recipes, and interactive 3D previews.
 PhotoCraft, email, and browser-based employee portals are available to the agent;
 see [Creative workspace](docs/CREATIVE.md) and [Business workflows](docs/BUSINESS.md).
@@ -95,11 +95,14 @@ commercial agent, and a saved workflow cannot supply missing model weights or
 custom nodes. The ComfyUI workbench adds versioning, validation and an asset library
 around the installed native editor; it does not replace its renderer.
 
-There is no hosted account service, mobile application, JetBrains plugin, team chat
-service or general recurring scheduler bundled here. Other systems can invoke the
-CLI or MCP server. Cost accounting is discussed below. The project's capability
+**Scheduled** adds durable local recurring work, run history, questions and approvals
+in chat. See [Scheduled tasks](docs/SCHEDULES.md) for time zones, recovery and controls.
+There is no hosted account service, mobile application, JetBrains plugin or native
+team chat service bundled here. Other systems can invoke the CLI or MCP server. Cost accounting is discussed below. The project's capability
 claims describe implemented behavior, with tests and setup boundaries, rather
-than a blanket promise to operate every application in every country.
+than a blanket promise to operate every application in every country. The
+[capability audit](docs/CAPABILITIES.md) maps implemented features, verification and
+remaining gaps against the requested product categories.
 
 ---
 

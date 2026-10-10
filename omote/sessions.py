@@ -163,6 +163,7 @@ class Stored:
     root: str = ''
     model: str = ''
     policy: str = ''
+    provider: str = ''
     toolset: list[str] = field(default_factory=list)
     messages: list[dict[str, Any]] = field(default_factory=list)
     created: float = field(default_factory=time.time)
@@ -248,7 +249,7 @@ class SessionStore:
             fresh = stored.messages[already:]
             header = json.dumps({
                 'type': 'session', 'id': stored.id, 'title': stored.title, 'root': stored.root,
-                'model': stored.model, 'policy': stored.policy, 'toolset': stored.toolset,
+                'model': stored.model, 'provider': stored.provider, 'policy': stored.policy, 'toolset': stored.toolset,
                 'created': stored.created, 'unfinished': stored.unfinished,
             }, ensure_ascii=False)
             with target.open('a', encoding='utf-8') as handle:
@@ -311,6 +312,7 @@ class SessionStore:
             title=str(header.get('title') or ''),
             root=str(header.get('root') or ''),
             model=str(header.get('model') or ''),
+            provider=str(header.get('provider') or ''),
             policy=str(header.get('policy') or ''),
             toolset=[str(t) for t in (header.get('toolset') or [])],
             messages=messages,

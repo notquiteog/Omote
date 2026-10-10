@@ -431,12 +431,21 @@ async def resume_session(session_id: str) -> dict[str, object]:
     conversation that will confidently edit the wrong files.
     """
     from omote.config import config
+    from omote.sessions import TranscriptError
 
+    store = manager.store()
     try:
-        impl, model, _info = await _resolve_chat(None, None)
+        stored = await asyncio.to_thread(store.load, session_id) if store else None
+    except TranscriptError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if stored is None:
+        raise HTTPException(status_code=404, detail=f'no stored conversation called {session_id!r}')
+    try:
+        impl, model, _info = await _resolve_chat(stored.provider or None, stored.model or None)
     except NoProviderError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    session = await manager.resume(session_id, provider=impl, model=model, mode=config.approval_mode)
+    session = await manager.resume(session_id, provider=impl, model=model, mode=config.approval_mode,
+                                   memory=memory_router.service, media=media_router.service, user_id=config.default_user)
     if session is None:
         raise HTTPException(status_code=404, detail=f'no stored conversation called {session_id!r}')
     return {'session': {'id': session.id, 'title': session.title, 'root': str(session.root),
