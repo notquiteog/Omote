@@ -1,4 +1,4 @@
-## Omote 0.8.0
+## Omote 0.8.1
 
 This release introduces the Omote name and folded O identity across the desktop,
 web workspace, startup screen, installer icons and VS Code extension.
@@ -40,9 +40,9 @@ daemon and `playwright install chromium`; start that daemon before opening the
 app so the app attaches to it. Voice needs microphone access; Live uses OpenAI API
 access, not a ChatGPT subscription.
 
-See [Workspace setup](https://github.com/notquiteog/Omote/blob/v0.8.0/docs/WORKSPACE.md),
-[Creative workspace](https://github.com/notquiteog/Omote/blob/v0.8.0/docs/CREATIVE.md),
-and [Business workflows](https://github.com/notquiteog/Omote/blob/v0.8.0/docs/BUSINESS.md).
+See [Workspace setup](https://github.com/notquiteog/Omote/blob/v0.8.1/docs/WORKSPACE.md),
+[Creative workspace](https://github.com/notquiteog/Omote/blob/v0.8.1/docs/CREATIVE.md),
+and [Business workflows](https://github.com/notquiteog/Omote/blob/v0.8.1/docs/BUSINESS.md).
 
 Each installer contains the Omote app and its daemon, with its own Python runtime. Optional tools and services have the setup requirements above. It keeps its data, its logs and an optional `.env` in `~/.omote`. If a daemon is already running on port 8477, one you started yourself, the app uses that one and leaves it running when it quits.
 

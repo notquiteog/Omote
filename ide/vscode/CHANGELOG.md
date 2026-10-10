@@ -3,6 +3,10 @@
 Versions follow the daemon's, because a panel that says 0.6.1 against a 0.6.0
 daemon is a support question nobody should have to ask.
 
+## 0.8.1
+
+- Package the Omote release after correcting the daemon CI image-test dependency.
+
 ## 0.8.0
 
 - Omote naming and folded O identity across the extension, panel and tab icon.
