@@ -105,9 +105,9 @@ for n in range(40):
 # before the first healthz: every run of this file failed with "no daemon".
 # The pipe below is the other half: `stdin=PIPE` stays open until we close it,
 # so the daemon has a live parent end regardless of what pytest's own stdin is.
-env = {**os.environ, 'OPENMIRROR_TOKEN': '', 'OPENMIRROR_PORT': PORT,
-       'OPENMIRROR_EXIT_WITH_STDIN': '0'}
-proc = subprocess.Popen([PY, '-m', 'openmirror.main'], cwd=HERE, env=env,
+env = {**os.environ, 'OMOTE_TOKEN': '', 'OMOTE_PORT': PORT,
+       'OMOTE_EXIT_WITH_STDIN': '0'}
+proc = subprocess.Popen([PY, '-m', 'omote.main'], cwd=HERE, env=env,
                         stdin=subprocess.PIPE,
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 for _ in range(100):
@@ -235,7 +235,7 @@ def streamed() -> dict:
 
     # A model to answer with. Without one there is no turn to time, and a
     # number from a stub would be a number about the stub.
-    from openmirror.config import config
+    from omote.config import config
 
     if not config.chat_provider and not (config.perch_host and config.perch_token) and not config.openrouter_key:
         pytest.skip('no provider configured, so there is no turn to measure')

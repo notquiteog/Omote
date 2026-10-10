@@ -12,9 +12,9 @@ import json
 
 import pytest
 
-from openmirror.media import workflow as wf
-from openmirror.media.params import Param, coerce, common_image, defaults, unknown_keys
-from openmirror.media.store import MediaStore
+from omote.media import workflow as wf
+from omote.media.params import Param, coerce, common_image, defaults, unknown_keys
+from omote.media.store import MediaStore
 
 # -- parameters -------------------------------------------------------------
 
@@ -236,7 +236,7 @@ class _Recorder:
         ]
 
     async def generate(self, prompt, *, model='', n=1, size='', progress=None, **kw):
-        from openmirror.providers.base import GeneratedMedia
+        from omote.providers.base import GeneratedMedia
 
         self.seen = {'prompt': prompt, 'model': model, 'n': n, 'size': size, **kw}
         if progress:
@@ -253,9 +253,9 @@ class _Recorder:
 
 
 def _service(tmp_path, impl, modality=None):
-    from openmirror.media.service import MediaService
-    from openmirror.providers.base import Modality, ProviderInfo
-    from openmirror.providers.registry import ProviderRegistry
+    from omote.media.service import MediaService
+    from omote.providers.base import Modality, ProviderInfo
+    from omote.providers.registry import ProviderRegistry
 
     modality = modality or Modality.IMAGE
     registry = ProviderRegistry()
@@ -354,7 +354,7 @@ async def test_a_failed_job_is_a_state_rather_than_a_crash(tmp_path):
 async def test_the_video_picker_is_not_offered_the_image_models(tmp_path):
     """The aggregators host both and their lists barely overlap, so `kind` is
     passed to any provider whose listing takes it."""
-    from openmirror.providers.base import Modality
+    from omote.providers.base import Modality
 
     impl = _Recorder()
     service = _service(tmp_path, impl, modality=Modality.VIDEO)
@@ -363,7 +363,7 @@ async def test_the_video_picker_is_not_offered_the_image_models(tmp_path):
 
 
 async def test_finished_jobs_do_not_accumulate_forever(tmp_path):
-    from openmirror.media import service as service_mod
+    from omote.media import service as service_mod
 
     impl = _Recorder()
     service = _service(tmp_path, impl)
@@ -447,7 +447,7 @@ async def test_the_agents_job_check_tells_queued_apart_from_failed(tmp_path):
     """A job starts queued now that both kinds are jobs. Reporting that through
     the catch-all produced "queued: no reason given", which reads to a model as
     a failure it should recover from rather than work that has not begun."""
-    from openmirror.agent.tools.media import MediaJobTool
+    from omote.agent.tools.media import MediaJobTool
 
     impl = _Recorder(stall=True)
     service = _service(tmp_path, impl)

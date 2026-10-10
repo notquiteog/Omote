@@ -24,7 +24,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from openmirror.agent.headless_search import (
+from omote.agent.headless_search import (
     ENGINE_ORDER,
     ENGINES,
     Engine,
@@ -258,7 +258,7 @@ async def test_when_every_engine_refuses_the_error_names_each_one(site):
             await live.search('anything', 5)
         message = str(caught.value)
         assert message.count('test-engine') == 2
-        assert 'OPENMIRROR_SEARCH_ENGINE' in message
+        assert 'OMOTE_SEARCH_ENGINE' in message
     finally:
         await live.close()
 

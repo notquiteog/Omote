@@ -14,8 +14,8 @@ import io
 
 import pytest
 
-from openmirror.agent.autopilot import FRAME_WIDTH, _grab, encode_frame, frames
-from openmirror.agent.stage import RawFrame, Rect, Stage
+from omote.agent.autopilot import FRAME_WIDTH, _grab, encode_frame, frames
+from omote.agent.stage import RawFrame, Rect, Stage
 
 Image = pytest.importorskip('PIL.Image', reason='the frame path needs pillow')
 

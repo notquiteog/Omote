@@ -41,7 +41,7 @@ import struct
 
 import pytest
 
-from openmirror.providers.speech_audio import (
+from omote.providers.speech_audio import (
     PEAK_CEILING,
     SpeechFormatError,
     channels_of,
@@ -67,7 +67,7 @@ def wav(pcm: bytes, rate: int, channels: int = 1, bits: int = 16, before: bytes 
     """A WAV with `before` wedged between the format and the data chunk.
 
     The leading `16` in the format string is the chunk's *size*, which is how
-    `openmirror.voice.pipeline.pcm_to_wav` writes it: seven values into
+    `omote.voice.pipeline.pcm_to_wav` writes it: seven values into
     `<IHHIIHH` are chunk size, audio format, channels, rate, byte rate, block
     align and bit depth, and the size doubles as the first field. Reading that
     as a format code with a leading `16` is how a test helper ends up

@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent import frontmatter
-from openmirror.agent.approval import Mode
-from openmirror.agent.runtime import build_session
-from openmirror.agent.skills import discover
-from openmirror.agent.tools.base import ToolContext, ToolError
-from openmirror.agent.tools.skill import SkillTool
-from openmirror.protocol.agent import TurnStarted
-from openmirror.providers.base import StreamDone, StreamText, TextBlock
+from omote.agent import frontmatter
+from omote.agent.approval import Mode
+from omote.agent.runtime import build_session
+from omote.agent.skills import discover
+from omote.agent.tools.base import ToolContext, ToolError
+from omote.agent.tools.skill import SkillTool
+from omote.protocol.agent import TurnStarted
+from omote.providers.base import StreamDone, StreamText, TextBlock
 from tests.test_agent import ScriptedProvider, turn
 
 
@@ -84,7 +84,7 @@ def test_a_list_of_names_is_the_same_however_it_is_written():
 def test_skills_come_from_every_place_and_the_nearest_wins(tmp_path: Path):
     home, root = tmp_path / 'home', tmp_path / 'project'
     skill(home / '.claude' / 'skills', 'review', '---\ndescription: my own review\n---\nPersonal.\n')
-    skill(root / '.openmirror' / 'skills', 'review', '---\ndescription: this project\'s review\n---\nProject.\n')
+    skill(root / '.omote' / 'skills', 'review', '---\ndescription: this project\'s review\n---\nProject.\n')
     (root / '.claude' / 'commands').mkdir(parents=True)
     (root / '.claude' / 'commands' / 'ship.md').write_text('# Ship the build\n\nRun make ship.\n')
 
@@ -94,7 +94,7 @@ def test_skills_come_from_every_place_and_the_nearest_wins(tmp_path: Path):
     # A command file with no frontmatter is described by its first line.
     assert found['ship'].description == 'Ship the build'
     assert found['ship'].folder is None
-    # And what ships with openmirror is there underneath all of it.
+    # And what ships with omote is there underneath all of it.
     assert {'init', 'review'} <= set(found)
     assert discover(root, home=home, bundled=False)['review'].source == 'project'
 
@@ -109,7 +109,7 @@ def test_no_home_means_no_personal_skills(tmp_path: Path):
 
 
 async def test_the_tool_lists_names_and_loads_the_body_on_demand(tmp_path: Path):
-    folder = tmp_path / '.openmirror' / 'skills'
+    folder = tmp_path / '.omote' / 'skills'
     skill(folder, 'release', '---\ndescription: Cut a release.\n---\nBump the version to $ARGUMENTS.\n')
     (folder / 'release' / 'checklist.md').write_text('- tag it\n')
     tool = SkillTool(discover(tmp_path, bundled=False))
@@ -126,7 +126,7 @@ async def test_the_tool_lists_names_and_loads_the_body_on_demand(tmp_path: Path)
 
 
 async def test_a_skill_reads_its_own_files_and_nothing_else(tmp_path: Path):
-    skill(tmp_path / '.openmirror' / 'skills', 'safe', '---\ndescription: d\n---\nBody.\n')
+    skill(tmp_path / '.omote' / 'skills', 'safe', '---\ndescription: d\n---\nBody.\n')
     (tmp_path / 'secret.txt').write_text('no')
     tool = SkillTool(discover(tmp_path, bundled=False))
     with pytest.raises(ToolError, match='outside'):
@@ -134,8 +134,8 @@ async def test_a_skill_reads_its_own_files_and_nothing_else(tmp_path: Path):
 
 
 def test_a_person_only_skill_is_not_offered_to_the_model(tmp_path: Path):
-    skill(tmp_path / '.openmirror' / 'skills', 'deploy', '---\ndescription: d\ndisable-model-invocation: true\n---\nGo.\n')
-    skill(tmp_path / '.openmirror' / 'skills', 'lint', '---\ndescription: lint it\n---\nLint.\n')
+    skill(tmp_path / '.omote' / 'skills', 'deploy', '---\ndescription: d\ndisable-model-invocation: true\n---\nGo.\n')
+    skill(tmp_path / '.omote' / 'skills', 'lint', '---\ndescription: lint it\n---\nLint.\n')
     tool = SkillTool(discover(tmp_path, bundled=False))
     assert 'deploy' not in tool.description
     assert tool.assess({'name': 'deploy'}, ctx(tmp_path)).invalid
@@ -149,7 +149,7 @@ def test_a_person_only_skill_is_not_offered_to_the_model(tmp_path: Path):
 
 
 async def test_typing_a_skill_runs_it(tmp_path: Path):
-    skill(tmp_path / '.openmirror' / 'skills', 'explain', '---\ndescription: d\n---\nExplain $ARGUMENTS simply.\n')
+    skill(tmp_path / '.omote' / 'skills', 'explain', '---\ndescription: d\n---\nExplain $ARGUMENTS simply.\n')
     provider = ScriptedProvider([[StreamText(text='ok'), StreamDone()]])
     session = build_session(root=tmp_path, provider=provider, model='x', mode=Mode.ASK)
     await session.start()

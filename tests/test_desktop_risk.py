@@ -12,9 +12,9 @@ import time
 
 import pytest
 
-from openmirror.agent.stage import Rect
-from openmirror.agent.tools.desktop import STALE_AFTER, desktop_tools
-from openmirror.protocol.agent import Risk
+from omote.agent.stage import Rect
+from omote.agent.tools.desktop import STALE_AFTER, desktop_tools
+from omote.protocol.agent import Risk
 
 
 class FakeStage:
@@ -71,7 +71,7 @@ async def noask(*a):
 
 
 def ctx(tmp_path):
-    from openmirror.agent.tools.base import ToolContext
+    from omote.agent.tools.base import ToolContext
 
     return ToolContext(root=tmp_path, cwd=tmp_path, emit=noop, ask=noask, session_id='t')
 

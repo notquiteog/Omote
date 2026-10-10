@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent.approval import Mode
-from openmirror.agent.runtime import build_session
-from openmirror.agent.tools.base import ToolContext, ToolError
-from openmirror.agent.tools.files import ReadTool
-from openmirror.agent.tools.notebook import NotebookEditTool
-from openmirror.providers.base import ImageBlock, StreamDone, StreamText, StreamToolUse
+from omote.agent.approval import Mode
+from omote.agent.runtime import build_session
+from omote.agent.tools.base import ToolContext, ToolError
+from omote.agent.tools.files import ReadTool
+from omote.agent.tools.notebook import NotebookEditTool
+from omote.providers.base import ImageBlock, StreamDone, StreamText, StreamToolUse
 from tests.test_agent import ScriptedProvider, turn
 
 PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='

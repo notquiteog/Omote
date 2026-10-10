@@ -9,12 +9,12 @@ from __future__ import annotations
 import asyncio
 import tempfile
 
-from openmirror.agent.approval import Mode
-from openmirror.agent.runtime import TOOLSETS, build_session, resolve_toolset
-from openmirror.agent.session import REPEAT_STOP
-from openmirror.agent.tools.base import Assessment, Output, Tool
-from openmirror.protocol.agent import Risk, ToolDenied
-from openmirror.providers.base import StreamDone, StreamText, StreamToolUse
+from omote.agent.approval import Mode
+from omote.agent.runtime import TOOLSETS, build_session, resolve_toolset
+from omote.agent.session import REPEAT_STOP
+from omote.agent.tools.base import Assessment, Output, Tool
+from omote.protocol.agent import Risk, ToolDenied
+from omote.providers.base import StreamDone, StreamText, StreamToolUse
 from tests.test_agent import ScriptedProvider, drain
 
 

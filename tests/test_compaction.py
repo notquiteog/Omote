@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from openmirror.agent.approval import Mode
-from openmirror.agent.runtime import build_session
-from openmirror.protocol.agent import AgentError, ContextCompacted, ToolCompleted
-from openmirror.providers.base import StreamDone, StreamText, StreamToolUse, TextBlock
+from omote.agent.approval import Mode
+from omote.agent.runtime import build_session
+from omote.protocol.agent import AgentError, ContextCompacted, ToolCompleted
+from omote.providers.base import StreamDone, StreamText, StreamToolUse, TextBlock
 from tests.test_agent import ScriptedProvider, turn
 
 

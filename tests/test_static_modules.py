@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-STATIC = Path(__file__).resolve().parents[1] / 'openmirror' / 'static'
+STATIC = Path(__file__).resolve().parents[1] / 'omote' / 'static'
 
 # `capture-worklet.js` runs in an AudioWorklet, not as a page module, and
 # `native.js` is the only thing the page may ask the desktop app for. Both are

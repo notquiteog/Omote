@@ -1,6 +1,6 @@
 /* Mentioning a file, with `@`.
  *
- * A port of `openmirror/static/files.js`, and the two constraints that make it
+ * A port of `omote/static/files.js`, and the two constraints that make it
  * a separate file at all are the same there:
  *
  *   - The query is debounced, and the list is replaced rather than appended to,

@@ -13,11 +13,11 @@ import dataclasses
 import os
 from pathlib import Path
 
-from openmirror.agent import agents
-from openmirror.agent.approval import Mode
-from openmirror.agent.runtime import build_session
-from openmirror.protocol.agent import TaskUpdated, ToolCompleted, ToolDenied, ToolProposed
-from openmirror.providers.base import StreamDone, StreamText, StreamToolUse, TextBlock, ToolResultBlock
+from omote.agent import agents
+from omote.agent.approval import Mode
+from omote.agent.runtime import build_session
+from omote.protocol.agent import TaskUpdated, ToolCompleted, ToolDenied, ToolProposed
+from omote.providers.base import StreamDone, StreamText, StreamToolUse, TextBlock, ToolResultBlock
 from tests.test_agent import ScriptedProvider, turn
 
 
@@ -313,10 +313,10 @@ def test_an_agent_written_for_another_client_loads_with_its_tools_translated(tmp
 def test_the_nearest_definition_wins_and_read_only_is_honoured(tmp_path: Path):
     home = tmp_path / 'home'
     root = tmp_path / 'project'
-    (home / '.openmirror' / 'agents').mkdir(parents=True)
-    (root / '.openmirror' / 'agents').mkdir(parents=True)
-    (home / '.openmirror' / 'agents' / 'auditor.md').write_text('---\ndescription: mine\n---\nPersonal.\n')
-    (root / '.openmirror' / 'agents' / 'auditor.md').write_text(
+    (home / '.omote' / 'agents').mkdir(parents=True)
+    (root / '.omote' / 'agents').mkdir(parents=True)
+    (home / '.omote' / 'agents' / 'auditor.md').write_text('---\ndescription: mine\n---\nPersonal.\n')
+    (root / '.omote' / 'agents' / 'auditor.md').write_text(
         '---\ndescription: the project\'s\nmode: read_only\n---\nProject.\n'
     )
     kinds = agents.load(root, home=home)

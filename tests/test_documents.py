@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent.documents import (
+from omote.agent.documents import (
     DocumentError,
     _relationships,
     _resolve,
@@ -173,14 +173,14 @@ def test_a_pdf_with_no_text_reader_says_which_install_fixes_it(monkeypatch):
     report and an install command."""
     import builtins
 
-    from openmirror.agent import documents
+    from omote.agent import documents
 
     real = builtins.__import__
     monkeypatch.setattr(
         builtins, '__import__',
         lambda name, *a, **k: (_ for _ in ()).throw(ImportError(name)) if name == 'pypdf' else real(name, *a, **k),
     )
-    with pytest.raises(DocumentError, match=r"openmirror\[docs\]"):
+    with pytest.raises(DocumentError, match=r"omote\[docs\]"):
         documents.read_pdf(b'%PDF-1.7 anything')
 
 
@@ -190,7 +190,7 @@ def test_a_pdf_that_is_not_one_says_so():
     # messages are what this test is distinguishing. CI does not install
     # `[docs]`, which is the point of it being optional.
     pytest.importorskip('pypdf', reason='the [docs] extra is not installed')
-    from openmirror.agent.documents import read_pdf
+    from omote.agent.documents import read_pdf
 
     with pytest.raises(DocumentError, match='could not be opened'):
         read_pdf(b'this is not a pdf at all')
@@ -220,8 +220,8 @@ def test_the_tool_reads_a_document_rather_than_calling_it_binary(tmp_path):
     reaches the model as text instead of a refusal."""
     import asyncio
 
-    from openmirror.agent.tools.base import ToolContext
-    from openmirror.agent.tools.files import ReadTool
+    from omote.agent.tools.base import ToolContext
+    from omote.agent.tools.files import ReadTool
 
     data = workbook(cells=SHEET, shared=SHARED)
     (tmp_path / 's.xlsx').write_bytes(data)

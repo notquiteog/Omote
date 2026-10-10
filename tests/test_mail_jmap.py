@@ -35,9 +35,9 @@ from typing import Any
 import pytest
 from aiohttp import web
 
-from openmirror.mail.accounts import Account
-from openmirror.mail.imap import Mail
-from openmirror.mail.jmap import SUBMISSION, Jmap, JmapError
+from omote.mail.accounts import Account
+from omote.mail.imap import Mail
+from omote.mail.jmap import SUBMISSION, Jmap, JmapError
 
 SUBMISSION_ACCOUNT = 'me'
 
@@ -468,7 +468,7 @@ def test_discovery_keeps_a_scheme_that_was_asked_for():
 async def test_the_facade_hides_the_protocol(server: Server, tmp_path: Any):
     """The same five calls, and the same `Mail` back, whichever is underneath
     — which is the entire reason the facade exists."""
-    from openmirror.mail.client import box
+    from omote.mail.client import box
 
     account = jmap_account(server)
     assert box(account).protocol == 'jmap'

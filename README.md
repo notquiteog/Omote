@@ -1,11 +1,19 @@
-# openmirror
+# Omote
+
+The desktop workspace includes chat and coding tools, browser and computer control,
+background workers, image/video generation, and two voice pipelines. **Studio →
+Advanced · ComfyUI** opens your connected ComfyUI installation's full graph editor,
+including Nodes 2.0 when supported by that installation. **Memory** lets you inspect,
+correct, export, or delete remembered user and project information, including while
+memory is paused. The default appearance follows the system with a Codex-style sidebar,
+task starters, and composer. See [Workspace setup](docs/WORKSPACE.md) for the required
+connections and the boundaries of each integration.
 
 **An open-source digital twin.** Something that lives on your own machine and
 acts there the way you would — running commands, driving a browser, holding a
 spoken conversation, and (when you switch it on) remembering what it learns
-about you between them. The *open* is the load-bearing half of the name: every
-part of the reflection is one you can read, replace, route somewhere else or
-turn off.
+about you between them. Every part is open source: you can inspect it, replace
+it, route it somewhere else, or turn it off.
 
 Which is why nothing here is hosted on your behalf. You pick — separately, per
 kind of generation — whether the thinking, the listening, the speaking and the
@@ -13,16 +21,13 @@ picture-making run on your own hardware, on OpenAI, on Anthropic, or on
 anything else that speaks a shape it already knows.
 
 ```
-                                   ┌──────────────────────────────────────────────┐
-you ── websocket ──▶ openmirror ───┤  chat       Perch │ Anthropic │ OpenAI       │
-                          │        │  embedding  Perch │ Voyage    │ Gemini       │
-                          │        │  dictation  Perch │ OpenAI    │ Groq         │
-                    ┌─────┴─────┐  │  speech     Perch │ OpenAI                   │
-                    │  agent    │  │  images     Perch │ 17 others  ── see below  │
-                    │  voice    │  │  video      Perch │  9 others                │
-                    └───────────┘  └──────────────────────────────────────────────┘
-                     runs commands       one choice per row, made separately,
-                     on this machine     enforced when the route resolves
+you ── websocket ──▶ Omote ────────▶ chat        Perch │ Anthropic │ OpenAI
+                     │             embedding   Perch │ Voyage    │ Gemini
+                     │             dictation   Perch │ OpenAI    │ Groq
+                agent + voice      speech      Perch │ OpenAI
+                     │             images      Perch │ 17 others
+               your machine        video       Perch │  9 others
+                                   one provider choice per modality
 ```
 
 Two ways to use it, one at a time, because a conversation and a place to make
@@ -69,8 +74,8 @@ the honest thing is to say what matches and what does not rather than let
 
 | | Claude Code | openCode | this |
 |---|---|---|---|
-| Terminal client | ✓ | ✓ | ✓ `openmirror chat` |
-| Headless one-shot, pipes, CI | ✓ `-p` | ✓ `run` | ✓ `openmirror run` |
+| Terminal client | ✓ | ✓ | ✓ `omote chat` |
+| Headless one-shot, pipes, CI | ✓ `-p` | ✓ `run` | ✓ `omote run` |
 | Edit, patch, search, shell, notebook | ✓ | ✓ | ✓ |
 | Plan mode, to-do list, subagents | ✓ | ✓ | ✓ |
 | Custom agents as markdown, per-role tools | ✓ | ✓ | ✓ |
@@ -134,7 +139,7 @@ with a fresh context of its own: a broad search whose working-out nobody needs
 to keep, or several independent pieces at once — agent calls in one response
 run in parallel. Three kinds are built in (`explore`, which cannot change
 anything whatever mode the session is in; `general`; `research`), and more are
-markdown files in `.openmirror/agents/` or `.claude/agents/` — the format other
+markdown files in `.omote/agents/` or `.claude/agents/` — the format other
 clients already write, with their tool names translated. A subagent is a
 session with nothing of its own but its conversation: its steps nest in the
 transcript under the call that started it, its approvals are asked of you in
@@ -152,7 +157,7 @@ while it plans, and the way out is hidden while it does not.
 it: when it applies, how to do the job, and whatever files the job needs. Only
 names and one-line descriptions sit in front of the model; the body is loaded
 when a request matches. They come from the project, from your home directory
-and from openmirror itself — `init` writes an AGENTS.md, `review` reviews
+and from Omote itself — `init` writes an AGENTS.md, `review` reviews
 uncommitted changes — in the layout other clients use, so ones you already have
 work here. Typing `/` lists them, alongside `/compact` and `/clear`.
 
@@ -189,7 +194,7 @@ When an utterance is cut off, history records only what you actually heard.
 
 **Provider choice per modality.** Chat on Anthropic, dictation on your own
 whisper, speech on your own Kokoro, images on your own Stable Diffusion — or
-any other combination. `OPENMIRROR_LOCAL_ONLY` is enforced where a route is
+any other combination. `OMOTE_LOCAL_ONLY` is enforced where a route is
 resolved rather than in a UI: with it on, a local backend being down is an
 error, never a quiet fallback to a hosted one.
 
@@ -257,9 +262,10 @@ change to an old one. `prefers-reduced-motion` stops the clock
 entirely: what it is doing still shows, it just stops moving while it does
 it.
 
-**Per-user memory, opt in.** Off until switched on, and then off for each
-person until they turn it on themselves. Everything stored is listed, any of
-it can be deleted, and all of it can be. See [docs/MEMORY.md](docs/MEMORY.md).
+**Per-user memory, opt in.** Management is available by default; capture and
+recall remain off until the user enables them. Saved entries remain inspectable
+while paused, with corrections, project subjects, full JSON export, per-item
+deletion, and deletion of the whole collection. See [docs/MEMORY.md](docs/MEMORY.md).
 
 The modes are described in [docs/MODES.md](docs/MODES.md) and the providers,
 routing and Tor in [docs/PROVIDERS.md](docs/PROVIDERS.md). Mail has its own
@@ -368,7 +374,7 @@ There is no Midjourney here, and that is not an oversight: it publishes no
 API. Anything else that does can be reached through Replicate or fal without
 waiting for a release of this.
 
-**The desktop itself, without taking your mouse.** `OPENMIRROR_DESKTOP=true` adds
+**The desktop itself, without taking your mouse.** `OMOTE_DESKTOP=true` adds
 screenshots, clicks, typing, scrolling and key chords. The part that matters
 is *where*: on a **virtual stage** the agent gets an X server of its own — its
 own pointer, its own keyboard, its own windows — and applications are launched
@@ -397,12 +403,12 @@ document. Servers are distrusted by default: a tool that declares itself
 read-only is still confirmed, because a server that can call itself harmless is
 a server that can opt out of the check it most needs.
 
-**And openmirror as an MCP server, if you want it.** The other direction: your
+**And Omote as an MCP server, if you want it.** The other direction: your
 editor or another agent asking *this* twin what it knows, grounded in the same
 memory the voice session uses. Off by default, token-gated, and scoped — `read`
 recalls and searches, `write` also remembers, `all` also spends money on
 images. Nothing at any scope runs a command, touches a file or drives the
-screen: those are the tools openmirror guards with a human in front of them, and
+screen: those are the tools Omote guards with a human in front of them, and
 an MCP call has no human in front of it. See
 [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -515,8 +521,8 @@ alternative is a model believing a half-finished turn completed.
 the tool calls kept — "the agent ran a command and here is the conversation
 without it" is a document that misleads.
 
-**A settings file, and one rule about it.** `.openmirror/settings.json`,
-`.openmirror.json` and `.claude/settings.json` are all read, because being
+**A settings file, and one rule about it.** `.omote/settings.json`,
+`.omote.json` and `.claude/settings.json` are all read, because being
 told to rename a file is how a feature goes unused. And *a project may narrow
 permissions and never widen them*: the approval mode can only go down the
 ladder, `allow_*` can only go off, `local_only` can only go on. A repository
@@ -529,7 +535,7 @@ most people attach is a feature half the people who want it will not turn on. A
 PDF is a font-and-geometry format and is *not*: a hand-written extractor gets
 the easy cases and garbles the rest, which is worse than a refusal because it
 reads as a bug and gets quoted from. So that is an extra,
-`pip install 'openmirror[docs]'`, and the refusal names the install rather
+`pip install 'omote[docs]'`, and the refusal names the install rather
 than calling the file binary.
 
 **Fork a conversation.** `POST /api/sessions/{id}/fork` with `at: 4` gives
@@ -548,7 +554,7 @@ thing as overriding their colours. High contrast is a *switch* rather than
 another dot, since the person who needs it needs it on top of whichever colour
 they chose.
 
-**A worktree per job.** `OPENMIRROR_WORKTREES=1` and a session can be put in a
+**A worktree per job.** `OMOTE_WORKTREES=1` and a session can be put in a
 second checkout of the repository, on its own branch, where it cannot reach
 the tree you have open. That is the middle ground `unconfined` is not: a flag
 that opens the whole disk means somebody who needs to read one directory next
@@ -609,7 +615,7 @@ name and sends a finished one. Dotfiles, `.git` and anything over 2MB are not
 offered, and the walk is bounded by time as well as count, because you are
 still typing.
 
-**Full system access, if you want it.** `OPENMIRROR_UNCONFINED=true` gives it the
+**Full system access, if you want it.** `OMOTE_UNCONFINED=true` gives it the
 whole filesystem and tells the model plainly that it is not sandboxed.
 Purchases, credentials and sending mail stay on their own axis — see
 [docs/AUTONOMY.md](docs/AUTONOMY.md), which is the page to read before running
@@ -637,7 +643,7 @@ floor model everything is a way of putting it below the floor without changing
 the model.
 
 Honest about the evidence: those measurements are `gemma4:12b`. `qwen3.5:9b` is
-named because the rest of this family tests against it, not because openmirror has
+named because the rest of this family tests against it, not because Omote has
 measured it. And even narrowed, a 12B is not enough for `autopilot` — see
 "What is not built yet".
 
@@ -647,7 +653,7 @@ The floor governs what a **feature** may assume, not what an **operator** may ru
 
 ### The ceiling: frontier models with thinking
 
-The end openmirror was actually designed around — planning, calling tools and
+The end Omote was actually designed around — planning, calling tools and
 recovering from its own mistakes is what reasoning models are best at.
 Reasoning streams as its own channel and renders as working-out under the
 reply; nothing is gated on model size; no prompt is shortened for the floor.
@@ -656,12 +662,12 @@ sent off deliberately.
 
 ### Where it runs: not a thin client
 
-openmirror installs like `claude-code` or `codex` — a daemon on the machine you want
+Omote installs like `claude-code` or `codex` — a daemon on the machine you want
 worked on, reached from its desktop app or a browser. **The model may be remote. The agent is
 not.** It runs shell with a risk classifier, edits files, drives a real
 Chromium, and optionally sees the screen and moves the mouse — all on the host
-it is installed on, whichever machine the tokens come from. `OPENMIRROR_WORKSPACE`,
-the approval modes and `OPENMIRROR_UNCONFINED` are all about *that* box.
+it is installed on, whichever machine the tokens come from. `OMOTE_WORKSPACE`,
+the approval modes and `OMOTE_UNCONFINED` are all about *that* box.
 
 Worth being blunt about, because "points at a remote AI box" invites the
 reading that the local install is just a UI. It is not, and somewhere you would
@@ -669,10 +675,10 @@ not put an agent is not somewhere to put this.
 
 Two shapes follow:
 
-**Models elsewhere.** A strong machine running openmirror, models on a separate AI
+**Models elsewhere.** A strong machine running Omote, models on a separate AI
 box (Perch, an Ollama on the LAN) or a provider API. Best answers, and the
 local box spends nothing on inference. This is the common case and it is what
-`OPENMIRROR_LOCAL_ONLY` exists to *constrain* — set it and a hosted provider is an
+`OMOTE_LOCAL_ONLY` exists to *constrain* — set it and a hosted provider is an
 error at route resolution, never a quiet fallback.
 
 **Everything on one box, 16 GB+.** One machine, local models only, nothing
@@ -791,13 +797,16 @@ the only part worth automating past "fill in the form" is the part that spends
 money, and a vendor API for it would be a much larger thing to get right than
 a click on the page the hotel already has.
 
-Video generation still needs a ComfyUI workflow template per model, and none
+ComfyUI generation in the simple Studio form needs a workflow template per model, and none
 ship — but bringing one is now a command rather than an editing job: export
 your graph with **Save (API format)**, import it, and the prompt, seed, size
 and sampler settings are found and turned into controls, with a list of what
 it found so you can see whether it worked. None ship because a template names
 the checkpoints and custom nodes *your* ComfyUI has; one written here would
 fail at the queue with an error about a missing key.
+The advanced Studio workspace uses ComfyUI's native frontend directly; build or
+load standard workflow JSON there, including graphs using custom nodes and Nodes
+2.0. Hosted image/video providers do not require ComfyUI workflows.
 
 Anthropic, OpenAI, Voyage, Google and the OpenAI-compatible gateways are
 written against their documented APIs and have not been exercised against a
@@ -806,7 +815,7 @@ the same position, and it is the one with the least margin for error, since
 its event names moved between the beta and GA and only one of the two
 spellings can be checked without a key.
 
-**There are no accounts, and there are not going to be.** openmirror is a client —
+**There are no accounts, and there are not going to be.** Omote is a client —
 you install it on a machine you control, the way you install `claude-code` or
 `codex`, and the person at the keyboard is the person it works for. Everything
 belongs to one user id because there is one user.
@@ -814,7 +823,7 @@ belongs to one user id because there is one user.
 That is not a smaller ambition, it is a different axis. Scale here is never
 "more users"; it is **one person, for years**, with a memory that is meant to
 hold basically everything about them. The store therefore grows without a
-natural ceiling, and the brute-force scan in `openmirror/memory/store.py` has a
+natural ceiling, and the brute-force scan in `omote/memory/store.py` has a
 measured limit that the intended product walks through rather than approaches:
 comfortable at a few thousand memories, 53 ms at ten thousand, 283 ms at fifty.
 Two fixes are identified and neither is built — a keyed projection to a narrow
@@ -847,13 +856,13 @@ mistaken for real leading whitespace in an edit and `3⇥` can.
 ## Running it
 
 **On a machine you sit at, install the app.** Every
-[release](https://github.com/notquiteog/openmirror/releases) has installers for
+[release](https://github.com/notquiteog/Omote/releases) has installers for
 Windows, macOS and Linux, and each carries the daemon inside it — no Python,
 no terminal, nothing else to install. It is a window that lives in the tray
 when you close it and tells you when the agent is waiting on you; the daemon
 runs for as long as the app does. See [desktop/README.md](desktop/README.md).
 
-**In your editor.** Every release also carries `openmirror.vsix` for VS Code:
+**In your editor.** Every release also carries `omote.vsix` for VS Code:
 the same conversation in a panel beside your code, with approvals, `/commands`,
 `@file` mentions and pasted images. It is a client of the daemon like the
 browser is, so it needs one running — [ide/vscode/README.md](ide/vscode/README.md).
@@ -864,19 +873,19 @@ daemon by itself. Linux, macOS and Windows. Python 3.11+.
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 cp .env.example .env      # then edit it — it is read at start-up
-.venv/bin/openmirror
+.venv/bin/omote
 ```
 
-**Or drive it from the terminal.** `openmirror run` is the agent headless —
+**Or drive it from the terminal.** `omote run` is the agent headless —
 one prompt, start to finish, no browser, and a pipe in or out, which is what
 makes it usable in CI:
 
 ```bash
-openmirror run -p "explain what this repo does"
-git diff | openmirror run -p "review this diff for security problems"
+omote run -p "explain what this repo does"
+git diff | omote run -p "review this diff for security problems"
 ```
 
-`openmirror chat` is a terminal client for a running daemon: streaming output,
+`omote chat` is a terminal client for a running daemon: streaming output,
 approvals, `/commands`, `@file` mentions and pasted images. The full surface is
 in [docs/CLI.md](docs/CLI.md).
 
@@ -905,7 +914,7 @@ curl -s localhost:8477/healthz
 ```
 
 Bound to loopback with no token by default, which is deliberate: this process
-runs commands on your machine. Set `OPENMIRROR_TOKEN` before moving it.
+runs commands on your machine. Set `OMOTE_TOKEN` before moving it.
 
 ## Approval modes
 
@@ -936,7 +945,7 @@ including an autopilot run nobody is watching**. There is no setting that
 skips that prompt — deliberately, because a setting like that is one somebody
 turns on during a demo and still has on six months later. Neither is ever
 remembered either: "don't ask again" about spending money is the one answer
-nobody should be able to give once. `OPENMIRROR_ALLOW_PURCHASES=false` turns a
+nobody should be able to give once. `OMOTE_ALLOW_PURCHASES=false` turns a
 purchase into a refusal rather than a prompt, for an install that should not
 be able to buy anything at all.
 
@@ -949,7 +958,7 @@ conversation, cannot consent to it, and cannot take it back. A remembered
 approval would be worse here than for a purchase, because it is a fingerprint
 of the exact message: a "yes" to one reply to Alice would carry over to the
 next one, which is a different message saying a different thing.
-`OPENMIRROR_ALLOW_MESSAGES=false` turns a send into a refusal rather than a
+`OMOTE_ALLOW_MESSAGES=false` turns a send into a refusal rather than a
 prompt.
 
 And a secret never becomes readable by anything else. Not in the approval
@@ -963,10 +972,10 @@ keyboard: a value the agent never receives cannot leak from anywhere.
 ## With Perch
 
 ```bash
-PERCH_HOST=127.0.0.1 PERCH_TOKEN=... .venv/bin/openmirror
+PERCH_HOST=127.0.0.1 PERCH_TOKEN=... .venv/bin/omote
 ```
 
-Perch's services already speak shapes openmirror has adapters for — Ollama and
+Perch's services already speak shapes Omote has adapters for — Ollama and
 OpenAI for chat, OpenAI for dictation and speech, A1111 for images, ComfyUI
 for video — so there is nothing to translate. Services that are switched off
 are left unregistered rather than registered and allowed to fail later.
@@ -977,11 +986,11 @@ Two directions, and they are independent:
 
 **Open WebUI as a provider.** Set `OPENWEBUI_BASE_URL`. It serves OpenAI's
 shapes at `/api/v1`, so every connection configured over there becomes
-reachable through one openmirror entry — including providers openmirror has no adapter
+reachable through one Omote entry — including providers Omote has no adapter
 for.
 
-**openmirror as Open WebUI's terminal server.** Open WebUI's `terminals.py` is a
-reverse proxy to an external terminal server; openmirror's agent websocket is
+**Omote as Open WebUI's terminal server.** Open WebUI's `terminals.py` is a
+reverse proxy to an external terminal server; Omote's agent websocket is
 meant to be that server.
 
 ## Testing
@@ -1061,6 +1070,6 @@ Apache 2.0. See `NOTICE` for what is derived from Open WebUI and the
 conditions that carries — in short, its copyright notice is retained and its
 branding is not removed from anything that embeds it.
 
-openmirror contains **no code from Anthropic's Claude Code.** The agent runtime is
+Omote contains **no code from Anthropic's Claude Code.** The agent runtime is
 an independent implementation, and Anthropic API compatibility is written
 against Anthropic's published documentation.

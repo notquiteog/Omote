@@ -31,12 +31,12 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent.approval import ApprovalPolicy, Decision, Mode
-from openmirror.agent.tools.base import ToolContext
-from openmirror.agent.tools.mail import RISK, MailTool
-from openmirror.mail import send as send_mod
-from openmirror.mail.accounts import Account, AccountStore, MailError, format_addresses, parse_addresses
-from openmirror.mail.imap import (
+from omote.agent.approval import ApprovalPolicy, Decision, Mode
+from omote.agent.tools.base import ToolContext
+from omote.agent.tools.mail import RISK, MailTool
+from omote.mail import send as send_mod
+from omote.mail.accounts import Account, AccountStore, MailError, format_addresses, parse_addresses
+from omote.mail.imap import (
     Mail,
     _quote_trim,
     _split_fetch,
@@ -45,7 +45,7 @@ from openmirror.mail.imap import (
     thread_key,
     to_mail,
 )
-from openmirror.protocol.agent import Risk, ToolCall
+from omote.protocol.agent import Risk, ToolCall
 
 
 def account(**over) -> Account:
@@ -396,7 +396,7 @@ def test_a_uid_is_matched_to_the_message_beside_it_not_by_position():
 
 
 def test_flags_are_read_out_of_the_fetch_response():
-    from openmirror.mail.imap import _flags_of
+    from omote.mail.imap import _flags_of
 
     assert _flags_of('(\\Seen \\Answered \\Flagged)') == (True, True, True)
     assert _flags_of('()') == (False, False, False)
@@ -436,7 +436,7 @@ def test_a_rule_cannot_allow_a_send():
     """Rules exist to stop being asked about `npm test`. Read as a
     mail-exemption one of them is a line that removes the only prompt between
     an unattended agent and somebody's outbox."""
-    from openmirror.agent.approval import Rule
+    from omote.agent.approval import Rule
 
     tool = MailTool(AccountStore(Path('/nonexistent/mail.json')))
     args = {'action': 'send', 'to': ['a@x.com'], 'subject': 's', 'body': 'b'}
@@ -526,7 +526,7 @@ def test_a_reply_without_a_uid_is_refused():
 
 
 def test_every_action_has_a_grade():
-    from openmirror.agent.tools.mail import ACTIONS
+    from omote.agent.tools.mail import ACTIONS
 
     assert set(ACTIONS) == set(RISK)
 
@@ -544,7 +544,7 @@ async def test_with_no_account_the_tool_says_so_and_does_not_pretend(tmp_path: P
 async def test_with_no_account_a_send_is_a_tool_error_not_a_crash(tmp_path: Path):
     """The model reads this and tells the person, rather than the turn
     ending on an exception."""
-    from openmirror.agent.tools.base import ToolError
+    from omote.agent.tools.base import ToolError
 
     tool = MailTool(AccountStore(tmp_path / 'mail.json'))
     with pytest.raises(ToolError, match='no mail account'):

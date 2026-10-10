@@ -7,15 +7,15 @@ import struct
 
 import pytest
 
-from openmirror.protocol.voice import (
+from omote.protocol.voice import (
     SpeechStarted,
     SynthesisCancelled,
     SynthesisStarted,
     SynthesisStopped,
     TranscriptFinal,
 )
-from openmirror.providers.base import StreamDone, StreamText, Transcript
-from openmirror.voice.pipeline import (
+from omote.providers.base import StreamDone, StreamText, Transcript
+from omote.voice.pipeline import (
     FLUSH_MIN_CHARS,
     FLUSH_QUIET_MS,
     VoiceConfig,

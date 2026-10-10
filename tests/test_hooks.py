@@ -39,8 +39,8 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent.approval import ApprovalPolicy, Mode
-from openmirror.agent.hooks import (
+from omote.agent.approval import ApprovalPolicy, Mode
+from omote.agent.hooks import (
     DEFAULT_TIMEOUT,
     EVENTS,
     Hook,
@@ -50,7 +50,7 @@ from openmirror.agent.hooks import (
     parse,
     run,
 )
-from openmirror.protocol.agent import Risk, ToolCall
+from omote.protocol.agent import Risk, ToolCall
 
 
 def call(name: str = 'shell', summary: str = 'rm -rf build/') -> ToolCall:
@@ -130,8 +130,8 @@ def test_a_tool_may_be_given_as_a_string_or_a_list():
 
 def test_a_person_s_own_hooks_are_trusted_and_a_project_s_are_not(tmp_path: Path):
     home = tmp_path / 'home'
-    (home / '.openmirror').mkdir(parents=True)
-    (home / '.openmirror' / 'hooks.json').write_text(json.dumps({'PreToolUse': [{'command': 'mine'}]}))
+    (home / '.omote').mkdir(parents=True)
+    (home / '.omote' / 'hooks.json').write_text(json.dumps({'PreToolUse': [{'command': 'mine'}]}))
 
     project = tmp_path / 'proj'
     project.mkdir()
@@ -149,8 +149,8 @@ def test_a_project_s_hooks_are_read_even_when_they_cannot_run_yet(tmp_path: Path
     information and "this project silently ran something" is not."""
     project = tmp_path / 'proj'
     project.mkdir()
-    (project / '.openmirror').mkdir()
-    (project / '.openmirror' / 'hooks.json').write_text(json.dumps({'PreToolUse': ['x']}))
+    (project / '.omote').mkdir()
+    (project / '.omote' / 'hooks.json').write_text(json.dumps({'PreToolUse': ['x']}))
     assert [h.command for h in find(project, home=None)] == ['x']
 
 
@@ -361,9 +361,9 @@ def test_the_default_timeout_is_a_ten_second_thing_and_not_a_polling_one():
 async def test_a_hook_stops_a_real_tool_call_and_the_model_is_told_why(tmp_path):
     """Not a unit of the hook runner: a session, a real `shell` call, and a
     refusal that arrives as a tool result the model can act on."""
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.providers.base import StreamDone, StreamText, StreamToolUse
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.providers.base import StreamDone, StreamText, StreamToolUse
     from tests.test_agent import ScriptedProvider, drain
 
     script = 'echo "not that folder" >&2; exit 1'
@@ -381,7 +381,7 @@ async def test_a_hook_stops_a_real_tool_call_and_the_model_is_told_why(tmp_path)
     await asyncio.wait_for(drain(session), timeout=10)
     await session.close()
 
-    from openmirror.providers.base import ToolResultBlock
+    from omote.providers.base import ToolResultBlock
 
     # The refusal arrives as a tool result, which is what the model reads next
     # — not as prose in the transcript, and not as a raised error.
@@ -400,9 +400,9 @@ async def test_a_hook_stops_a_real_tool_call_and_the_model_is_told_why(tmp_path)
 async def test_a_hook_cannot_stop_a_call_it_has_not_been_agreed_to(tmp_path):
     """Consent is the whole reason a project's hooks are safe, so an
     unagreed one is skipped rather than run and skipped later."""
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.providers.base import StreamDone, StreamText, StreamToolUse
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.providers.base import StreamDone, StreamText, StreamToolUse
     from tests.test_agent import ScriptedProvider, drain
 
     script = 'echo blocked >&2; exit 1'
@@ -428,10 +428,10 @@ async def test_an_unagreed_hook_asks_once_and_says_what_it_would_run(tmp_path):
     """Asked, not silently skipped — a question nobody was asked is a policy
     nobody agreed to — and asked about *this* command, so a project cannot get
     a new hook added and inherit an old answer."""
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.protocol.agent import HookApproval
-    from openmirror.providers.base import StreamDone, StreamText, StreamToolUse
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.protocol.agent import HookApproval
+    from omote.providers.base import StreamDone, StreamText, StreamToolUse
     from tests.test_agent import ScriptedProvider, drain
 
     script = 'echo blocked >&2; exit 1'
@@ -469,8 +469,8 @@ def test_the_panel_is_told_which_session_it_describes():
     so every URL came out as the function's own source text and every request
     404'd. Found by driving a real project with a real hooks file in it.
     """
-    client = (Path(__file__).resolve().parents[1] / 'openmirror' / 'static' / 'hooks.js').read_text()
-    app = (Path(__file__).resolve().parents[1] / 'openmirror' / 'static' / 'app.js').read_text()
+    client = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'hooks.js').read_text()
+    app = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'app.js').read_text()
     assert 'const currentSession = () => (state.sessionId ? state.sessionId() : null);' in client
     assert '${currentSession()}' in client
     assert 'wireHooks({ sessionId })' in app
@@ -480,7 +480,7 @@ def test_the_panel_is_told_which_session_it_describes():
 def test_a_hook_that_wants_to_run_is_asked_about_once_per_command():
     """Per command, not per file: a project that ships one hook today and a
     different one tomorrow must not inherit yesterday's answer."""
-    client = (Path(__file__).resolve().parents[1] / 'openmirror' / 'static' / 'hooks.js').read_text()
+    client = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'hooks.js').read_text()
     assert 'state.asked' in client
     assert 'if (state.asked.has(hook.command)) return;' in client
 
@@ -488,7 +488,7 @@ def test_a_hook_that_wants_to_run_is_asked_about_once_per_command():
 def test_the_question_does_not_cover_the_turn():
     """A dialog over live work is a dialog that gets dismissed without being
     read, which is the one thing this feature cannot be."""
-    index = (Path(__file__).resolve().parents[1] / 'openmirror' / 'static' / 'index.html').read_text()
+    index = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'index.html').read_text()
     assert 'id="hooks-banner"' in index
     # It lives above the transcript, not inside it.
     assert index.index('id="hooks-banner"') < index.index('id="transcript"')
@@ -497,7 +497,7 @@ def test_the_question_does_not_cover_the_turn():
 
 def test_the_strip_says_a_hook_can_only_take_away():
     """The asymmetry, said where the person makes the decision."""
-    client = (Path(__file__).resolve().parents[1] / 'openmirror' / 'static' / 'hooks.js').read_text()
+    client = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'hooks.js').read_text()
     assert 'never allow one' in client
 
 
@@ -507,9 +507,9 @@ def test_the_strip_says_a_hook_can_only_take_away():
 async def test_a_prompt_hook_can_stop_a_turn_before_it_starts(tmp_path):
     """The only place a prompt check is useful: before the model has read four
     files and done work that a refusal would then throw away."""
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.providers.base import StreamDone, StreamText
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.providers.base import StreamDone, StreamText
     from tests.test_agent import ScriptedProvider, drain
 
     # A script, because that is what a real hook is, and because a one-liner
@@ -542,9 +542,9 @@ async def test_a_prompt_hook_can_add_context_the_model_uses(tmp_path):
     """A hook that passes but has something to say gets it said *in the turn*
     rather than shown to the person, because whatever it added is for the
     model to use."""
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.providers.base import StreamDone, StreamText, StreamToolUse
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.providers.base import StreamDone, StreamText, StreamToolUse
     from tests.test_agent import ScriptedProvider, drain
 
     # The note comes back on stdout, and `run` reads stdout for exactly this.
@@ -576,9 +576,9 @@ async def test_a_prompt_hook_can_add_context_the_model_uses(tmp_path):
 async def test_a_stop_hook_is_reported_and_changes_nothing(tmp_path):
     """A `Stop` hook that could veto a finished turn would be vetoing the
     past, so a non-zero exit is a note to the person and not to the model."""
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.providers.base import StreamDone, StreamText
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.providers.base import StreamDone, StreamText
     from tests.test_agent import ScriptedProvider, drain
 
     command = 'echo "remember to run the migrations" >&2; exit 1'
@@ -606,7 +606,7 @@ def test_every_event_the_docs_say_can_refuse_actually_can():
     and it showed up as a *complaint* instead, which is the worst version:
     the turn carried on and the reason was in a field nothing reads.
     """
-    from openmirror.agent.hooks import BLOCKING, EVENTS
+    from omote.agent.hooks import BLOCKING, EVENTS
 
     # Every blocking event is a real event, and every real event is listed.
     assert set(BLOCKING) <= set(EVENTS)
@@ -630,8 +630,8 @@ def test_every_toolset_group_is_offered_in_the_new_session_dialog():
     """
     import re
 
-    index = (Path(__file__).resolve().parents[1] / 'openmirror' / 'static' / 'index.html').read_text()
-    from openmirror.agent.runtime import TOOLSETS
+    index = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'index.html').read_text()
+    from omote.agent.runtime import TOOLSETS
 
     block = index[index.index('name="tools"'):]
     block = block[:block.index('</select>')]

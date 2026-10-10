@@ -23,10 +23,10 @@ from __future__ import annotations
 
 import pytest
 
-from openmirror.agent.tools.base import ToolContext
-from openmirror.agent.tools.finance import _HANDLERS, ACTIONS, RISK, FinanceTool
-from openmirror.finance.store import STALE_AFTER_DAYS, Ledger, StoreError, money
-from openmirror.protocol.agent import Risk
+from omote.agent.tools.base import ToolContext
+from omote.agent.tools.finance import _HANDLERS, ACTIONS, RISK, FinanceTool
+from omote.finance.store import STALE_AFTER_DAYS, Ledger, StoreError, money
+from omote.protocol.agent import Risk
 
 
 @pytest.fixture
@@ -73,7 +73,7 @@ def test_nothing_in_the_ledger_module_can_reach_a_network():
     """
     from pathlib import Path
 
-    source = (Path(__file__).resolve().parents[1] / 'openmirror' / 'finance' / 'store.py').read_text()
+    source = (Path(__file__).resolve().parents[1] / 'omote' / 'finance' / 'store.py').read_text()
     for reacher in ('aiohttp', 'httpx', 'requests', 'urllib', 'socket', 'http.client'):
         assert reacher not in source, f'{reacher} appeared in the money ledger'
 
@@ -148,7 +148,7 @@ def test_amounts_are_decimals_and_not_floats():
     ],
 )
 def test_a_date_is_read_from_the_shapes_statements_actually_use(text, expected):
-    from openmirror.finance.store import _iso
+    from omote.finance.store import _iso
 
     assert _iso(text) == expected
 
@@ -159,7 +159,7 @@ def test_a_date_it_cannot_read_is_refused():
     A guess here is the worst possible failure, because a transaction dated in
     the wrong month still lands in the ledger and the totals still add up.
     """
-    from openmirror.finance.store import _iso
+    from omote.finance.store import _iso
 
     for bad in ('', '   ', 'sometime last week', '14/13/2026', '32 October 2026'):
         with pytest.raises(StoreError):

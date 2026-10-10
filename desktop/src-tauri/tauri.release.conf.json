@@ -1,5 +1,5 @@
 {
   "bundle": {
-    "externalBin": ["binaries/openmirror-daemon"]
+    "externalBin": ["binaries/omote-daemon"]
   }
 }

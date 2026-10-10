@@ -35,7 +35,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-STATIC = Path(__file__).resolve().parents[1] / 'openmirror' / 'static'
+STATIC = Path(__file__).resolve().parents[1] / 'omote' / 'static'
 INDEX = (STATIC / 'index.html').read_text()
 APP = (STATIC / 'app.js').read_text()
 MAIL = (STATIC / 'mail.js').read_text()
@@ -126,8 +126,8 @@ def test_the_mail_tool_is_offered_with_no_account_configured():
     side the capability did not exist. Offered, the refusal is a sentence
     naming the three settings, which is something a person can act on.
     """
-    from openmirror.agent.runtime import mail_tools
-    from openmirror.config import Config
+    from omote.agent.runtime import mail_tools
+    from omote.config import Config
 
     empty = Config(workspace='.', data_dir='/nonexistent-for-this-test', mail_accounts='')
     names = [tool.name for tool in mail_tools(empty)]
@@ -135,7 +135,7 @@ def test_the_mail_tool_is_offered_with_no_account_configured():
 
 
 def test_the_toolsets_list_mail_even_though_the_install_may_not():
-    from openmirror.agent.runtime import TOOLSETS
+    from omote.agent.runtime import TOOLSETS
 
     assert 'mail' in TOOLSETS['mail']
 
@@ -167,7 +167,7 @@ def test_search_results_carry_the_hits_and_not_just_a_count():
     """A count and a backend name leave the model with something it has to
     paraphrase and the person with a line of text that has lost the links."""
     assert 'results' in MAIL
-    display = (Path(__file__).resolve().parents[1] / 'openmirror' / 'agent' / 'tools' / 'web.py').read_text()
+    display = (Path(__file__).resolve().parents[1] / 'omote' / 'agent' / 'tools' / 'web.py').read_text()
     assert "'results': [" in display, 'the search tool is not putting its hits in the payload'
     assert "'query': query" in display
 
@@ -185,9 +185,9 @@ def test_the_mail_refusal_names_the_settings_that_fix_it():
     import asyncio
     import tempfile
 
-    from openmirror.agent.tools.base import ToolContext
-    from openmirror.agent.tools.mail import MailTool
-    from openmirror.mail.accounts import AccountStore
+    from omote.agent.tools.base import ToolContext
+    from omote.agent.tools.mail import MailTool
+    from omote.mail.accounts import AccountStore
 
     with tempfile.TemporaryDirectory() as scratch:
         tool = MailTool(AccountStore(Path(scratch) / 'mail.json'))
@@ -195,8 +195,8 @@ def test_the_mail_refusal_names_the_settings_that_fix_it():
 
         asked = asyncio.run(tool.run({'action': 'accounts'}, ctx))
         assert 'No mail account is configured' in asked.content
-        for key in ('OPENMIRROR_MAIL_ADDRESS', 'OPENMIRROR_MAIL_IMAP_HOST',
-                    'OPENMIRROR_MAIL_SMTP_HOST', 'OPENMIRROR_MAIL_PASSWORD'):
+        for key in ('OMOTE_MAIL_ADDRESS', 'OMOTE_MAIL_IMAP_HOST',
+                    'OMOTE_MAIL_SMTP_HOST', 'OMOTE_MAIL_PASSWORD'):
             assert key in asked.content, f'the refusal does not mention {key}'
 
 
@@ -207,9 +207,9 @@ def test_an_action_with_no_account_fails_loudly_rather_than_answering():
     import asyncio
     import tempfile
 
-    from openmirror.agent.tools.base import ToolContext, ToolError
-    from openmirror.agent.tools.mail import MailTool
-    from openmirror.mail.accounts import AccountStore
+    from omote.agent.tools.base import ToolContext, ToolError
+    from omote.agent.tools.mail import MailTool
+    from omote.mail.accounts import AccountStore
 
     with tempfile.TemporaryDirectory() as scratch:
         tool = MailTool(AccountStore(Path(scratch) / 'mail.json'))

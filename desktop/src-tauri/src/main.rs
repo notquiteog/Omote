@@ -1,13 +1,13 @@
-// openmirror's desktop app.
+// omote's desktop app.
 //
-// This deliberately contains no application logic. Everything openmirror does —
+// This deliberately contains no application logic. Everything omote does —
 // the agent, the providers, voice, the browser, desktop control — lives in the
 // Python daemon, and this is a window onto it plus the things a browser tab
 // cannot do: live in the tray, survive being closed, tell you when the agent
 // is waiting on you, and keep a daemon running for exactly as long as the app.
 //
 // A release carries its own daemon, frozen by PyInstaller, so installing the
-// app is installing openmirror. It still attaches to one that is already
+// app is installing omote. It still attaches to one that is already
 // listening — run by systemd, or by hand in a terminal — and leaves that one
 // alone on exit. Killing a daemon somebody else started would take their
 // running sessions with it; only a daemon this app started is its to stop.
@@ -54,11 +54,11 @@ struct Status {
 
 impl Status {
     fn starting(detail: impl Into<String>) -> Self {
-        Self { phase: "starting", title: "Starting openmirror".into(), detail: detail.into(), tail: None, log: None }
+        Self { phase: "starting", title: "Starting Omote".into(), detail: detail.into(), tail: None, log: None }
     }
 
     fn ready() -> Self {
-        Self { phase: "ready", title: "openmirror is running".into(), detail: String::new(), tail: None, log: None }
+        Self { phase: "ready", title: "Omote is running".into(), detail: String::new(), tail: None, log: None }
     }
 
     fn failed(title: impl Into<String>, detail: impl Into<String>, log: Option<&Path>) -> Self {
@@ -104,7 +104,7 @@ static BEGAN: OnceLock<Instant> = OnceLock::new();
 fn note(message: impl AsRef<str>) {
     let since = BEGAN.get_or_init(Instant::now).elapsed().as_secs_f32();
     let line = format!("[{since:7.2}s] {}\n", message.as_ref());
-    eprint!("openmirror: {line}");
+    eprint!("omote: {line}");
     if let Some(file) = LOG.get() {
         if let Ok(mut file) = file.lock() {
             let _ = file.write_all(line.as_bytes());
@@ -193,7 +193,7 @@ fn bring_up(shell: &Shell) -> Result<bool, Status> {
     shell.set(Status::starting(format!("Looking for a daemon on port {port}.")));
 
     match settle(port) {
-        Probe::Openmirror => {
+        Probe::Omote => {
             note(format!("attaching to the daemon already on port {port}; it is not this app's to stop"));
             return Ok(false);
         }
@@ -201,8 +201,8 @@ fn bring_up(shell: &Shell) -> Result<bool, Status> {
             return Err(Status::failed(
                 format!("Port {port} is taken"),
                 format!(
-                    "Something that is not openmirror is listening on 127.0.0.1:{port}: {what}. Stop it, or \
-                     give openmirror another port with OPENMIRROR_PORT in {}.",
+                    "Something that is not Omote is listening on 127.0.0.1:{port}: {what}. Stop it, or \
+                     give Omote another port with OMOTE_PORT in {}.",
                     shell.settings.env_file.display()
                 ),
                 None,
@@ -214,7 +214,7 @@ fn bring_up(shell: &Shell) -> Result<bool, Status> {
     shell.set(Status::starting("Starting the daemon."));
     let log = shell.daemon_log();
     let mut daemon = Daemon::spawn(&shell.home, &shell.settings, &log)
-        .map_err(|why| Status::failed("openmirror could not start its daemon", why, Some(&log)))?;
+        .map_err(|why| Status::failed("Omote could not start its daemon", why, Some(&log)))?;
     note(format!("started the daemon with {} (its output is in {})", daemon.program, log.display()));
     if let Some(path) = &daemon.path_note {
         note(path);
@@ -229,7 +229,7 @@ fn bring_up(shell: &Shell) -> Result<bool, Status> {
                 Some(&log),
             ));
         }
-        if daemon::probe(port) == Probe::Openmirror {
+        if daemon::probe(port) == Probe::Omote {
             break;
         }
         if began.elapsed() > START_LIMIT {
@@ -249,7 +249,7 @@ fn bring_up(shell: &Shell) -> Result<bool, Status> {
     Ok(true)
 }
 
-/// The port's answer, asked again when it is "something else": an openmirror
+/// The port's answer, asked again when it is "something else": an omote
 /// busy with something heavy can be slow to say what it is.
 fn settle(port: u16) -> Probe {
     let mut answer = daemon::probe(port);
@@ -385,7 +385,7 @@ fn download(app: &AppHandle, event: DownloadEvent<'_>) -> bool {
                 _ => format!("Could not save {url}"),
             };
             note(&body);
-            let _ = app.notification().builder().title("openmirror").body(body).show();
+            let _ = app.notification().builder().title("Omote").body(body).show();
         }
         _ => {}
     }
@@ -428,7 +428,7 @@ fn unique(dir: &Path, name: &str) -> PathBuf {
 ///   person finishes.
 ///
 /// The path comes from the daemon, which has already checked it against the
-/// SHA256 published in the same release (see `openmirror/update.py`). This
+/// SHA256 published in the same release (see `omote/update.py`). This
 /// function does not re-verify and does not need to: it is the same
 /// filesystem and the same minute. It does check that the file is there, is a
 /// regular file, is runnable, and is inside the staging directory — a path
@@ -445,7 +445,7 @@ fn apply_update(app: AppHandle, path: String) -> Result<String, String> {
 
     if !staged_under(&installer) {
         return Err(format!(
-            "{path} is not in openmirror's update directory, so this will not run it"
+            "{path} is not in omote's update directory, so this will not run it"
         ));
     }
     if !installer.is_file() {
@@ -507,7 +507,7 @@ fn apply_update(app: AppHandle, path: String) -> Result<String, String> {
         let _ = app
             .notification()
             .builder()
-            .title("openmirror")
+            .title("Omote")
             .body(format!("Could not start {name}: {e}. It is saved and ready to run."))
             .show();
         return Ok(format!("saved, but could not start it: {e}"));
@@ -534,8 +534,8 @@ fn relaunch(app: &AppHandle) {
 
 /// Whether `path` is one of the files the daemon staged, and nothing else.
 ///
-/// The daemon stages into `OPENMIRROR_UPDATE_DIR`, or
-/// `OPENMIRROR_DATA_DIR/updates`, or — when neither is set — `data/updates`
+/// The daemon stages into `OMOTE_UPDATE_DIR`, or
+/// `OMOTE_DATA_DIR/updates`, or — when neither is set — `data/updates`
 /// relative to wherever it was started. This asks the same question the same
 /// way, from the same settings, so a path cannot be made to look like it is
 /// inside the staging directory by putting a `..` in it or by aiming a link
@@ -562,16 +562,16 @@ fn staged_under(path: &Path) -> bool {
     resolved.parent() == Some(staging.as_path())
 }
 
-/// The daemon's staging directory, found the way `openmirror/config.py` finds
+/// The daemon's staging directory, found the way `omote/config.py` finds
 /// it: an explicit override, then the data directory, then `data/updates`
 /// relative to the directory the daemon runs in — which for a daemon this app
-/// started is the user's home, with `OPENMIRROR_DATA_DIR` pointed at
-/// `~/.openmirror/data`. See `daemon.rs` for how that pair is set.
+/// started is the user's home, with `OMOTE_DATA_DIR` pointed at
+/// `~/.omote/data`. See `daemon.rs` for how that pair is set.
 fn staging_dir() -> Option<PathBuf> {
-    if let Some(explicit) = non_empty("OPENMIRROR_UPDATE_DIR") {
+    if let Some(explicit) = non_empty("OMOTE_UPDATE_DIR") {
         return Some(PathBuf::from(explicit));
     }
-    let data = match non_empty("OPENMIRROR_DATA_DIR") {
+    let data = match non_empty("OMOTE_DATA_DIR") {
         Some(set) => PathBuf::from(set),
         None => home_root()?.join("data"),
     };
@@ -584,7 +584,7 @@ fn non_empty(key: &str) -> Option<String> {
 
 fn home_root() -> Option<PathBuf> {
     let user = non_empty("HOME").or_else(|| non_empty("USERPROFILE"))?;
-    Some(PathBuf::from(user).join(".openmirror"))
+    Some(PathBuf::from(user).join(".omote"))
 }
 
 #[cfg(unix)]
@@ -640,7 +640,7 @@ fn main() {
             }
             let settings = Settings::load(&home);
             let port = settings.port();
-            note(format!("openmirror desktop {}; daemon port {port}", env!("CARGO_PKG_VERSION")));
+            note(format!("omote desktop {}; daemon port {port}", env!("CARGO_PKG_VERSION")));
 
             app.manage(Shell {
                 home,
@@ -664,7 +664,7 @@ fn main() {
                     .permission("notification:allow-notify"),
             )?;
 
-            let transparent = std::env::var("OPENMIRROR_TRANSPARENT")
+            let transparent = std::env::var("OMOTE_TRANSPARENT")
                 .map(|v| matches!(v.as_str(), "1" | "true" | "yes" | "on"))
                 .unwrap_or(false);
 
@@ -672,7 +672,7 @@ fn main() {
             let opening = app.handle().clone();
             let saving = app.handle().clone();
             let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-                .title("openmirror")
+                .title("Omote")
                 .inner_size(1200.0, 820.0)
                 .min_inner_size(720.0, 520.0)
                 // Transparency lets the page's own glass blur the real desktop
@@ -717,15 +717,15 @@ fn main() {
                 }
             });
 
-            let show_item = MenuItem::with_id(app, "show", "Show openmirror", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(app, "show", "Show Omote", true, None::<&str>)?;
             let logs_item = MenuItem::with_id(app, "logs", "Open the logs folder", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit openmirror", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit Omote", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &logs_item, &quit_item])?;
             let icon = app.default_window_icon().cloned().ok_or("the app has no icon")?;
 
             TrayIconBuilder::new()
                 .icon(icon)
-                .tooltip("openmirror")
+                .tooltip("Omote")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
@@ -753,7 +753,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("failed to build the openmirror app")
+        .expect("failed to build the Omote app")
         .run(|app, event| match event {
             RunEvent::Exit => stop_ours(app),
             // The Dock icon, clicked while the window is hidden: every Mac
@@ -780,7 +780,7 @@ mod tests {
 
         assert!(!here("http://127.0.0.1:9000/"), "another port is another server");
         assert!(!here("https://127.0.0.1:8477/"), "the daemon does not serve https");
-        assert!(!here("https://github.com/notquiteog/openmirror"));
+        assert!(!here("https://github.com/notquiteog/Omote"));
         assert!(!here("file:///etc/passwd"));
         assert!(!here("data:text/html,<h1>hi</h1>"));
     }
@@ -796,7 +796,7 @@ mod tests {
         // A symlink is refused even though `is_file` follows it and says yes:
         // the daemon stages a regular file, so a link here means something
         // replaced it between the checksum and now.
-        let dir = std::env::temp_dir().join("openmirror-update-test");
+        let dir = std::env::temp_dir().join("omote-update-test");
         let _ = std::fs::create_dir_all(&dir);
         let real = dir.join("real.bin");
         let link = dir.join("link.bin");
@@ -815,7 +815,7 @@ mod tests {
 
     #[test]
     fn a_download_never_overwrites() {
-        let dir = std::env::temp_dir().join(format!("openmirror-unique-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("omote-unique-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         assert_eq!(unique(&dir, "cat.png"), dir.join("cat.png"));
         std::fs::write(dir.join("cat.png"), b"").unwrap();
@@ -840,7 +840,7 @@ mod tests {
            neither a `..` in the path nor a link aimed at the staging directory
            gets anything run that the daemon did not put there. */
         let root = std::env::temp_dir().join(format!(
-            "openmirror-staging-test-{}-{:?}",
+            "omote-staging-test-{}-{:?}",
             std::process::id(),
             std::thread::current().id()
         ));
@@ -849,7 +849,7 @@ mod tests {
         std::fs::create_dir_all(&staging).unwrap();
         std::fs::create_dir_all(&elsewhere).unwrap();
 
-        let staged = staging.join("openmirror_1.0.0_amd64.AppImage");
+        let staged = staging.join("omote_1.0.0_amd64.AppImage");
         let stranger = elsewhere.join("something-else");
         std::fs::write(&staged, b"x").unwrap();
         std::fs::write(&stranger, b"x").unwrap();
@@ -857,9 +857,9 @@ mod tests {
         // One test rather than two, because both halves mutate the process
         // environment and cargo runs tests on one thread. Which of these two
         // loses that race is not something a test should be deciding.
-        let saved_dir = std::env::var_os("OPENMIRROR_DATA_DIR");
-        let saved_update = std::env::var_os("OPENMIRROR_UPDATE_DIR");
-        std::env::set_var("OPENMIRROR_DATA_DIR", &root);
+        let saved_dir = std::env::var_os("OMOTE_DATA_DIR");
+        let saved_update = std::env::var_os("OMOTE_UPDATE_DIR");
+        std::env::set_var("OMOTE_DATA_DIR", &root);
 
         assert!(staged_under(&staged), "the file the daemon staged must be runnable");
         assert!(!staged_under(&stranger), "a file elsewhere must not be runnable");
@@ -890,22 +890,22 @@ mod tests {
         // The same lookup the daemon's `update_staging` default does, in the
         // same order. An explicit update directory wins; a blank one counts as
         // absent, because the daemon's config treats a blank value as absent.
-        std::env::set_var("OPENMIRROR_UPDATE_DIR", "/mnt/big/updates");
+        std::env::set_var("OMOTE_UPDATE_DIR", "/mnt/big/updates");
         assert_eq!(staging_dir(), Some(PathBuf::from("/mnt/big/updates")));
 
-        std::env::set_var("OPENMIRROR_UPDATE_DIR", "  ");
+        std::env::set_var("OMOTE_UPDATE_DIR", "  ");
         assert_eq!(staging_dir(), Some(staging.canonicalize().unwrap()));
 
-        std::env::remove_var("OPENMIRROR_UPDATE_DIR");
+        std::env::remove_var("OMOTE_UPDATE_DIR");
         assert_eq!(staging_dir(), Some(staging.canonicalize().unwrap()));
 
         match saved_dir {
-            Some(value) => std::env::set_var("OPENMIRROR_DATA_DIR", value),
-            None => std::env::remove_var("OPENMIRROR_DATA_DIR"),
+            Some(value) => std::env::set_var("OMOTE_DATA_DIR", value),
+            None => std::env::remove_var("OMOTE_DATA_DIR"),
         }
         match saved_update {
-            Some(value) => std::env::set_var("OPENMIRROR_UPDATE_DIR", value),
-            None => std::env::remove_var("OPENMIRROR_UPDATE_DIR"),
+            Some(value) => std::env::set_var("OMOTE_UPDATE_DIR", value),
+            None => std::env::remove_var("OMOTE_UPDATE_DIR"),
         }
         std::fs::remove_dir_all(&root).unwrap();
     }

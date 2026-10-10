@@ -117,7 +117,7 @@ test('the two tooltips say what will happen, which is the whole of the policy', 
 });
 
 test('the two pickers list what the daemon takes', () => {
-  // The approval modes are the six `openmirror/agent/approval.py` defines, and
+  // The approval modes are the six `omote/agent/approval.py` defines, and
   // the host recognises exactly these names -- a picker offering a seventh would
   // send a value the host drops on the floor.
   assert.deepEqual(MODES.map(([value]) => value), [

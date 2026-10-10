@@ -1,7 +1,7 @@
 {
-  "name": "openmirror",
-  "displayName": "openmirror",
-  "description": "A panel for a running openmirror daemon, the same client as openmirror chat.",
+  "name": "omote",
+  "displayName": "Omote",
+  "description": "A panel for a running Omote daemon, the same client as omote chat.",
   "version": "0.7.0",
   "publisher": "notquiteog",
   "license": "Apache-2.0",
@@ -11,13 +11,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/notquiteog/openmirror.git",
+    "url": "https://github.com/notquiteog/Omote.git",
     "directory": "ide/vscode"
   },
   "bugs": {
-    "url": "https://github.com/notquiteog/openmirror/issues"
+    "url": "https://github.com/notquiteog/Omote/issues"
   },
-  "homepage": "https://github.com/notquiteog/openmirror/tree/main/ide/vscode",
+  "homepage": "https://github.com/notquiteog/Omote/tree/main/ide/vscode",
   "engines": {
     "vscode": "^1.87.0"
   },
@@ -30,7 +30,7 @@
     "Other"
   ],
   "keywords": [
-    "openmirror",
+    "omote",
     "agent",
     "ai",
     "chat",
@@ -47,7 +47,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
-      "description": "Trusted only: one command runs the openmirror binary, which an untrusted folder may also have."
+      "description": "Trusted only: one command runs the omote binary, which an untrusted folder may also have."
     },
     "virtualWorkspaces": {
       "supported": false,
@@ -57,126 +57,126 @@
   "contributes": {
     "commands": [
       {
-        "command": "openmirror.openPanel",
+        "command": "omote.openPanel",
         "title": "Open Panel",
-        "category": "openmirror",
+        "category": "Omote",
         "icon": "$(comment-discussion)"
       },
       {
-        "command": "openmirror.newConversation",
+        "command": "omote.newConversation",
         "title": "New Conversation",
-        "category": "openmirror"
+        "category": "Omote"
       },
       {
-        "command": "openmirror.resumeConversation",
+        "command": "omote.resumeConversation",
         "title": "Resume Conversation",
-        "category": "openmirror"
+        "category": "Omote"
       },
       {
-        "command": "openmirror.forkConversation",
+        "command": "omote.forkConversation",
         "title": "Fork Current Conversation",
-        "category": "openmirror"
+        "category": "Omote"
       },
       {
-        "command": "openmirror.showContextReport",
+        "command": "omote.showContextReport",
         "title": "Show the Context Report",
-        "category": "openmirror"
+        "category": "Omote"
       },
       {
-        "command": "openmirror.setApprovalMode",
+        "command": "omote.setApprovalMode",
         "title": "Set the Approval Mode",
-        "category": "openmirror"
+        "category": "Omote"
       },
       {
-        "command": "openmirror.setThinkingLevel",
+        "command": "omote.setThinkingLevel",
         "title": "Set the Thinking Level",
-        "category": "openmirror"
+        "category": "Omote"
       },
       {
-        "command": "openmirror.setModel",
+        "command": "omote.setModel",
         "title": "Set the Model",
-        "category": "openmirror"
+        "category": "Omote"
       },
       {
-        "command": "openmirror.stopTurn",
+        "command": "omote.stopTurn",
         "title": "Stop the Turn",
-        "category": "openmirror"
+        "category": "Omote"
       },
       {
-        "command": "openmirror.agreeHook",
+        "command": "omote.agreeHook",
         "title": "Agree to a Project Hook",
-        "category": "openmirror"
+        "category": "Omote"
       },
       {
-        "command": "openmirror.refuseHook",
+        "command": "omote.refuseHook",
         "title": "Refuse a Project Hook",
-        "category": "openmirror"
+        "category": "Omote"
       },
       {
-        "command": "openmirror.startDaemon",
+        "command": "omote.startDaemon",
         "title": "Start the Daemon in a Terminal",
-        "category": "openmirror"
+        "category": "Omote"
       },
       {
-        "command": "openmirror.showOutput",
+        "command": "omote.showOutput",
         "title": "Show Output",
-        "category": "openmirror"
+        "category": "Omote"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "openmirror.openPanel",
+          "command": "omote.openPanel",
           "when": "resourceScheme == file",
           "group": "navigation@1"
         }
       ],
       "explorer/context": [
         {
-          "command": "openmirror.openPanel",
+          "command": "omote.openPanel",
           "when": "explorerResourceIsFolder",
           "group": "navigation@9"
         }
       ]
     },
     "configuration": {
-      "title": "openmirror",
+      "title": "Omote",
       "properties": {
-        "openmirror.host": {
+        "omote.host": {
           "type": "string",
           "default": "",
           "scope": "window",
           "order": 1,
-          "description": "Where the daemon listens. Empty reads OPENMIRROR_HOST, then 127.0.0.1."
+          "description": "Where the daemon listens. Empty reads OMOTE_HOST, then 127.0.0.1."
         },
-        "openmirror.port": {
+        "omote.port": {
           "type": "string",
           "default": "",
           "scope": "window",
           "order": 2,
-          "description": "The daemon's port. Empty reads OPENMIRROR_PORT, then 8477."
+          "description": "The daemon's port. Empty reads OMOTE_PORT, then 8477."
         },
-        "openmirror.token": {
+        "omote.token": {
           "type": "string",
           "scope": "window",
           "order": 3,
-          "description": "Only needed if the daemon was started with OPENMIRROR_TOKEN, which this falls back to."
+          "description": "Only needed if the daemon was started with OMOTE_TOKEN, which this falls back to."
         },
-        "openmirror.model": {
+        "omote.model": {
           "type": "string",
           "default": "",
           "scope": "window",
           "order": 4,
           "description": "Model for new conversations, e.g. anthropic. Empty means the daemon picks."
         },
-        "openmirror.provider": {
+        "omote.provider": {
           "type": "string",
           "default": "",
           "scope": "window",
           "order": 5,
           "description": "Provider for new conversations. Empty means the daemon picks."
         },
-        "openmirror.mode": {
+        "omote.mode": {
           "type": "string",
           "default": "",
           "scope": "window",
@@ -201,7 +201,7 @@
           "order": 6,
           "description": "What may run without asking, in new conversations. Empty means the daemon's default: ask."
         },
-        "openmirror.effort": {
+        "omote.effort": {
           "type": "string",
           "default": "",
           "scope": "window",
@@ -228,7 +228,7 @@
           "order": 7,
           "description": "Thinking level for new conversations: off to max. Empty means the daemon picks."
         },
-        "openmirror.root": {
+        "omote.root": {
           "type": "string",
           "default": "",
           "scope": "resource",

@@ -1,6 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>openmirror</title>
+<title>Omote</title>
 <!-- What the window shows until the daemon answers, and instead of it when it
      does not. The interface itself is served by the daemon, and the app moves
      the window there the moment it is up — so this page only ever shows
@@ -28,7 +28,7 @@
   @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
 </style>
 <main>
-  <h1 id="title" class="dots">Starting openmirror</h1>
+  <h1 id="title" class="dots">Starting Omote</h1>
   <p id="detail">Looking for the daemon.</p>
   <p id="slow" class="muted" hidden>The first start after installing takes longest: the daemon unpacks
     itself, and on Windows it is scanned before it is allowed to run.</p>
@@ -72,7 +72,7 @@
     try {
       render(await invoke('status'));
     } catch (err) {
-      render({ phase: 'failed', title: 'openmirror could not start', detail: String(err) });
+      render({ phase: 'failed', title: 'omote could not start', detail: String(err) });
     }
     setTimeout(poll, 400);
   }
@@ -84,7 +84,7 @@
   } else {
     render({
       phase: 'failed',
-      title: 'This page belongs to the openmirror app',
+      title: 'This page belongs to the Omote app',
       detail: 'Opened anywhere else it has nothing to report. The interface is served by the daemon, at http://127.0.0.1:8477.',
     });
   }

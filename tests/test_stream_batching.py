@@ -30,8 +30,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-STREAM = ROOT / 'openmirror' / 'static' / 'stream.js'
-APP = (ROOT / 'openmirror' / 'static' / 'app.js').read_text()
+STREAM = ROOT / 'omote' / 'static' / 'stream.js'
+APP = (ROOT / 'omote' / 'static' / 'app.js').read_text()
 
 HARNESS = r'''
 import { readFileSync, writeFileSync } from 'fs';

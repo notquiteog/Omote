@@ -1,6 +1,6 @@
 # Memory
 
-openmirror can remember things about you between conversations. It is off until you
+Omote can remember things about you between conversations. It is off until you
 switch it on, and switching it on is two decisions rather than one.
 
 ## The two switches
@@ -20,45 +20,42 @@ Turning memory off stops storing and stops recalling. It does *not* delete what
 is already there — and the UI says so, with the count, rather than implying the
 data is gone.
 
+## Inspecting and controlling saved information
+
+The Memory dialog is available by default. Set `OMOTE_MEMORY=false` to
+turn the feature off for the installation; otherwise each user still opts in.
+The dialog lists text, kind, project/subject, source, timestamp, and recall count,
+with pagination, corrections, a full JSON export, per-item deletion, and a wipe.
+Pausing does not hide existing entries. Corrections save locally even when the
+embedding provider is offline, invalidate the old vector immediately, and can be
+re-indexed later. Paused users' entries are not sent for re-embedding.
+
+| Endpoint | Behavior |
+|---|---|
+| `GET /api/memory?limit=100&offset=0` | A page of entries; optional `kind` and `subject` filters. `total` counts all the user's entries. |
+| `POST /api/memory` | Add `text`, `kind`, and optional `subject` after consent; returns 503 if embedding fails. |
+| `PUT /api/memory/{id}` | Correct an entry and invalidate its old vector; returns whether it was indexed. |
+| `GET /api/memory/export` | Export every saved entry and consent settings, including while paused. Excludes vectors and keys. |
+| `DELETE /api/memory/{id}` | Delete one entry and its search vector. |
+| `DELETE /api/memory` | Delete all the user's entries, vectors, and consent settings. |
+
 ## How it is stored
 
-SQLite, and a full scan. A person's memories number in the thousands, not the
-millions; at that size an approximate index buys nothing measurable and costs a
-service to run and a second thing that can be down. A quantised vector is 768
-bytes, ten thousand of them is seven megabytes, and a dot product over seven
-megabytes takes a couple of milliseconds. When someone has a million memories
-this will be the wrong choice, it will be obvious, and the interface will not
-have to change.
+Memory lives in a local SQLite database. Source text is **readable plaintext**.
+Vectors are projected to a bounded width (at most 256 dimensions) and quantised
+to int8 with a per-vector scale. Similarity search uses `sqlite-vec` when
+available and a Python scan otherwise. Both paths restrict results to the user,
+embedding model, and requested kind/subject.
 
-Vectors are quantised to int8 with a per-vector scale: a quarter of the size,
-for a similarity error of about 0.002 — well below the noise floor of the
-embedding itself.
+A per-user key makes each user's vector projection different. This is **not
+at-rest encryption**: both memory text and the projection key live in the same
+database. Protect the file with filesystem permissions or disk encryption when
+needed. Switching embedding models invalidates incompatible vectors rather than
+comparing unrelated spaces.
 
-## The per-user key
-
-Each user gets a random key, and their vectors are scrambled with it before
-storage: a permutation and a sign flip.
-
-Both are **orthogonal transforms**, so dot products — and therefore cosine
-similarity — are preserved *exactly*. There is no accuracy cost at all. The
-test suite asserts this to 1e-6, because the whole design rests on it.
-
-What it buys:
-
-* **A stolen database is not a pile of embeddings** someone can run through a
-  public model to recover the text. This is the one that earns the design.
-  openmirror is a client on a machine you control — there is one user, and the
-  database is a file on their disk — so at-rest recoverability is the whole
-  threat, and it is the half of this that is load-bearing.
-* Vectors belonging to two different user ids cannot be meaningfully compared.
-  Cross-user leakage is not merely forbidden by a `WHERE` clause; it is
-  meaningless. True, and not currently doing any work: openmirror has one user by
-  design and is not heading for accounts. Kept because the store is keyed that
-  way and removing the keying to simplify would cost the bullet above.
-
-Queries are projected the same way, so nothing is ever unprojected and the key
-never has to leave its table. A wipe deletes the key along with the rows, so a
-restored backup cannot be searched either.
+A wipe removes the user's active rows, vector-index entries, and key. It does not
+securely erase disk sectors or independently stored backups and exported JSON.
+Restoring a complete database backup also restores its saved text and keys.
 
 ## What gets remembered automatically
 
@@ -102,9 +99,9 @@ geometry returns plausible middling numbers, so an unreset store keeps answering
 questions, just with whichever old memory happened to land near the new query.
 Nothing logs and nothing raises.
 
-So openmirror notices instead. The store records which embedder its vectors are
+So Omote notices instead. The store records which embedder its vectors are
 under, and compares it at every open and before every embedding — the embedding
-route can be re-pointed while openmirror is running, so a start-up-only check would
+route can be re-pointed while Omote is running, so a start-up-only check would
 leave the rest of that session comparing against the old model. When it has
 moved, **every vector is discarded and every text is kept**, and the memories are
 embedded again in the background. Recall is briefly empty and says so, rather
@@ -120,7 +117,7 @@ size, which is the case this exists for.
 ## Controlling the index by hand
 
 The vector index is derived data: the memory is the text, and the vectors and
-the search index are both things openmirror can make again. Everything here is
+the search index are both things Omote can make again. Everything here is
 therefore safe to reach for, which `DELETE /api/memory` — the wipe — is not.
 
 | | |

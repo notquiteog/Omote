@@ -37,7 +37,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from openmirror.calendar.ics import (
+from omote.calendar.ics import (
     CalendarError,
     build,
     conflicts,
@@ -49,7 +49,7 @@ from openmirror.calendar.ics import (
     parse_when,
     unescape,
 )
-from openmirror.calendar.store import CalendarStore, CalendarStoreError, agenda, clash, proposed
+from omote.calendar.store import CalendarStore, CalendarStoreError, agenda, clash, proposed
 
 
 def cal(*events: str) -> list:
@@ -391,7 +391,7 @@ def test_reading_a_calendar_that_is_not_there_says_so(tmp_path):
 
 def test_a_calendar_is_written_and_read_back(tmp_path):
     store = CalendarStore(tmp_path)
-    from openmirror.calendar.store import Calendar
+    from omote.calendar.store import Calendar
 
     text = build(summary='Standup', start=datetime(2026, 3, 16, 9, 30, tzinfo=UTC))
     store.write(Calendar(id='work', name='Work'), text)

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-STATIC = Path(__file__).resolve().parents[1] / 'openmirror' / 'static'
+STATIC = Path(__file__).resolve().parents[1] / 'omote' / 'static'
 STUDIO_JS = (STATIC / 'studio.js').read_text()
 INDEX = (STATIC / 'index.html').read_text()
 STYLE = (STATIC / 'style.css').read_text()
@@ -33,7 +33,7 @@ def test_every_element_the_studio_reaches_for_is_on_the_page():
 def test_every_endpoint_the_studio_calls_is_one_the_server_serves():
     """The other direction of the same drift: a path that moved leaves a panel
     that loads and then fails at the first click."""
-    from openmirror.routers import media as media_router
+    from omote.routers import media as media_router
 
     served = {route.path for route in media_router.router.routes}
 
@@ -60,7 +60,7 @@ def test_the_form_has_a_control_for_every_kind_a_provider_can_declare():
     box you can type an id into and never would."""
     import typing
 
-    from openmirror.media.params import Kind
+    from omote.media.params import Kind
 
     declared = set(typing.get_args(Kind))
     # `control()` branches on these; `string` is the fall-through and is
@@ -73,13 +73,13 @@ def test_the_form_has_a_control_for_every_kind_a_provider_can_declare():
 def test_the_sections_the_form_lays_out_are_the_ones_providers_use():
     """A group the client does not know is rendered last under "other", which
     is correct and is not where `motion` belongs."""
-    from openmirror.media.params import Param
+    from omote.media.params import Param
 
     groups = set(re.findall(r"GROUPS = \[([^\]]+)\]", STUDIO_JS)[0].replace("'", '').split(', '))
     documented = set(re.findall(r"'(\w+)'", Param.__doc__ or '')) if Param.__doc__ else set()
     # Taken from where the vocabulary is actually written down: the comment on
-    # `Param.group` in openmirror/media/params.py.
-    source = (Path(__file__).resolve().parents[1] / 'openmirror' / 'media' / 'params.py').read_text()
+    # `Param.group` in omote/media/params.py.
+    source = (Path(__file__).resolve().parents[1] / 'omote' / 'media' / 'params.py').read_text()
     listed = set(re.findall(r"# For grouping into sections: (.+?)\.\s", source, re.S)[0].replace("'", '')
                  .replace('\n', ' ').replace('#', '').split(', '))
     listed = {g.strip() for g in listed if g.strip()}

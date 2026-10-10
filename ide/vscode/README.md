@@ -1,17 +1,17 @@
-# openmirror for VS Code
+# Omote for VS Code
 
-A panel for a running [openmirror](https://github.com/notquiteog/openmirror)
-daemon. It is the same client as `openmirror chat`, pointed at the same
+A panel for a running [Omote](https://github.com/notquiteog/Omote)
+daemon. It is the same client as `omote chat`, pointed at the same
 localhost, and it is a client in the same sense: **it starts no daemon, spawns
 no agent, and holds nothing that outlives the panel.**
 
 You need the daemon already running:
 
 ```bash
-openmirror serve
+omote serve
 ```
 
-The panel will not start it for you. `openmirror: Start the Daemon in a Terminal`
+The panel will not start it for you. `omote: Start the Daemon in a Terminal`
 opens a terminal you can see, watch and Ctrl-C, and waits a few seconds for the
 daemon to answer so the panel picks it up on its own -- which is a button you
 pressed, not a process started behind your back. Starting something on this
@@ -80,13 +80,13 @@ Three things follow, and they are not negotiable:
   repository is a webview that can be made to.
 - The page's policy has `connect-src 'none'`. The panel reaches the daemon
   through the extension host or not at all.
-- `openmirror.token` is a plain string with no default, because a default token
+- `omote.token` is a plain string with no default, because a default token
   is a shipped credential, and VS Code has no password field for a setting. If
-  your daemon was started with `OPENMIRROR_TOKEN`, put it in your environment or
+  your daemon was started with `OMOTE_TOKEN`, put it in your environment or
   your secret store -- not in `settings.json`, which is a file.
 
 The workspace is declared unsupported when VS Code does not trust it, because
-one of these commands runs the `openmirror` binary and in an untrusted folder
+one of these commands runs the `omote` binary and in an untrusted folder
 that binary may be the repository's own. Virtual workspaces are unsupported too:
 there is no working root, and one root the daemon cannot leave is the entire of
 what confines an agent.
@@ -97,22 +97,22 @@ what confines an agent.
 
 Every one of them falls back to an environment variable, and every one of them
 is empty by default. That is deliberate. An empty default and an unset default
-resolve identically, so `OPENMIRROR_HOST` still wins when you have not set
-`openmirror.host` yourself -- a non-empty default would shadow the environment
+resolve identically, so `OMOTE_HOST` still wins when you have not set
+`omote.host` yourself -- a non-empty default would shadow the environment
 for ever, which is the sort of thing nobody notices until the variable stops
 working. The defaults in `settings.json` are all empty; the values you see are
 what `resolveDaemon` turns them into when the environment is empty too.
 
 | setting | in settings.json | resolves to | falls back to |
 |---|---|---|---|
-| `openmirror.host` | empty | `127.0.0.1` | `OPENMIRROR_HOST` |
-| `openmirror.port` | empty | `8477` | `OPENMIRROR_PORT` |
-| `openmirror.token` | absent | none | `OPENMIRROR_TOKEN` |
-| `openmirror.model` | empty | the daemon decides | -- |
-| `openmirror.provider` | empty | the daemon decides | -- |
-| `openmirror.mode` | empty | the daemon decides (`ask`) | -- |
-| `openmirror.effort` | empty | the daemon decides | -- |
-| `openmirror.root` | empty | the first workspace folder | -- |
+| `omote.host` | empty | `127.0.0.1` | `OMOTE_HOST` |
+| `omote.port` | empty | `8477` | `OMOTE_PORT` |
+| `omote.token` | absent | none | `OMOTE_TOKEN` |
+| `omote.model` | empty | the daemon decides | -- |
+| `omote.provider` | empty | the daemon decides | -- |
+| `omote.mode` | empty | the daemon decides (`ask`) | -- |
+| `omote.effort` | empty | the daemon decides | -- |
+| `omote.root` | empty | the first workspace folder | -- |
 
 `host`, `port` and `token` decide **which daemon the panel is talking to**. A
 `Host` reads them once, when it is built, so changing one tells the panel
@@ -124,7 +124,7 @@ so rather than moving a running one.
 
 ## Commands
 
-All under the `openmirror` category.
+All under the `omote` category.
 
 | command | what it does |
 |---|---|
@@ -139,7 +139,7 @@ All under the `openmirror` category.
 | `Stop the Turn` | queued rather than dropped, so a turn cannot run to its end |
 | `Agree to a Project Hook` | answers the banner a project hook raises |
 | `Refuse a Project Hook` | the same question, the other answer |
-| `Start the Daemon in a Terminal` | `openmirror serve`, in a terminal you can see |
+| `Start the Daemon in a Terminal` | `omote serve`, in a terminal you can see |
 | `Show Output` | this extension's log, and the webview's own |
 
 Two of them are in menus rather than only in the palette: the panel button in
@@ -182,12 +182,12 @@ and that the panel's resources are `media/` and nothing else.
 
 ## Licence
 
-Apache-2.0, the same as the rest of openmirror. This extension is original to
-openmirror and contains no Open WebUI code.
+Apache-2.0, the same as the rest of omote. This extension is original to
+Omote and contains no Open WebUI code.
 
-openmirror as a project includes software developed by Open WebUI Inc.
+Omote as a project includes software developed by Open WebUI Inc.
 (<https://github.com/open-webui/open-webui>), created by Timothy Jaeryang Baek,
-Copyright (c) 2023- Open WebUI Inc. All rights reserved. Portions of openmirror
+Copyright (c) 2023- Open WebUI Inc. All rights reserved. Portions of Omote
 are derived from Open WebUI and remain subject to the Open WebUI License,
 reproduced in `LICENSE-OpenWebUI` at the repository root. See `NOTICE` there for
 which files those are.

@@ -19,11 +19,11 @@ from pathlib import Path
 
 import pytest
 
-import openmirror.media.edit as edit_ops
-from openmirror.media.params import coerce
-from openmirror.providers.hosted_media import HostedMedia, Poll, Submitted, sniff, urls_in
-from openmirror.providers.openapi_form import params_from_openapi
-from openmirror.providers.registry import NoProviderError, ProviderRegistry
+import omote.media.edit as edit_ops
+from omote.media.params import coerce
+from omote.providers.hosted_media import HostedMedia, Poll, Submitted, sniff, urls_in
+from omote.providers.openapi_form import params_from_openapi
+from omote.providers.registry import NoProviderError, ProviderRegistry
 
 # ---------------------------------------------------------------------------
 # A model's schema becomes a form
@@ -197,8 +197,8 @@ class Fake(HostedMedia):
 def _fast_polling(monkeypatch):
     """The loop's own waits, shortened. Without this every test here pays a
     real second per poll for a delay that is not what is under test."""
-    monkeypatch.setattr('openmirror.providers.hosted_media.POLL_START', 0.001)
-    monkeypatch.setattr('openmirror.providers.hosted_media.POLL_MAX', 0.001)
+    monkeypatch.setattr('omote.providers.hosted_media.POLL_START', 0.001)
+    monkeypatch.setattr('omote.providers.hosted_media.POLL_MAX', 0.001)
 
 
 async def test_it_polls_until_it_stops_moving_and_then_downloads():
@@ -279,7 +279,7 @@ async def test_bytes_already_in_hand_are_not_re_downloaded():
 def test_the_kling_token_is_a_real_signed_jwt():
     """Three lines of HMAC rather than a dependency, which is only a good trade
     if the three lines are right."""
-    from openmirror.providers.kling import mint
+    from omote.providers.kling import mint
 
     token = mint('my-access-key', 'my-secret')
     header_b64, payload_b64, signature_b64 = token.split('.')
@@ -299,7 +299,7 @@ def test_the_kling_token_is_a_real_signed_jwt():
 
 
 def test_kling_says_what_its_credential_is_rather_than_failing_at_the_first_call():
-    from openmirror.providers.kling import KlingProvider
+    from omote.providers.kling import KlingProvider
 
     provider = KlingProvider(api_key='just-one-value')
     with pytest.raises(RuntimeError, match='access_key:secret_key'):
@@ -309,7 +309,7 @@ def test_kling_says_what_its_credential_is_rather_than_failing_at_the_first_call
 def test_kling_picks_its_endpoint_from_how_it_was_built_not_from_the_model_id():
     """`kling-v1-5` is both an image model and a video model, so the id cannot
     decide. Two instances, one per kind — see connections.build."""
-    from openmirror.providers.kling import KlingProvider
+    from omote.providers.kling import KlingProvider
 
     image = KlingProvider(api_key='a:b', kind='image')
     video = KlingProvider(api_key='a:b', kind='video')
@@ -324,7 +324,7 @@ def test_kling_picks_its_endpoint_from_how_it_was_built_not_from_the_model_id():
 def test_a_picture_parameter_survives_coercion_as_the_id_it_is():
     """An image control carries a media id. Coercion must not turn it into a
     number, drop it, or try to read it."""
-    from openmirror.media.params import Param
+    from omote.media.params import Param
 
     schema = [Param('image', 'Image', 'image')]
     assert coerce(schema, {'image': 'abc123def456'}) == {'image': 'abc123def456'}
@@ -334,15 +334,15 @@ async def test_every_media_provider_offers_a_form_without_being_asked_anything()
     """`describe()` is what the panel is built from, so a provider that cannot
     answer it offline is a provider whose panel is empty until a key is typed
     in — which is the wrong order to find out the backend is wrong."""
-    from openmirror.providers.bfl import BFLProvider
-    from openmirror.providers.ideogram import IdeogramProvider
-    from openmirror.providers.kling import KlingProvider
-    from openmirror.providers.luma import LumaProvider
-    from openmirror.providers.minimax import MiniMaxProvider
-    from openmirror.providers.openrouter import OpenRouterImages, OpenRouterVideo
-    from openmirror.providers.runway import RunwayProvider
-    from openmirror.providers.sora import SoraProvider
-    from openmirror.providers.stability import StabilityProvider
+    from omote.providers.bfl import BFLProvider
+    from omote.providers.ideogram import IdeogramProvider
+    from omote.providers.kling import KlingProvider
+    from omote.providers.luma import LumaProvider
+    from omote.providers.minimax import MiniMaxProvider
+    from omote.providers.openrouter import OpenRouterImages, OpenRouterVideo
+    from omote.providers.runway import RunwayProvider
+    from omote.providers.sora import SoraProvider
+    from omote.providers.stability import StabilityProvider
 
     providers = [
         BFLProvider(api_key='k'), IdeogramProvider(api_key='k'), KlingProvider(api_key='a:b'),
@@ -366,7 +366,7 @@ async def test_every_media_provider_offers_a_form_without_being_asked_anything()
 
 
 def _store(tmp_path):
-    from openmirror.media.store import MediaStore
+    from omote.media.store import MediaStore
 
     return MediaStore(tmp_path / 'media')
 
@@ -410,7 +410,7 @@ class FakeAudio(HostedMedia):
                  'note': 'one model, for the picker'}]
 
     async def describe(self, model: str = '', **kw):
-        from openmirror.media.params import common_music
+        from omote.media.params import common_music
 
         return common_music()
 
@@ -425,7 +425,7 @@ def test_audio_bytes_are_recognised_from_their_own_magic():
     """Sniffed, not taken from a header, because several of these services
     return `application/octet-stream` for everything — and a file stored with
     the wrong extension is a file nothing will open."""
-    from openmirror.providers.hosted_media import sniff
+    from omote.providers.hosted_media import sniff
 
     assert sniff(b'RIFF\x24\x08\x00\x00WAVEfmt ') == 'audio/wav'
     assert sniff(b'OggS\x00\x02') == 'audio/ogg'
@@ -444,7 +444,7 @@ def test_audio_bytes_are_recognised_from_their_own_magic():
 def test_a_mp3_is_recognised_however_it_arrives():
     """Extension, declared type and magic all say mp3, because three services
     each use one of them."""
-    from openmirror.providers.hosted_media import sniff
+    from omote.providers.hosted_media import sniff
 
     assert sniff(b'whatever', url='https://x/y.mp3') == 'audio/mpeg'
     assert sniff(b'whatever', 'audio/mpeg') == 'audio/mpeg'
@@ -454,7 +454,7 @@ def test_a_mp3_is_recognised_however_it_arrives():
 def test_the_store_knows_what_to_call_an_audio_file():
     """The whole reason `Modality.MUSIC` was not enough on its own: a type with
     no entry in this table is not refused, it is stored as `.bin`."""
-    from openmirror.media.store import EXTENSIONS
+    from omote.media.store import EXTENSIONS
 
     assert EXTENSIONS['audio/mpeg'] == '.mp3'
     assert EXTENSIONS['audio/wav'] == '.wav'
@@ -462,9 +462,9 @@ def test_the_store_knows_what_to_call_an_audio_file():
 
 
 async def test_a_music_job_reaches_the_provider_as_bytes_and_lands_in_the_store(tmp_path):
-    from openmirror.media.service import MediaService
-    from openmirror.providers.base import Modality, ProviderInfo
-    from openmirror.providers.registry import ProviderRegistry
+    from omote.media.service import MediaService
+    from omote.providers.base import Modality, ProviderInfo
+    from omote.providers.registry import ProviderRegistry
 
     audio = FakeAudio()
     registry = ProviderRegistry()
@@ -499,9 +499,9 @@ async def test_a_music_job_never_resolves_to_a_video_provider(tmp_path):
     mean "everything that is not an image", and a music job was answered with
     a cheerful mp4 from a diffusion backend.
     """
-    from openmirror.media.service import MediaService, _modality
-    from openmirror.providers.base import Modality, ProviderInfo
-    from openmirror.providers.registry import NoProviderError, ProviderRegistry
+    from omote.media.service import MediaService, _modality
+    from omote.providers.base import Modality, ProviderInfo
+    from omote.providers.registry import NoProviderError, ProviderRegistry
 
     registry = ProviderRegistry()
     registry.register(
@@ -530,9 +530,9 @@ async def test_composing_a_score_needs_no_backend_at_all(tmp_path):
     reliable way to make music unavailable on exactly the installs that could
     least afford to be told no.
     """
-    from openmirror.agent.runtime import default_tools, media_tools
-    from openmirror.media.service import MediaService
-    from openmirror.providers.registry import ProviderRegistry
+    from omote.agent.runtime import default_tools, media_tools
+    from omote.media.service import MediaService
+    from omote.providers.registry import ProviderRegistry
 
     registry = ProviderRegistry()
     service = MediaService(registry=registry, store=_store(tmp_path))
@@ -548,12 +548,12 @@ async def test_composing_a_score_needs_no_backend_at_all(tmp_path):
 
 
 async def test_a_melody_goes_into_the_file_and_the_stores_note_of_it(tmp_path):
-    from openmirror.agent.tools.base import ToolContext
-    from openmirror.agent.tools.media import ComposeMusicTool
-    from openmirror.media.service import MediaService
-    from openmirror.music.midi import read_notes
-    from openmirror.protocol.agent import Risk
-    from openmirror.providers.registry import ProviderRegistry
+    from omote.agent.tools.base import ToolContext
+    from omote.agent.tools.media import ComposeMusicTool
+    from omote.media.service import MediaService
+    from omote.music.midi import read_notes
+    from omote.protocol.agent import Risk
+    from omote.providers.registry import ProviderRegistry
 
     service = MediaService(registry=ProviderRegistry(), store=_store(tmp_path))
     tool = ComposeMusicTool(service)
@@ -588,10 +588,10 @@ async def test_a_melody_goes_into_the_file_and_the_stores_note_of_it(tmp_path):
 async def test_an_unwritable_progression_is_refused_rather_than_explained(tmp_path):
     """A refusal the model can read is what lets it try a different one. The
     same message to the person is a lecture about chord notation."""
-    from openmirror.agent.tools.base import ToolContext
-    from openmirror.agent.tools.media import ComposeMusicTool
-    from openmirror.media.service import MediaService
-    from openmirror.providers.registry import ProviderRegistry
+    from omote.agent.tools.base import ToolContext
+    from omote.agent.tools.media import ComposeMusicTool
+    from omote.media.service import MediaService
+    from omote.providers.registry import ProviderRegistry
 
     tool = ComposeMusicTool(MediaService(registry=ProviderRegistry(), store=_store(tmp_path)))
     out = await tool.run(
@@ -603,7 +603,7 @@ async def test_an_unwritable_progression_is_refused_rather_than_explained(tmp_pa
 
 
 async def test_a_key_the_model_made_up_is_refused_before_anything_is_written(tmp_path):
-    from openmirror.agent.tools.media import ComposeMusicTool
+    from omote.agent.tools.media import ComposeMusicTool
 
     tool = ComposeMusicTool(None)
     graded = tool.assess({'key': 'Q sharp major', 'progression': 'I-V'}, None)
@@ -622,7 +622,7 @@ def _image(tmp_path, size=(400, 300), colour=(255, 0, 0)):
 
 
 def test_a_picture_is_cropped_and_the_result_is_a_real_file(tmp_path):
-    from openmirror.media.edit import image
+    from omote.media.edit import image
 
     source = _image(tmp_path)
     target = tmp_path / 'cropped.png'
@@ -638,7 +638,7 @@ def test_a_picture_is_cropped_and_the_result_is_a_real_file(tmp_path):
 async def test_an_edit_records_the_operation_and_not_the_bytes(tmp_path):
     """The sidecar is what makes an edit reproducible, and a recipe holding a
     megabyte of base64 is a sidecar no tool can open."""
-    from openmirror.media.service import MediaService
+    from omote.media.service import MediaService
 
     service = MediaService(registry=ProviderRegistry(), store=_store(tmp_path / 'media'))
     source = _image(tmp_path)
@@ -662,7 +662,7 @@ async def test_an_edit_records_the_operation_and_not_the_bytes(tmp_path):
 def test_an_edit_takes_ids_and_never_a_path(tmp_path):
     """The one operation where reading an arbitrary file off the disk is most
     tempting, and the ids are the only thing that stops it."""
-    from openmirror.media.service import MediaService
+    from omote.media.service import MediaService
 
     service = MediaService(registry=ProviderRegistry(), store=_store(tmp_path / 'media'))
     secret = _image(tmp_path)
@@ -680,7 +680,7 @@ def test_a_transparent_png_survives_being_converted_to_a_jpeg(tmp_path):
     """
     from PIL import Image
 
-    from openmirror.media.edit import image
+    from omote.media.edit import image
 
     source = tmp_path / 'alpha.png'
     Image.new('RGBA', (40, 40), (0, 0, 0, 0)).save(source)
@@ -696,7 +696,7 @@ def test_a_transparent_png_survives_being_converted_to_a_jpeg(tmp_path):
 
 
 def test_an_operation_it_does_not_know_is_refused(tmp_path):
-    from openmirror.media.edit import EditRefused, image
+    from omote.media.edit import EditRefused, image
 
     _image(tmp_path)
     with pytest.raises(EditRefused) as caught:
@@ -706,7 +706,7 @@ def test_an_operation_it_does_not_know_is_refused(tmp_path):
 
 def test_a_number_outside_what_the_operation_accepts_is_refused_with_the_range(tmp_path):
     """A sentence beats handing ffmpeg a 100000x speed and waiting."""
-    from openmirror.media.edit import EditRefused, image
+    from omote.media.edit import EditRefused, image
 
     _image(tmp_path)
     with pytest.raises(EditRefused) as caught:
@@ -715,7 +715,7 @@ def test_a_number_outside_what_the_operation_accepts_is_refused_with_the_range(t
 
 
 def test_a_crop_with_no_size_is_refused(tmp_path):
-    from openmirror.media.edit import EditRefused, image
+    from omote.media.edit import EditRefused, image
 
     _image(tmp_path)
     with pytest.raises(EditRefused):
@@ -724,7 +724,7 @@ def test_a_crop_with_no_size_is_refused(tmp_path):
 
 @pytest.mark.skipif(edit_ops.ffmpeg() is None, reason='ffmpeg is not installed')
 def test_a_clip_is_trimmed(tmp_path):
-    from openmirror.media.edit import probe, video
+    from omote.media.edit import probe, video
 
     source = _clip(tmp_path)
     target = tmp_path / 'trimmed.mp4'
@@ -738,7 +738,7 @@ def test_a_clip_is_trimmed(tmp_path):
 def test_what_a_clip_is_gets_reported_before_it_is_trimmed(tmp_path):
     """"How long is the clip I just imported" is the question before every trim,
     and answering it by opening the file in a player is a worse answer."""
-    from openmirror.media.edit import probe
+    from omote.media.edit import probe
 
     found = probe(str(_clip(tmp_path)))
     assert found['duration'] > 3
@@ -747,7 +747,7 @@ def test_what_a_clip_is_gets_reported_before_it_is_trimmed(tmp_path):
 
 @pytest.mark.skipif(edit_ops.ffmpeg() is None, reason='ffmpeg is not installed')
 def test_two_clips_join_in_order(tmp_path):
-    from openmirror.media.edit import concat
+    from omote.media.edit import concat
 
     first = _clip(tmp_path, name='a', colour='red')
     second = _clip(tmp_path, name='b', colour='blue')
@@ -776,12 +776,12 @@ def test_a_video_operation_without_ffmpeg_says_what_to_install(tmp_path):
     that tells you what is missing."""
     if edit_ops.ffmpeg() is not None:
         pytest.skip('ffmpeg is installed here, so the refusal cannot be observed')
-    from openmirror.media.edit import EditUnavailable, video
+    from omote.media.edit import EditUnavailable, video
 
     with pytest.raises(EditUnavailable) as caught:
         video('trim', '/tmp/nothing.mp4', '/tmp/out.mp4', {'start': 0, 'length': 1})
     said = str(caught.value)
-    assert 'openmirror[video]' in said, 'and it should say how to get one'
+    assert 'omote[video]' in said, 'and it should say how to get one'
 
 
 def test_an_editor_is_not_a_modality():
@@ -789,7 +789,7 @@ def test_an_editor_is_not_a_modality():
     so the registry is the right place for them. An editor is a binary on this
     disk, and putting it in the registry would imply an install that can fail
     to answer. So it is asked of the machine instead."""
-    from openmirror.media.service import MediaService
+    from omote.media.service import MediaService
 
     service = MediaService(registry=ProviderRegistry(), store=_store(tmp_path_path()))
     found = service.can_edit()
@@ -812,7 +812,7 @@ def test_gimp_will_not_run_an_arbitrary_procedure():
     bounded. The name comes from a table written here; only numbers and two
     paths are interpolated.
     """
-    from openmirror.providers.gimp import build_script
+    from omote.providers.gimp import build_script
 
     for hostile in ('gimp-quit', '(gimp-file-delete "/etc/passwd")', 'anything'):
         with pytest.raises(KeyError):
@@ -826,7 +826,7 @@ def test_gimp_will_not_run_an_arbitrary_procedure():
 
 
 def test_gimp_numbers_are_clamped_to_what_the_procedure_accepts():
-    from openmirror.providers.gimp import GimpError, build_script
+    from omote.providers.gimp import GimpError, build_script
 
     # GIMP clamps these itself; refusing here means the value in the sidecar is
     # the value that ran.

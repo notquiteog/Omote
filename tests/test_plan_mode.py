@@ -9,12 +9,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from openmirror.agent.approval import ApprovalPolicy, Decision, Mode
-from openmirror.agent.runtime import build_session
-from openmirror.agent.tools.base import ToolContext
-from openmirror.agent.tools.planning import APPROVE_EDIT, KEEP_PLANNING
-from openmirror.agent.tools.todo import TodoTool
-from openmirror.protocol.agent import (
+from omote.agent.approval import ApprovalPolicy, Decision, Mode
+from omote.agent.runtime import build_session
+from omote.agent.tools.base import ToolContext
+from omote.agent.tools.planning import APPROVE_EDIT, KEEP_PLANNING
+from omote.agent.tools.todo import TodoTool
+from omote.protocol.agent import (
     PolicyChanged,
     QuestionAsked,
     Risk,
@@ -23,7 +23,7 @@ from openmirror.protocol.agent import (
     ToolDenied,
     ToolProposed,
 )
-from openmirror.providers.base import StreamDone, StreamText, StreamToolUse
+from omote.providers.base import StreamDone, StreamText, StreamToolUse
 from tests.test_agent import ScriptedProvider, turn
 
 

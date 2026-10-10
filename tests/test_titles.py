@@ -1,8 +1,8 @@
 """A session named after its first sentence.
 
-Claude Code titles a conversation from what was said in it. openmirror named it
-after the directory, so a sidebar of a busy afternoon reads `openmirror`,
-`openmirror`, `openmirror` — a list you have to open every row of to use, and
+Claude Code titles a conversation from what was said in it. omote named it
+after the directory, so a sidebar of a busy afternoon reads `omote`,
+`omote`, `omote` — a list you have to open every row of to use, and
 the one you want is in the middle of it.
 
 These tests are mostly about what the title must *not* be, because that is where
@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import pytest
 
-from openmirror.titles import needs_title, title_for
+from omote.titles import needs_title, title_for
 
 # --- the ordinary cases --------------------------------------------------------
 
@@ -160,7 +160,7 @@ def test_a_pasted_code_block_is_titled_by_its_first_line_of_code():
 
 def test_a_message_that_is_only_a_path_is_named_by_its_last_segment():
     """A path is not a sentence and a title of
-    `src/openmirror/agent/session.py` is not scannable in a list of forty."""
+    `src/omote/agent/session.py` is not scannable in a list of forty."""
     assert title_for('/home/you/proj/src/parser.py', fallback='proj') == 'parser.py'
     assert title_for('C:\\Users\\you\\parser.py', fallback='proj') == 'parser.py'
 

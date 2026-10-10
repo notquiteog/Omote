@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from openmirror.memory.store import EMBED_DIMS, MemoryStore, Settings, _project, _projection, _quantise
+from omote.memory.store import EMBED_DIMS, MemoryStore, Settings, _project, _projection, _quantise
 
 
 @pytest.fixture()
@@ -211,7 +211,7 @@ def _write_legacy_row(store, user_id: str, text: str, v):
 
     import numpy as _np
 
-    from openmirror.memory.store import _legacy_projection, _quantise
+    from omote.memory.store import _legacy_projection, _quantise
 
     key = store._ensure_key(user_id)
     v = _np.asarray(v, dtype=_np.float32)
@@ -400,22 +400,22 @@ def test_recall_can_be_scoped_to_a_project_or_a_task(store):
     """The reason `subject` exists, as opposed to `kind`.
 
     `kind` says what sort of thing a memory is; `subject` says what it attaches
-    to. "What do you know about the openmirror project" needs the second, and no
+    to. "What do you know about the omote project" needs the second, and no
     amount of kind alone expresses it.
     """
-    store.add('alice', 'openmirror uses sqlite for memory', vec(1000), kind='project', subject='openmirror')
+    store.add('alice', 'omote uses sqlite for memory', vec(1000), kind='project', subject='omote')
     store.add('alice', 'tern uses qdrant for memory', vec(1001), kind='project', subject='tern')
     store.add('alice', 'I prefer short commit subjects', vec(1002), kind='preference')
 
-    only_openmirror = store.search('alice', vec(1000), limit=10, min_score=0.0, subject='openmirror')
-    assert [m.text for m in only_openmirror] == ['openmirror uses sqlite for memory']
+    only_omote = store.search('alice', vec(1000), limit=10, min_score=0.0, subject='omote')
+    assert [m.text for m in only_omote] == ['omote uses sqlite for memory']
 
     # A kind filter and a subject filter are independent. `min_score=-1` so
     # this tests the FILTER rather than the similarity: two random vectors are
     # near-orthogonal, so the unrelated project would be dropped by the
     # threshold and the test would pass for the wrong reason.
     projects = store.search('alice', vec(1000), limit=10, min_score=-1.0, kind='project')
-    assert sorted(m.subject for m in projects) == ['openmirror', 'tern']
+    assert sorted(m.subject for m in projects) == ['omote', 'tern']
 
     # And a memory about the person carries no subject at all.
     prefs = store.list('alice', kind='preference')
@@ -434,21 +434,21 @@ def test_subject_survives_the_round_trip_through_the_index(store):
     the value never comes back out that way.
     """
     store.add('alice', 'about me', vec(1010))
-    store.add('alice', 'about openmirror', vec(1011), kind='project', subject='openmirror')
+    store.add('alice', 'about omote', vec(1011), kind='project', subject='omote')
 
     if store._vec:
         stored = dict(store._db.execute(
             'SELECT v.subject, m.text FROM memories_vec v JOIN memories m ON m.id = v.memory_id'
         ).fetchall())
-        assert stored == {'': 'about me', 'openmirror': 'about openmirror'}, (
+        assert stored == {'': 'about me', 'omote': 'about omote'}, (
             f'the index is not carrying the sentinel as expected: {stored}'
         )
 
     about_me = store.search('alice', vec(1010), limit=1, min_score=0.0)
     assert about_me[0].subject is None, 'the empty-string sentinel leaked out of the index'
 
-    about_openmirror = store.search('alice', vec(1011), limit=1, min_score=0.0, subject='openmirror')
-    assert about_openmirror[0].subject == 'openmirror'
+    about_omote = store.search('alice', vec(1011), limit=1, min_score=0.0, subject='omote')
+    assert about_omote[0].subject == 'omote'
 
 
 # -- the index: resetting it, and changing the model under it ----------------

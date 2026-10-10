@@ -37,7 +37,7 @@ import struct
 
 import pytest
 
-from openmirror.music.midi import (
+from omote.music.midi import (
     DOM7,
     GM_PIANO,
     GM_SYNTH_BASS,

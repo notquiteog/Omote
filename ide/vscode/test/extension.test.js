@@ -293,7 +293,7 @@ function fakeVscode(options) {
         return {
           get: (key) => values[key],
           has: (key) => values[key] !== undefined,
-          inspect: (key) => ({ key: `openmirror.${key}`, defaultValue: values[key] }),
+          inspect: (key) => ({ key: `omote.${key}`, defaultValue: values[key] }),
         };
       },
       onDidChangeConfiguration(handler) {
@@ -385,7 +385,7 @@ const lastFrame = (world, t) => {
 };
 
 /** A `ConfigurationChangeEvent` over some keys. The bare section name counts
- *  too: VS Code is asked `affectsConfiguration('openmirror')` for a change to
+ *  too: VS Code is asked `affectsConfiguration('omote')` for a change to
  *  one of its settings, and a fake that only matched the full key would hide
  *  the case this is written for. */
 const configurationEvent = (keys) => ({
@@ -440,7 +440,7 @@ test('activate without a context does not throw', () => {
 test('the output channel is created once and disposed with the extension', async () => {
   const world = await opened();
   assert.equal(world.channels.length, 1);
-  assert.equal(world.channels[0].name, 'openmirror');
+  assert.equal(world.channels[0].name, 'Omote');
   assert.ok(world.handle.panel, 'no panel was created');
 });
 
@@ -482,8 +482,8 @@ test('every menu entry names a command that exists', () => {
 test('every declared command has a title and the category', () => {
   for (const entry of manifest.contributes.commands) {
     assert.ok(entry.title, `${entry.command} has no title`);
-    assert.equal(entry.category, 'openmirror', `${entry.command} is filed under the wrong category`);
-    assert.ok(entry.command.startsWith('openmirror.'), `${entry.command} is not namespaced`);
+    assert.equal(entry.category, 'Omote', `${entry.command} is filed under the wrong category`);
+    assert.ok(entry.command.startsWith('omote.'), `${entry.command} is not namespaced`);
   }
 });
 
@@ -493,7 +493,7 @@ test('a command that throws is logged and notified, not raised at the editor', a
       throw new Error('the picker fell over');
     },
   });
-  const run = world.registered.get('openmirror.setApprovalMode');
+  const run = world.registered.get('omote.setApprovalMode');
   await assert.doesNotReject(run());
   assert.equal(world.notifications.errors.length, 1);
   assert.match(world.notifications.errors[0], /the picker fell over/);
@@ -508,7 +508,7 @@ test('a daemon that is not running is a status, and the panel is not started for
     },
   });
   const status = world.panels[0].webview.posted.filter((frame) => frame.t === 'status').slice(-1)[0];
-  assert.match(status.message, /openmirror serve/);
+  assert.match(status.message, /omote serve/);
   assert.deepEqual(world.terminals, [], 'a daemon was started without being asked for');
 });
 
@@ -528,10 +528,13 @@ test('the manifest has no dependencies and no devDependencies', () => {
 
 test('the manifest names the repo, a licence and a version that match', () => {
   assert.equal(manifest.license, 'Apache-2.0');
-  assert.match(manifest.repository.url, /^https:\/\/github\.com\/notquiteog\/openmirror/);
+  assert.match(manifest.repository.url, /^https:\/\/github\.com\/notquiteog\/Omote/);
   const pyproject = fs.readFileSync(path.join(ROOT, '..', '..', 'pyproject.toml'), 'utf8');
-  const version = /^version = "([^"]+)"/m.exec(pyproject);
-  assert.ok(version, 'pyproject.toml has no version to match');
+  const versionPath = /^path = "(omote\/_version\.py)"/m.exec(pyproject);
+  assert.ok(versionPath, 'pyproject.toml has no version source to match');
+  const versionSource = fs.readFileSync(path.join(ROOT, '..', '..', versionPath[1]), 'utf8');
+  const version = /^__version__ = ['"]([^'"]+)['"]/m.exec(versionSource);
+  assert.ok(version, 'the package has no version to match');
   assert.equal(manifest.version, version[1], 'the extension and the daemon are different versions');
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
 });
@@ -561,7 +564,7 @@ const PROPERTIES = manifest.contributes.configuration.properties;
 
 test('every setting resolveDaemon knows about is declared', () => {
   for (const key of ['host', 'port', 'token', 'model', 'provider', 'mode', 'effort', 'root']) {
-    assert.ok(PROPERTIES[`openmirror.${key}`], `openmirror.${key} is not declared`);
+    assert.ok(PROPERTIES[`omote.${key}`], `omote.${key} is not declared`);
   }
 });
 
@@ -576,36 +579,36 @@ test('every declared setting says what it does, its default and where it comes f
 });
 
 test('the token is a bare string with no default', () => {
-  const token = PROPERTIES['openmirror.token'];
+  const token = PROPERTIES['omote.token'];
   assert.equal(token.type, 'string');
   assert.equal(token.default, undefined, 'a default token would be a shipped credential');
-  assert.match(token.description, /OPENMIRROR_TOKEN/);
+  assert.match(token.description, /OMOTE_TOKEN/);
   assert.match(token.description, /only needed (?:if|when) the daemon was started/i);
 });
 
 test('the manifest defaults do not shadow the environment', () => {
   // This is the one that would have been a silent bug. `resolveDaemon` prefers
   // a setting over the environment variable, so a *non-empty* default for host
-  // or port would make `OPENMIRROR_HOST` and `OPENMIRROR_PORT` unreachable --
+  // or port would make `OMOTE_HOST` and `OMOTE_PORT` unreachable --
   // the setting would always win with a value nobody chose.
-  const config = { get: (key) => PROPERTIES[`openmirror.${key}`].default };
+  const config = { get: (key) => PROPERTIES[`omote.${key}`].default };
   const bare = Host.resolveDaemon({ ...config }, {});
   assert.equal(bare.host, Host.DEFAULT_HOST);
   assert.equal(bare.port, Host.DEFAULT_PORT);
   assert.equal(bare.token, '');
 
   const fromEnv = Host.resolveDaemon({ ...config }, {
-    OPENMIRROR_HOST: 'box.local',
-    OPENMIRROR_PORT: '9100',
-    OPENMIRROR_TOKEN: 'from-the-environment',
+    OMOTE_HOST: 'box.local',
+    OMOTE_PORT: '9100',
+    OMOTE_TOKEN: 'from-the-environment',
   });
-  assert.equal(fromEnv.host, 'box.local', 'OPENMIRROR_HOST is unreachable because of the default');
-  assert.equal(fromEnv.port, 9100, 'OPENMIRROR_PORT is unreachable because of the default');
+  assert.equal(fromEnv.host, 'box.local', 'OMOTE_HOST is unreachable because of the default');
+  assert.equal(fromEnv.port, 9100, 'OMOTE_PORT is unreachable because of the default');
   assert.equal(fromEnv.token, 'from-the-environment');
 });
 
 test('an empty default and no default resolve the same way, which is what resolveDaemon expects', () => {
-  const config = { get: (key) => PROPERTIES[`openmirror.${key}`].default };
+  const config = { get: (key) => PROPERTIES[`omote.${key}`].default };
   assert.deepEqual(
     Host.resolveDaemon({ ...config }, {}),
     Host.resolveDaemon({}, {}),
@@ -614,7 +617,7 @@ test('an empty default and no default resolve the same way, which is what resolv
 });
 
 test('the declared modes are the six approval.py defines', () => {
-  const declared = PROPERTIES['openmirror.mode'].enum.filter(Boolean).sort();
+  const declared = PROPERTIES['omote.mode'].enum.filter(Boolean).sort();
   assert.deepEqual(declared, [...Host.MODES].sort());
 });
 
@@ -624,7 +627,7 @@ test('the declared effort levels are the ones docs/CLI.md lists for /think', () 
   assert.ok(row, 'docs/CLI.md no longer documents /think');
   for (const level of ['off', 'low', 'medium', 'high', 'xhigh', 'max', 'default']) {
     assert.ok(cli.includes(`\`${level}\``), `docs/CLI.md does not mention the level ${level}`);
-    assert.ok(PROPERTIES['openmirror.effort'].enum.includes(level), `openmirror.effort omits ${level}`);
+    assert.ok(PROPERTIES['omote.effort'].enum.includes(level), `omote.effort omits ${level}`);
   }
 });
 
@@ -783,7 +786,7 @@ test('the panel is sent the link state and the session description, not the even
 test('new conversation, fork and the turn commands are the protocol frames', async () => {
   const world = await opened();
   const webview = world.panels[0].webview;
-  await world.registered.get('openmirror.newConversation')();
+  await world.registered.get('omote.newConversation')();
   await settle();
   await openEverySocket(world);
   assert.equal(world.handle.host.sessionId, 's-1');
@@ -793,7 +796,7 @@ test('new conversation, fork and the turn commands are the protocol frames', asy
   assert.ok(world.fetchImpl.calls.some((call) => call.path === '/api/sessions/s-1/fork'), 'no fork was asked for');
 
   await openEverySocket(world);
-  await world.registered.get('openmirror.stopTurn')();
+  await world.registered.get('omote.stopTurn')();
   assert.ok(
     world.sockets.some((socket) => socket.sent.some((frame) => frame.type === 'turn.interrupt')),
     'the turn was never interrupted'
@@ -808,7 +811,7 @@ test('the approval mode picker offers exactly the six modes, and changes the one
       return items.find((item) => item.mode === 'plan');
     },
   });
-  await world.registered.get('openmirror.setApprovalMode')();
+  await world.registered.get('omote.setApprovalMode')();
   assert.deepEqual(offered.map((item) => item.mode), [...Host.MODES]);
   for (const item of offered) {
     assert.ok(item.detail && item.detail.length > 10, `${item.mode} has nothing to read`);
@@ -819,16 +822,16 @@ test('the approval mode picker offers exactly the six modes, and changes the one
 
 test('the model picker sends the turn command the daemon actually has', async () => {
   const world = await opened({ showInputBox: async () => 'gpt-5' });
-  await world.registered.get('openmirror.setModel')();
+  await world.registered.get('omote.setModel')();
   const sent = world.sockets.flatMap((socket) => socket.sent).filter((frame) => frame.type === 'turn.submit');
   assert.deepEqual(sent[sent.length - 1], { type: 'turn.submit', text: '/model gpt-5', attachments: [] });
 });
 
 test('a cancelled picker changes nothing', async () => {
   const world = await opened({ showQuickPick: async () => undefined, showInputBox: async () => undefined });
-  await world.registered.get('openmirror.setApprovalMode')();
-  await world.registered.get('openmirror.setThinkingLevel')();
-  await world.registered.get('openmirror.setModel')();
+  await world.registered.get('omote.setApprovalMode')();
+  await world.registered.get('omote.setThinkingLevel')();
+  await world.registered.get('omote.setModel')();
   const policy = world.sockets.flatMap((socket) => socket.sent).filter((frame) => frame.type === 'policy.set');
   assert.deepEqual(policy, []);
 });
@@ -845,7 +848,7 @@ test('resume lists the daemon\'s own stored conversations and opens the one chos
     },
     showQuickPick: async (items) => items[0],
   });
-  await world.registered.get('openmirror.resumeConversation')();
+  await world.registered.get('omote.resumeConversation')();
   const listed = world.fetchImpl.calls.filter((call) => call.path === '/api/sessions/stored');
   assert.ok(listed.length >= 1, 'the picker did not ask the daemon what it has');
   assert.ok(world.fetchImpl.calls.some((call) => call.path === '/api/sessions/s-old/resume'));
@@ -853,14 +856,14 @@ test('resume lists the daemon\'s own stored conversations and opens the one chos
 
 test('resume says so rather than opening an empty picker when there is nothing stored', async () => {
   const world = await opened({ showQuickPick: async () => assert.fail('the picker should not have opened') });
-  await world.registered.get('openmirror.resumeConversation')();
+  await world.registered.get('omote.resumeConversation')();
   const notice = world.panels[0].webview.posted.filter((frame) => frame.t === 'notice').slice(-1)[0];
   assert.match(notice.text, /no stored conversations/);
 });
 
 test('the context report is asked for and comes back to the page', async () => {
   const world = await opened();
-  await world.registered.get('openmirror.showContextReport')();
+  await world.registered.get('omote.showContextReport')();
   const report = lastFrame(world, 'context');
   assert.ok(report, 'no context frame arrived');
   assert.equal(report.tokens, 10);
@@ -869,7 +872,7 @@ test('the context report is asked for and comes back to the page', async () => {
 
 test('showOutput reveals the channel and nothing else happens', async () => {
   const world = await opened();
-  await world.registered.get('openmirror.showOutput')();
+  await world.registered.get('omote.showOutput')();
   assert.equal(world.channels[0].shown, 1);
   assert.equal(world.panels.length, 1);
 });
@@ -881,22 +884,22 @@ test('showOutput reveals the channel and nothing else happens', async () => {
 test('the daemon is started in a terminal the person can see, and never on activation', async () => {
   const world = await opened();
   assert.deepEqual(world.terminals, [], 'activate started a process');
-  await world.registered.get('openmirror.startDaemon')();
+  await world.registered.get('omote.startDaemon')();
   assert.equal(world.terminals.length, 1);
   assert.equal(world.terminals[0].shown, 1, 'a terminal nobody can see is a process started behind a back');
-  assert.equal(world.terminals[0].sent[0], 'openmirror serve');
+  assert.equal(world.terminals[0].sent[0], 'omote serve');
 });
 
 test('the start command carries a configured host and port, and quotes the host', async () => {
   const world = await opened({ settings: { host: 'box.local', port: '9100' } });
-  await world.registered.get('openmirror.startDaemon')();
-  assert.equal(world.terminals[0].sent[0], 'openmirror serve --host "box.local" --port 9100');
+  await world.registered.get('omote.startDaemon')();
+  assert.equal(world.terminals[0].sent[0], 'omote serve --host "box.local" --port 9100');
 });
 
 test('a host that could break out of the quotes is left off the command line', async () => {
   const world = await opened({ settings: { host: 'a"; rm -rf ~; echo "', port: '9100' } });
-  await world.registered.get('openmirror.startDaemon')();
-  assert.equal(world.terminals[0].sent[0], 'openmirror serve --port 9100');
+  await world.registered.get('omote.startDaemon')();
+  assert.equal(world.terminals[0].sent[0], 'omote serve --port 9100');
 });
 
 test('the wait for a daemon that has just been started is bounded and disposable', async () => {
@@ -904,7 +907,7 @@ test('the wait for a daemon that has just been started is bounded and disposable
   const context = { subscriptions: [] };
   // A context the extension did not create, so the count is checkable.
   const before = world.channels[0].lines.length;
-  await world.registered.get('openmirror.startDaemon')();
+  await world.registered.get('omote.startDaemon')();
   const timer = world.timers.jobs.pop();
   assert.ok(timer, 'no wait was scheduled');
   assert.ok(timer.delay <= 1000, `the first wait was ${timer.delay}ms`);
@@ -928,7 +931,7 @@ test('the post-start wait gives up rather than polling for ever', async () => {
     },
   });
   state.up = false;
-  await world.registered.get('openmirror.startDaemon')();
+  await world.registered.get('omote.startDaemon')();
   await timers.fireAll(50);
   assert.equal(timers.pending, 0, 'a poller that outlives the button is a leak');
   const notice = world.panels[0].webview.posted.filter((frame) => frame.t === 'notice').slice(-1)[0];
@@ -948,7 +951,7 @@ test('a daemon that appears inside the wait is picked up without another press',
       return answering(url, init);
     },
   });
-  await world.registered.get('openmirror.startDaemon')();
+  await world.registered.get('omote.startDaemon')();
   state.up = true;
   await timers.fireAll(50);
   assert.equal(timers.pending, 0);
@@ -967,7 +970,7 @@ test('a changed host, port or token says the panel is on the wrong daemon', asyn
   const world = await opened();
   const listener = world.configurationListeners[0];
   assert.ok(listener, 'no configuration listener was registered');
-  listener(configurationEvent(['openmirror.host']));
+  listener(configurationEvent(['omote.host']));
   const notice = world.panels[0].webview.posted.filter((frame) => frame.t === 'notice').slice(-1)[0];
   assert.match(notice.text, /open the panel again/);
   assert.equal(world.handle.host.disposed, false, 'the live conversation was thrown away without saying so');
@@ -975,7 +978,7 @@ test('a changed host, port or token says the panel is on the wrong daemon', asyn
 
 test('a changed model or mode is reported as applying to the next conversation', async () => {
   const world = await opened();
-  world.configurationListeners[0](configurationEvent(['openmirror.mode']));
+  world.configurationListeners[0](configurationEvent(['omote.mode']));
   const notice = world.panels[0].webview.posted.filter((frame) => frame.t === 'notice').slice(-1)[0];
   assert.match(notice.text, /New conversations start that way/);
 });
@@ -1114,7 +1117,7 @@ test('a hook approval is remembered, and the command that answers it is offered 
     seen = options;
     return 'npm test';
   };
-  await world.registered.get('openmirror.agreeHook')();
+  await world.registered.get('omote.agreeHook')();
   assert.equal(seen.value, 'npm test', 'the person has to retype the command every time');
   const post = world.fetchImpl.calls.find((call) => call.path.endsWith('/hooks/agree'));
   assert.ok(post, 'the decision was never sent');
@@ -1122,7 +1125,7 @@ test('a hook approval is remembered, and the command that answers it is offered 
 });
 
 test('agreeing and refusing are different answers to the same question', async () => {
-  for (const [id, allow] of [['openmirror.agreeHook', true], ['openmirror.refuseHook', false]]) {
+  for (const [id, allow] of [['omote.agreeHook', true], ['omote.refuseHook', false]]) {
     const world = await opened({ showInputBox: async () => 'npm test' });
     await world.registered.get(id)();
     const post = world.fetchImpl.calls.filter((call) => call.path.endsWith('/hooks/agree')).slice(-1)[0];

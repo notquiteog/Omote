@@ -29,13 +29,13 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.providers.base import ChatRequest
+from omote.providers.base import ChatRequest
 
 
 def repo_root() -> Path:
     here = Path(__file__).resolve()
     for parent in here.parents:
-        if (parent / 'openmirror' / 'providers' / 'base.py').exists():
+        if (parent / 'omote' / 'providers' / 'base.py').exists():
             return parent
     raise AssertionError(f'cannot find the source tree, starting from {here}')
 
@@ -146,9 +146,9 @@ def test_the_scanner_tells_a_guarded_write_from_a_bare_one():
 
 
 @pytest.mark.parametrize('rel', [
-    'openmirror/providers/ollama.py',
-    'openmirror/providers/openai_compat.py',
-    'openmirror/providers/anthropic.py',
+    'omote/providers/ollama.py',
+    'omote/providers/openai_compat.py',
+    'omote/providers/anthropic.py',
 ])
 def test_no_adapter_sends_a_ceiling_unconditionally(rel):
     found = unguarded_ceiling_writes(source(rel))
@@ -165,9 +165,9 @@ def test_the_scan_is_looking_at_files_that_really_contain_these_writes():
     # second: the wrong directory, and a pattern that has stopped matching a
     # rewritten file. The parametrised test above passes in both cases.
     hits = sum(len(WRITES_CEILING.findall(source(rel))) for rel in (
-        'openmirror/providers/ollama.py',
-        'openmirror/providers/openai_compat.py',
-        'openmirror/providers/anthropic.py',
+        'omote/providers/ollama.py',
+        'omote/providers/openai_compat.py',
+        'omote/providers/anthropic.py',
     ))
     assert hits >= 3, f'expected each adapter to write a ceiling somewhere; found {hits}'
 
@@ -177,7 +177,7 @@ def test_anthropic_asks_the_api_rather_than_guessing():
     # to come from the model, because one ABOVE the real ceiling is a 400 —
     # a broken adapter rather than a short answer — and ceilings differ per
     # model and move each generation.
-    text = source('openmirror/providers/anthropic.py')
+    text = source('omote/providers/anthropic.py')
     # `_model_info` since it also reads the capability tree from the same
     # reply — which thinking shapes the model accepts — so the name says both.
     assert '_model_info' in text
@@ -191,7 +191,7 @@ def test_anthropic_asks_the_api_rather_than_guessing():
 def test_the_voice_path_does_not_reimpose_one():
     # A spoken reply that stops mid-sentence has no scrollback and no visible
     # stop reason — just a voice trailing off. It carried max_tokens=1024.
-    text = source('openmirror/voice/pipeline.py')
+    text = source('omote/voice/pipeline.py')
     assert not re.search(r'max_tokens\s*=\s*\d+', text), (
         'the voice pipeline sets a fixed token ceiling again'
     )

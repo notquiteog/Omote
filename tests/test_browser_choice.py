@@ -16,7 +16,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from openmirror.agent.browsers import (
+from omote.agent.browsers import (
     CATALOG,
     CHANNELS,
     ENGINES,
@@ -25,7 +25,7 @@ from openmirror.agent.browsers import (
     BrowserUnavailable,
     from_id,
 )
-from openmirror.routers import browser as browser_router
+from omote.routers import browser as browser_router
 
 
 @pytest.fixture
@@ -151,7 +151,7 @@ def test_a_saved_file_cannot_smuggle_in_an_engine_that_does_not_exist(tmp_path):
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    from openmirror.config import config
+    from omote.config import config
 
     monkeypatch.setattr(config, 'data_dir', tmp_path)
     monkeypatch.setattr(config, 'browser_engine', 'chromium')
@@ -204,7 +204,7 @@ def test_clearing_goes_back_to_the_environment(client, binary):
 
 
 def test_the_environment_provides_the_default_until_something_is_saved(client, monkeypatch):
-    from openmirror.config import config
+    from omote.config import config
 
     monkeypatch.setattr(config, 'browser_engine', 'webkit')
     body = client.get('/api/browser').json()
@@ -221,8 +221,8 @@ def test_the_environment_provides_the_default_until_something_is_saved(client, m
 def test_the_search_browser_and_the_agent_browser_read_the_same_choice(tmp_path, monkeypatch, binary):
     """One setting, not two. "Which browser does this use" having two answers is
     how one of them quietly stops being maintained."""
-    from openmirror.agent import browsers
-    from openmirror.config import config
+    from omote.agent import browsers
+    from omote.config import config
 
     monkeypatch.setattr(config, 'data_dir', tmp_path)
     monkeypatch.setattr(config, 'browser_engine', 'chromium')

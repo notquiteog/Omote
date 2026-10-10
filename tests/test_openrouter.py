@@ -20,11 +20,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from openmirror.providers import connections
-from openmirror.providers.base import Modality, ProviderRefused
-from openmirror.providers.connections import ConnectionStore
-from openmirror.providers.openrouter import OpenRouterImages, OpenRouterProvider, OpenRouterVideo
-from openmirror.providers.registry import ProviderRegistry
+from omote.providers import connections
+from omote.providers.base import Modality, ProviderRefused
+from omote.providers.connections import ConnectionStore
+from omote.providers.openrouter import OpenRouterImages, OpenRouterProvider, OpenRouterVideo
+from omote.providers.registry import ProviderRegistry
 
 KEY = 'sk-or-v1-' + 'a' * 64
 PNG = b'\x89PNG\r\n\x1a\n' + b'\x00' * 16
@@ -168,8 +168,8 @@ def fake():
 
 @pytest.fixture(autouse=True)
 def _fast_polling(monkeypatch):
-    monkeypatch.setattr('openmirror.providers.hosted_media.POLL_START', 0.001)
-    monkeypatch.setattr('openmirror.providers.hosted_media.POLL_MAX', 0.001)
+    monkeypatch.setattr('omote.providers.hosted_media.POLL_START', 0.001)
+    monkeypatch.setattr('omote.providers.hosted_media.POLL_MAX', 0.001)
 
 
 # -- one key, six kinds ------------------------------------------------------
@@ -234,7 +234,7 @@ async def test_a_wrong_key_is_caught_although_the_model_list_answers_it(fake):
 
 
 def test_the_test_button_fails_a_wrong_key_and_passes_a_right_one(fake, tmp_path, monkeypatch):
-    from openmirror.routers import providers as providers_router
+    from omote.routers import providers as providers_router
 
     monkeypatch.setattr(providers_router, 'registry', ProviderRegistry())
     monkeypatch.setattr(providers_router, 'store', ConnectionStore(tmp_path / 'connections.json'))
@@ -357,8 +357,8 @@ async def test_the_video_form_defaults_to_the_cheapest_clip(fake):
 
 
 def test_the_other_four_are_pinned_only_when_named():
-    from openmirror.config import Config
-    from openmirror.providers.bootstrap import _default_routes
+    from omote.config import Config
+    from omote.providers.bootstrap import _default_routes
 
     cfg = Config()
     for name in ('chat_provider', 'embed_provider', 'stt_provider', 'tts_provider', 'image_provider', 'video_provider'):
@@ -383,8 +383,8 @@ def test_naming_the_routed_provider_keeps_the_routed_model():
     the provider its picker shows, and was then offered the first model
     OpenRouter lists — a video *editor* that needs a source clip — instead of
     the one configured."""
-    from openmirror.providers.base import ProviderInfo
-    from openmirror.providers.registry import Route, RouteSet
+    from omote.providers.base import ProviderInfo
+    from omote.providers.registry import Route, RouteSet
 
     registry = ProviderRegistry()
     for ident in ('openrouter', 'other'):

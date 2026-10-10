@@ -1,6 +1,6 @@
 /* The `/` menu: the session's commands and skills.
  *
- * A port of the slash half of `openmirror/static/app.js`, and the same rules
+ * A port of the slash half of `omote/static/app.js`, and the same rules
  * because they are the right ones rather than because they are the ones
  * written down:
  *

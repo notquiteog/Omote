@@ -86,7 +86,7 @@ the page asks.
 
 ## Why the daemon's events cross the bridge untouched
 
-`openmirror/protocol/agent.py` is a discriminated union, and `openmirror/static/app.js`
+`omote/protocol/agent.py` is a discriminated union, and `omote/static/app.js`
 already renders all of it. The extension renders the same events. If the host
 translated them, there would be three renderers of one protocol and the web one
 would be the only one that got updated when an event was added — which is
@@ -98,17 +98,17 @@ silently vanishing, and that is the correct behaviour.
 
 ## Where the daemon's auth goes
 
-`Authorization: Bearer <token>` and `X-Openmirror-Token: <token>` on every
+`Authorization: Bearer <token>` and `X-Omote-Token: <token>` on every
 request, and `?token=<token>` on the WebSocket upgrade — the three places the
-daemon accepts it, and the same three `openmirror/tui.py` uses. The token is
-read from the setting `openmirror.token`, which falls back to
-`OPENMIRROR_TOKEN`. It is never logged, never put in a frame, and never sent
+daemon accepts it, and the same three `omote/tui.py` uses. The token is
+read from the setting `omote.token`, which falls back to
+`OMOTE_TOKEN`. It is never logged, never put in a frame, and never sent
 to the webview.
 
 ## What the extension is not
 
 It is a **client**. It starts no daemon, spawns no agent, and holds no state
 that outlives the panel. The daemon stays the only thing holding sessions,
-providers and tools — the same line `openmirror chat` draws, for the same
+providers and tools — the same line `omote chat` draws, for the same
 reasons. If the daemon is not running, the panel says so and offers the
 command that starts it; it does not quietly start one behind your back.

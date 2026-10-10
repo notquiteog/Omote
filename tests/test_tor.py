@@ -40,12 +40,12 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.net import tor
-from openmirror.net.transport import Transport
+from omote.net import tor
+from omote.net.transport import Transport
 
 
 def test_the_default_is_arti_not_the_c_daemon(monkeypatch):
-    """9150, not 9050. Do not "fix" this back — see openmirror/net/tor.py."""
+    """9150, not 9050. Do not "fix" this back — see omote/net/tor.py."""
     for name in ('TOR_SOCKS_HOST', 'TOR_HOST', 'TOR_SOCKS_PORT', 'TOR_PORT'):
         monkeypatch.delenv(name, raising=False)
     proxy = tor.resolve()
@@ -175,7 +175,7 @@ _MIN_CALLS = 3
 
 
 def _package_root() -> Path:
-    root = Path(__file__).resolve().parent.parent / 'openmirror'
+    root = Path(__file__).resolve().parent.parent / 'omote'
     assert root.is_dir(), f'the package is not where this test thinks it is: {root}'
     return root
 
@@ -445,5 +445,5 @@ async def test_a_tor_connection_refuses_rather_than_going_direct(monkeypatch):
 
     monkeypatch.setattr(builtins, '__import__', no_socks)
 
-    with pytest.raises(tor.TorUnavailable, match='openmirror\\[tor\\]'):
+    with pytest.raises(tor.TorUnavailable, match='omote\\[tor\\]'):
         Transport(tor=True).session()

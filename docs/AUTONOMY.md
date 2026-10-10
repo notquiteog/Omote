@@ -1,12 +1,12 @@
 # Running it autonomously
 
-openmirror will do whatever you configure it to do. This page is about what the
+Omote will do whatever you configure it to do. This page is about what the
 switches actually mean, because three of them are not the same decision even
 though they look adjacent.
 
 ## The three axes
 
-**`OPENMIRROR_APPROVAL_MODE`** is about *this machine*.
+**`OMOTE_APPROVAL_MODE`** is about *this machine*.
 
 | mode | runs without asking |
 |---|---|
@@ -16,8 +16,8 @@ though they look adjacent.
 | `trusted` | reads, writes, commands, network |
 | `unrestricted` | everything above, including destructive |
 
-**`OPENMIRROR_ALLOW_PURCHASES`**, **`OPENMIRROR_ALLOW_CREDENTIALS`** and
-**`OPENMIRROR_ALLOW_MESSAGES`** are not on that scale, and deliberately so.
+**`OMOTE_ALLOW_PURCHASES`**, **`OMOTE_ALLOW_CREDENTIALS`** and
+**`OMOTE_ALLOW_MESSAGES`** are not on that scale, and deliberately so.
 `unrestricted` means *stop asking me about this machine*. It is not the
 sentence *spend my money*, and if one switch bought both, everybody who wanted
 the first would get the second by accident.
@@ -49,7 +49,7 @@ your mail cannot answer it, and that is the entire feature. *Answering* is
   of the body, in that order, because that is the order mistakes are made in.
   A summary that says "send a message" is not a review.
 
-`OPENMIRROR_ALLOW_MESSAGES=false` turns a send into a *refusal* rather than a
+`OMOTE_ALLOW_MESSAGES=false` turns a send into a *refusal* rather than a
 prompt, for an install that should not be able to put words in somebody's
 inbox at all. Nothing to click is a stronger guarantee than a yes/no whose
 default is no.
@@ -74,21 +74,21 @@ a description of three files.
 
 ## Confinement
 
-`OPENMIRROR_UNCONFINED=false` (the default) confines the **file tools** to the
+`OMOTE_UNCONFINED=false` (the default) confines the **file tools** to the
 workspace: `read_file` and `edit_file` refuse a path outside it, and refuse
 `..` and symlinks out, because they resolve before they compare.
 
 **The shell cannot be confined.** What a command touches is decided at
-runtime; no string inspection changes that. What openmirror does instead is refuse
+runtime; no string inspection changes that. What Omote does instead is refuse
 to *grade* it as harmless: a command naming a path outside the root is
 escalated from `read` to `execute`, so under the default policy it stops and
 asks rather than running silently. That is honesty about the boundary, not
 enforcement of it.
 
 If you need actual containment, it has to come from the OS — a container, a
-namespace, a seccomp profile. openmirror does not pretend to provide it.
+namespace, a seccomp profile. Omote does not pretend to provide it.
 
-`OPENMIRROR_UNCONFINED=true` drops the file-tool checks too and tells the model
+`OMOTE_UNCONFINED=true` drops the file-tool checks too and tells the model
 plainly that it is not sandboxed, which is worth doing: a model that believes
 it is in a sandbox is careless in ways one that knows it isn't will not be.
 
@@ -131,7 +131,7 @@ on with everything else.
 ## The thing that has no defence
 
 **Prompt injection.** Anything read from the web is written by someone who is
-not you, and it can be as fluent as you are. openmirror labels fetched content as
+not you, and it can be as fluent as you are. Omote labels fetched content as
 data from a named source and tells the model it is not addressed to it. That
 is a mitigation, not a fix; there is no reliable fix.
 
@@ -143,7 +143,7 @@ it, and it is the one configuration worth thinking twice about.
 
 ## Desktop control is the weak spot
 
-Turning on `OPENMIRROR_DESKTOP` gives the agent the screen and the mouse. It is the
+Turning on `OMOTE_DESKTOP` gives the agent the screen and the mouse. It is the
 widest capability here and it has the thinnest safety net, for a reason worth
 understanding before you use it unattended.
 

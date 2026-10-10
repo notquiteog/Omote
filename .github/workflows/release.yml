@@ -1,4 +1,4 @@
-# Releases openmirror's desktop app for Windows, macOS and Linux.
+# Releases omote's desktop app for Windows, macOS and Linux.
 #
 # A tag like v0.2.0 builds every installer, installs each one on a fresh
 # machine and checks that it works there, and only then publishes a GitHub
@@ -122,12 +122,12 @@ jobs:
 
       - name: Package
         working-directory: ide/vscode
-        run: npx --yes @vscode/vsce@3 package --no-dependencies --out openmirror.vsix
+        run: npx --yes @vscode/vsce@3 package --no-dependencies --out omote.vsix
 
       - uses: actions/upload-artifact@v4
         with:
           name: ide-extension
-          path: ide/vscode/openmirror.vsix
+          path: ide/vscode/omote.vsix
           if-no-files-found: error
 
   build:
@@ -210,7 +210,7 @@ jobs:
       - name: The frozen daemon answers, serves the page, and stops
         run: |
           python desktop/ci/smoke.py daemon \
-            "desktop/src-tauri/binaries/openmirror-daemon-${{ matrix.target }}${{ runner.os == 'Windows' && '.exe' || '' }}"
+            "desktop/src-tauri/binaries/omote-daemon-${{ matrix.target }}${{ runner.os == 'Windows' && '.exe' || '' }}"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -301,15 +301,15 @@ jobs:
       - name: Run it, start a second copy, then kill it
         run: |
           status=0
-          dbus-run-session -- xvfb-run -a python desktop/ci/smoke.py app --stop kill:openmirror-desktop --again \
-            -- /usr/bin/openmirror-desktop > smoke.log 2>&1 || status=$?
+          dbus-run-session -- xvfb-run -a python desktop/ci/smoke.py app --stop kill:omote-desktop --again \
+            -- /usr/bin/omote-desktop > smoke.log 2>&1 || status=$?
           cat smoke.log
           exit $status
       - name: The AppImage, the same way
         run: |
           chmod +x out/*.AppImage
           status=0
-          dbus-run-session -- xvfb-run -a python desktop/ci/smoke.py app --stop kill:openmirror-desktop \
+          dbus-run-session -- xvfb-run -a python desktop/ci/smoke.py app --stop kill:omote-desktop \
             -- out/*.AppImage > smoke.log 2>&1 || status=$?
           cat smoke.log
           exit $status
@@ -338,12 +338,12 @@ jobs:
           python -m pip install psutil
           $setup = Get-ChildItem out\*-setup.exe | Select-Object -First 1
           Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait
-          $app = Get-ChildItem $env:LOCALAPPDATA -Recurse -Depth 3 -Filter openmirror-desktop.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $app) { throw 'the installer left no openmirror-desktop.exe under %LOCALAPPDATA%' }
+          $app = Get-ChildItem $env:LOCALAPPDATA -Recurse -Depth 3 -Filter omote-desktop.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $app) { throw 'the installer left no omote-desktop.exe under %LOCALAPPDATA%' }
           Get-ChildItem $app.Directory
           "APP=$($app.FullName)" >> $env:GITHUB_ENV
       - name: Run it, start a second copy, then kill it
-        run: python desktop/ci/smoke.py app --stop kill:openmirror-desktop --again -- "$env:APP"
+        run: python desktop/ci/smoke.py app --stop kill:omote-desktop --again -- "$env:APP"
       - name: The .msi installs too
         run: |
           $msi = Get-ChildItem out\*.msi | Select-Object -First 1
@@ -356,11 +356,11 @@ jobs:
           # the thing is on disk and runnable, not where a given WiX scope
           # happens to put it.
           $found = Get-ChildItem "$env:LOCALAPPDATA","$env:ProgramFiles" -Recurse -Depth 3 `
-            -Filter openmirror-desktop.exe -ErrorAction SilentlyContinue |
+            -Filter omote-desktop.exe -ErrorAction SilentlyContinue |
             Select-Object -First 1
           if (-not $found) {
             Get-Content msi.log -Tail 40
-            throw 'the .msi reported success but left no openmirror-desktop.exe anywhere'
+            throw 'the .msi reported success but left no omote-desktop.exe anywhere'
           }
           "MSI_APP=$($found.FullName)" | Write-Output
           Get-ChildItem $found.Directory
@@ -392,19 +392,19 @@ jobs:
       - name: Install from the disk image
         run: |
           python -m pip install psutil
-          hdiutil attach out/*.dmg -mountpoint /Volumes/openmirror -nobrowse
-          cp -R /Volumes/openmirror/openmirror.app /Applications/
-          hdiutil detach /Volumes/openmirror
-          ls -l /Applications/openmirror.app/Contents/MacOS/
-          codesign --verify --deep --strict --verbose=2 /Applications/openmirror.app
-          codesign --display --verbose=2 /Applications/openmirror.app 2>&1 | grep -E '^(Identifier|Format|Signature|TeamIdentifier|Runtime)' || true
+          hdiutil attach out/*.dmg -mountpoint /Volumes/omote -nobrowse
+          cp -R /Volumes/omote/Omote.app /Applications/
+          hdiutil detach /Volumes/omote
+          ls -l /Applications/Omote.app/Contents/MacOS/
+          codesign --verify --deep --strict --verbose=2 /Applications/Omote.app
+          codesign --display --verbose=2 /Applications/Omote.app 2>&1 | grep -E '^(Identifier|Format|Signature|TeamIdentifier|Runtime)' || true
           # What a download meets. An ad-hoc build is expected to be refused
           # here, which is what the release notes are about; shown, not failed.
-          spctl --assess --type execute --verbose /Applications/openmirror.app || true
+          spctl --assess --type execute --verbose /Applications/Omote.app || true
       - name: Open it, then quit it
-        run: python desktop/ci/smoke.py app --stop quit:openmirror -- open -n /Applications/openmirror.app
+        run: python desktop/ci/smoke.py app --stop quit:Omote -- open -n /Applications/Omote.app
       - name: Open it, then kill it
-        run: python desktop/ci/smoke.py app --stop kill:openmirror-desktop -- open -n /Applications/openmirror.app
+        run: python desktop/ci/smoke.py app --stop kill:omote-desktop -- open -n /Applications/Omote.app
 
   release:
     name: release
@@ -442,5 +442,5 @@ jobs:
           # v0.2.0-rc.1 and the like are previews, not the latest release.
           case "$GITHUB_REF_NAME" in *-*) flags+=(--prerelease) ;; esac
           gh release create "$GITHUB_REF_NAME" out/* --verify-tag \
-            --title "openmirror ${{ needs.check.outputs.version }}" \
+            --title "Omote ${{ needs.check.outputs.version }}" \
             --notes "$(cat desktop/ci/release-notes.md)" --generate-notes "${flags[@]}"

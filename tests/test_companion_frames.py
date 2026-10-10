@@ -26,8 +26,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-ENGINE = ROOT / 'openmirror' / 'static' / 'companions' / 'engine.js'
-COMPANIONS = ROOT / 'openmirror' / 'static' / 'companions'
+ENGINE = ROOT / 'omote' / 'static' / 'companions' / 'engine.js'
+COMPANIONS = ROOT / 'omote' / 'static' / 'companions'
 
 FRAME_MS = 1000 / 60
 

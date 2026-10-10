@@ -9,7 +9,7 @@ First release of the VS Code extension.
 
 The panel is a client and nothing else. It starts no daemon, spawns no agent,
 and keeps no state that outlives the panel; the daemon stays the only thing
-holding sessions, providers and tools, the same line `openmirror chat` draws for
+holding sessions, providers and tools, the same line `omote chat` draws for
 the same reasons. If the daemon is not running the panel says so and names the
 command that starts it.
 
@@ -23,17 +23,17 @@ command that starts it.
   against.
 - Commands to agree to or refuse a project hook, which is the one daemon event
   with no frame to answer it and so is reachable only from the extension host.
-- `openmirror.host`, `.port` and `.token` fall back to `OPENMIRROR_HOST`,
+- `omote.host`, `.port` and `.token` fall back to `OMOTE_HOST`,
   `.PORT` and `.TOKEN`, and are empty by default so the environment is not
   shadowed by a value nobody chose.
-- `openmirror: Start the Daemon in a Terminal` opens a terminal running
-  `openmirror serve` and waits for it. Offered, never done automatically.
+- `omote: Start the Daemon in a Terminal` opens a terminal running
+  `omote serve` and waits for it. Offered, never done automatically.
 
 ## Security notes for this version
 
 - The daemon's token is held by the extension host and checked on every frame
   on its way to the webview. It is never put in the page, never logged, and
-  `openmirror.token` has no default.
+  `omote.token` has no default.
 - `localResourceRoots` is `media/` and only `media/`. Not the extension root,
   not the workspace.
 - The panel's own content security policy has `connect-src 'none'`: the page
@@ -41,7 +41,7 @@ command that starts it.
 - `enableCommandUris` is off, so the page cannot run a command in the
   extension.
 - The extension declares itself unsupported in untrusted workspaces, because
-  one of its commands runs the `openmirror` binary and in an untrusted folder
+  one of its commands runs the `omote` binary and in an untrusted folder
   that binary may be the repository's own.
 - No `dependencies` and no `devDependencies`. The WebSocket client is written
   against `net`/`tls` because the extension host's Node version is not ours to

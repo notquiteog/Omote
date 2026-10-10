@@ -23,10 +23,10 @@ from __future__ import annotations
 
 import pytest
 
-from openmirror.agent.tools.base import ToolContext, ToolError
-from openmirror.agent.tools.trip import _HANDLERS, ACTIONS, RISK, TripTool
-from openmirror.protocol.agent import Risk
-from openmirror.trips.plan import Trip, TripError, Trips, amount, conflicts_from_ics, moment
+from omote.agent.tools.base import ToolContext, ToolError
+from omote.agent.tools.trip import _HANDLERS, ACTIONS, RISK, TripTool
+from omote.protocol.agent import Risk
+from omote.trips.plan import Trip, TripError, Trips, amount, conflicts_from_ics, moment
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def test_the_tool_never_reaches_a_browser_or_a_bank():
     """
     from pathlib import Path
 
-    for name in ('openmirror/agent/tools/trip.py', 'openmirror/trips/plan.py'):
+    for name in ('omote/agent/tools/trip.py', 'omote/trips/plan.py'):
         source = (Path(__file__).resolve().parents[1] / name).read_text()
         # Imports and calls, not prose: both modules *say* the word "browser" a
         # dozen times, in the docstrings explaining why booking is not here.

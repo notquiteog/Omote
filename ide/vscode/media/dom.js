@@ -1,6 +1,6 @@
 /* The four things every part of the panel needs.
  *
- * A port of `openmirror/static/dom.js` and no more, because the browser client
+ * A port of `omote/static/dom.js` and no more, because the browser client
  * is the reference renderer of this protocol and a second set of decisions
  * about how a number is written is a second set to keep in step.
  *
@@ -84,7 +84,7 @@ function vscode() {
     // host to tell. A page opened outside VS Code (a plain browser, a test
     // harness) lands here and that is a supported way to look at the markup.
     if (typeof console !== 'undefined') {
-      console.error(`openmirror panel: no VS Code API: ${error && error.message}`);
+      console.error(`omote panel: no VS Code API: ${error && error.message}`);
     }
   }
   return api;
@@ -140,9 +140,9 @@ export function receive(handler) {
 /**
  * One line, at most `limit` characters, with an ellipsis if it was cut.
  *
- * Ported from `openmirror/tui.py`'s `flat` rather than invented, because the
+ * Ported from `omote/tui.py`'s `flat` rather than invented, because the
  * terminal and this panel are the same protocol's two front ends and a tool
- * summary that reads one way in `openmirror chat` and another way here is the
+ * summary that reads one way in `omote chat` and another way here is the
  * kind of drift nobody notices until somebody trusts the wrong one.
  */
 export function flat(value, limit) {

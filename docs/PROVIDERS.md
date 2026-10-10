@@ -29,15 +29,15 @@ offers "your AI provider" as one choice is a UI that will eventually ship
 someone's memory to a company they picked to write code with.
 
 ```bash
-OPENMIRROR_CHAT_PROVIDER=anthropic
-OPENMIRROR_EMBED_PROVIDER=perch:chat     # embeddings stay on your own hardware
+OMOTE_CHAT_PROVIDER=anthropic
+OMOTE_EMBED_PROVIDER=perch:chat     # embeddings stay on your own hardware
 ```
 
 The other four are pinned the same way, and only when they are named:
-`OPENMIRROR_STT_PROVIDER`, `OPENMIRROR_TTS_PROVIDER`, `OPENMIRROR_IMAGE_PROVIDER`
-and `OPENMIRROR_VIDEO_PROVIDER`, each taking its model from `OPENMIRROR_STT_MODEL`,
-`OPENMIRROR_TTS_MODEL` (and `OPENMIRROR_TTS_VOICE`), `OPENMIRROR_IMAGE_MODEL` and
-`OPENMIRROR_VIDEO_MODEL`. An unnamed modality goes to the first provider that can
+`OMOTE_STT_PROVIDER`, `OMOTE_TTS_PROVIDER`, `OMOTE_IMAGE_PROVIDER`
+and `OMOTE_VIDEO_PROVIDER`, each taking its model from `OMOTE_STT_MODEL`,
+`OMOTE_TTS_MODEL` (and `OMOTE_TTS_VOICE`), `OMOTE_IMAGE_MODEL` and
+`OMOTE_VIDEO_MODEL`. An unnamed modality goes to the first provider that can
 serve it, local hardware first — so a machine running Perch with a hosted
 gateway for everything else has to say which one speaks.
 
@@ -64,7 +64,7 @@ own address, so each picker shows only what can do that job. Two things were
 found against the live API rather than in its documentation. Its model list
 answers a wrong key with the full catalogue, so **Test** asks `/key`, which
 does refuse. And speech comes back at the rate the voice was made at — 24 kHz
-from Kokoro, 44.1 kHz from Fish Audio — which openmirror resamples rather than
+from Kokoro, 44.1 kHz from Fish Audio — which Omote resamples rather than
 playing nearly twice as slow.
 
 Anything else that speaks OpenAI's shapes works too: pick any OpenAI-shaped
@@ -74,7 +74,7 @@ together, because the shape won.
 ### "This runs on hardware I control"
 
 A tick box, and it is asked rather than guessed because a remote Ollama looks
-exactly like a local one from here. It decides whether `OPENMIRROR_LOCAL_ONLY` will
+exactly like a local one from here. It decides whether `OMOTE_LOCAL_ONLY` will
 accept the connection — and `local_only` is enforced when a route resolves,
 not in the UI, so a local backend being down is an error rather than a quiet
 fallback to a hosted one.
@@ -92,7 +92,7 @@ fallback to a hosted one.
 **Dimensions cannot change under an existing store.** Vectors of different
 lengths are not comparable, so the store records what each was made with and
 refuses to compare across them — which means a changed model or a changed
-`OPENMIRROR_EMBED_DIMENSIONS` makes old memories unsearchable rather than wrong.
+`OMOTE_EMBED_DIMENSIONS` makes old memories unsearchable rather than wrong.
 That is the right failure, and it is worth knowing before you change either.
 
 It is worth knowing *twice* if you are moving up to the floor from something
@@ -107,7 +107,7 @@ moment for anyone to hit it.
 Several of these are trained so that a passage being stored and a question
 being asked are embedded *differently*, and using one setting for both costs
 recall in a way that reads as the model simply being worse than advertised.
-openmirror handles it per model, because the mechanism differs:
+Omote handles it per model, because the mechanism differs:
 
 * Voyage takes an `input_type` of `query` or `document`.
 * `gemini-embedding-001` takes a `taskType`.
@@ -206,7 +206,7 @@ passing until the day it was meant to catch something.
 
 **Chat: `qwen3.5:9b` or `gemma4:12b`. Embedding: `Qwen3-Embedding-4B`.**
 
-That is the minimum openmirror's features are built and tested against — not the
+That is the minimum Omote's features are built and tested against — not the
 smallest thing that runs. Below it the agent loop does not get slower, it gets
 unreliable in ways that read as the harness being broken: a model that cannot
 hold a tool schema answers in prose where a tool call was needed, and a model
@@ -230,7 +230,7 @@ Two honesty notes on the evidence:
 
 * The measurements above are `gemma4:12b`. **There is no `qwen3.5:9b` data
   here** — it is named as the floor because the other projects in this family
-  test against it, not because openmirror has measured it.
+  test against it, not because Omote has measured it.
 * Even narrowed, `gemma4:12b` is not enough for `autopilot`. Unattended it
   wandered off task; the harness held — the loop guard stopped it, Stop
   stopped it — but "fully autonomous" is a claim about the model as much as
@@ -245,7 +245,7 @@ run.
 ### The ceiling: frontier models with thinking
 
 The other end is a first-class target rather than a happy accident, and it is
-the end openmirror was designed around: an agent loop that plans, calls tools and
+the end Omote was designed around: an agent loop that plans, calls tools and
 recovers from its own mistakes is exactly the workload reasoning models are
 best at.
 
@@ -269,7 +269,7 @@ socket. It changes from the next request on, subagents inherit it, and the
 browser remembers the last one chosen for the next session.
 
 The level is one dial and every host spells it differently, which is the whole
-of `openmirror/providers/reasoning.py`:
+of `omote/providers/reasoning.py`:
 
 | Host | What is sent |
 |---|---|
@@ -324,7 +324,7 @@ There is no image-editing *provider* here, and the absence is a decision rather
 than a gap.
 
 Every generator in this project is somebody else's model reached over a
-network, and those live in `openmirror/providers/catalog.py` because they can be
+network, and those live in `omote/providers/catalog.py` because they can be
 swapped: one connection, a different key, a different service, and the panel
 redraws itself. An **editor** is a binary on this disk — Pillow, ffmpeg, GIMP —
 and putting it in the registry would imply an install that can fail to answer.
@@ -354,7 +354,7 @@ evaluated with access to every PDB procedure — including `gimp-file-delete`.
 Passing a model-supplied string through would hand arbitrary code execution to
 anything that could reach this, in a project whose whole argument is that the
 agent's reach is bounded. So `build_script` takes the *name* of a procedure
-from a table written in `openmirror/providers/gimp.py` and builds the expression
+from a table written in `omote/providers/gimp.py` and builds the expression
 itself; only numbers and two paths are interpolated, and the numbers are clamped
 to what the procedure accepts so the value in the sidecar is the value that ran.
 

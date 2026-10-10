@@ -19,11 +19,11 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent import git as core
-from openmirror.agent.approval import Mode
-from openmirror.agent.tools.base import ToolContext
-from openmirror.agent.tools.git import RISK, GitTool
-from openmirror.protocol.agent import Risk, ToolCall
+from omote.agent import git as core
+from omote.agent.approval import Mode
+from omote.agent.tools.base import ToolContext
+from omote.agent.tools.git import RISK, GitTool
+from omote.protocol.agent import Risk, ToolCall
 
 
 def init(path: Path) -> Path:
@@ -322,7 +322,7 @@ def test_reading_a_repository_is_free_and_writing_to_it_is_not(repo: Path):
 def test_pushing_asks_about_the_machine_and_never_about_the_commit(repo: Path):
     """`auto_edit` auto-allows writes, which is right — but a push is a
     message to other people's repositories, and it must not inherit that."""
-    from openmirror.agent.approval import ApprovalPolicy, Decision
+    from omote.agent.approval import ApprovalPolicy, Decision
 
     tool, ctx = GitTool(), ctx_for(repo)
     policy = ApprovalPolicy(mode=Mode.AUTO_EDIT)
@@ -366,7 +366,7 @@ def test_a_long_subject_is_capped_rather_than_rendered_in_full():
 
 
 def test_every_action_has_a_grade():
-    from openmirror.agent.tools.git import ACTIONS
+    from omote.agent.tools.git import ACTIONS
 
     assert set(ACTIONS) == set(RISK)
     assert all(isinstance(risk, Risk) for risk in RISK.values())
@@ -380,7 +380,7 @@ def test_a_draft_is_cleaned_out_of_its_fencing():
     still fence it, label it, and introduce it. A draft that cannot be
     committed verbatim is the worst outcome for a feature whose only job is
     to save somebody typing."""
-    from openmirror.routers.git import _clean
+    from omote.routers.git import _clean
 
     assert _clean('```\nadd the retry loop\n\nBecause it timed out.\n```') == 'add the retry loop\n\nBecause it timed out.'
     assert _clean('Commit message: add the retry loop') == 'add the retry loop'
@@ -394,7 +394,7 @@ def test_a_draft_is_cleaned_out_of_its_fencing():
 def test_the_draft_never_becomes_a_commit_on_its_own():
     """`/api/git/propose` returns a string. It has no way to commit, and
     there is no flag anywhere that drafts and commits in one request."""
-    from openmirror.routers.git import ProposeRequest, router
+    from omote.routers.git import ProposeRequest, router
 
     paths = {getattr(r, 'path', '') for r in router.routes}
     assert '/api/git/propose' in paths and router.routes

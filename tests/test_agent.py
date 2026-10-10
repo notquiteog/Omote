@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent.approval import Mode
-from openmirror.agent.runtime import build_session
-from openmirror.protocol.agent import (
+from omote.agent.approval import Mode
+from omote.agent.runtime import build_session
+from omote.protocol.agent import (
     QuestionAsked,
     Risk,
     ToolCompleted,
@@ -24,7 +24,7 @@ from openmirror.protocol.agent import (
     ToolProposed,
     TurnCompleted,
 )
-from openmirror.providers.base import ChatRequest, StreamDone, StreamText, StreamToolUse
+from omote.providers.base import ChatRequest, StreamDone, StreamText, StreamToolUse
 
 
 class ScriptedProvider:
@@ -326,8 +326,8 @@ async def test_a_refused_purchase_is_terminal_not_a_detour():
     clicked a different button and then went for the card fields. It was
     following the ordinary denial message, which says to find another route.
     For money and secrets that instruction is exactly wrong."""
-    from openmirror.agent.session import _denial_text
-    from openmirror.protocol.agent import ToolCall
+    from omote.agent.session import _denial_text
+    from omote.protocol.agent import ToolCall
 
     ordinary = _denial_text(ToolCall(id='c', name='shell', risk=Risk.EXECUTE), 'no')
     assert 'another way' in ordinary
@@ -350,8 +350,8 @@ async def test_a_purchase_is_confirmed_even_in_unrestricted_mode():
     unasked. A flag that skipped the prompt is one somebody sets during a demo
     and still has set six months later.
     """
-    from openmirror.agent.approval import ApprovalPolicy, Decision, Mode
-    from openmirror.protocol.agent import ToolCall
+    from omote.agent.approval import ApprovalPolicy, Decision, Mode
+    from omote.protocol.agent import ToolCall
 
     call = ToolCall(id='c', name='browser_click', risk=Risk.PURCHASE, summary="click 'Place your order'")
 
@@ -379,8 +379,8 @@ async def test_a_secret_is_confirmed_and_never_printed():
     prompt, out of the tool result and out of the page read — see
     tests/test_money_and_secrets.py, which proves that against a real browser.
     """
-    from openmirror.agent.approval import ApprovalPolicy, Decision, Mode
-    from openmirror.protocol.agent import ToolCall
+    from omote.agent.approval import ApprovalPolicy, Decision, Mode
+    from omote.protocol.agent import ToolCall
 
     call = ToolCall(id='c', name='browser_type', risk=Risk.CREDENTIAL, summary='type into a password field')
     assert ApprovalPolicy(mode=Mode.UNRESTRICTED).decide(call)[0] is Decision.ASK
@@ -434,8 +434,8 @@ async def test_a_tool_image_actually_reaches_the_model():
     model, and they are separate for exactly this reason."""
     import base64
 
-    from openmirror.agent.tools.base import Assessment, Output, Tool
-    from openmirror.providers.base import ImageBlock
+    from omote.agent.tools.base import Assessment, Output, Tool
+    from omote.providers.base import ImageBlock
 
     pixel = base64.b64encode(b'\x89PNG\r\n\x1a\n fake').decode()
 
@@ -479,8 +479,8 @@ async def test_a_tool_image_actually_reaches_the_model():
 async def test_display_alone_does_not_reach_the_model():
     """The inverse: a tool that only fills `display` must not leak it into the
     conversation, or every diff and file listing would be sent twice."""
-    from openmirror.agent.tools.base import Assessment, Output, Tool
-    from openmirror.providers.base import ImageBlock
+    from omote.agent.tools.base import Assessment, Output, Tool
+    from omote.providers.base import ImageBlock
 
     class DisplayOnly(Tool):
         name = 'shot'

@@ -16,12 +16,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from openmirror.agent.approval import Mode
-from openmirror.agent.checkpoint import CheckpointStore
-from openmirror.agent.prompt import project_context
-from openmirror.agent.runtime import build_session
-from openmirror.protocol.agent import AgentError, PolicyChanged, TextDelta, TurnCompleted
-from openmirror.providers.base import StreamDone, StreamText, StreamToolUse
+from omote.agent.approval import Mode
+from omote.agent.checkpoint import CheckpointStore
+from omote.agent.prompt import project_context
+from omote.agent.runtime import build_session
+from omote.protocol.agent import AgentError, PolicyChanged, TextDelta, TurnCompleted
+from omote.providers.base import StreamDone, StreamText, StreamToolUse
 from tests.test_agent import ScriptedProvider, turn
 from tests.test_titles import title_for
 
@@ -76,7 +76,7 @@ async def test_switching_model_tells_every_attached_client(tmp_path: Path, monke
     async def fake_resolve(provider=None, model=None):
         return Other(), model or 'switched', provider or 'other-host'
 
-    monkeypatch.setattr('openmirror.providers.registry.resolve_chat', fake_resolve)
+    monkeypatch.setattr('omote.providers.registry.resolve_chat', fake_resolve)
 
     out = await turn(session, '/model other-host some-model')
 
@@ -104,7 +104,7 @@ async def test_the_effort_dial_survives_a_model_change(tmp_path: Path, monkeypat
     async def fake_resolve(provider=None, model=None):
         return Other(), 'switched', 'other-host'
 
-    monkeypatch.setattr('openmirror.providers.registry.resolve_chat', fake_resolve)
+    monkeypatch.setattr('omote.providers.registry.resolve_chat', fake_resolve)
     await session.set_model('other-host')
 
     assert session.effort == 'high'
@@ -118,7 +118,7 @@ async def test_a_model_that_cannot_be_resolved_leaves_the_session_alone(tmp_path
     async def fake_resolve(provider=None, model=None):
         raise ValueError('no such model')
 
-    monkeypatch.setattr('openmirror.providers.registry.resolve_chat', fake_resolve)
+    monkeypatch.setattr('omote.providers.registry.resolve_chat', fake_resolve)
 
     events = await turn(session, '/model nonsense')
     failures = [e.message for e in events if isinstance(e, AgentError)]
@@ -282,7 +282,7 @@ async def test_status_reports_the_session_and_never_a_price(tmp_path: Path):
 
 
 def test_the_new_commands_are_offered(tmp_path: Path):
-    from openmirror.agent.session import COMMANDS
+    from omote.agent.session import COMMANDS
 
     for name in ('model', 'undo', 'redo', 'context', 'status'):
         assert name in COMMANDS, name
@@ -292,7 +292,7 @@ def test_the_new_commands_are_offered(tmp_path: Path):
 def test_a_slash_that_is_not_a_command_is_still_a_sentence(tmp_path: Path):
     """`/etc/hosts is wrong` is a sentence. The command names are all
     lowercase words, so a path can never collide with one."""
-    from openmirror.agent.session import _slash
+    from omote.agent.session import _slash
 
     assert _slash('/etc/hosts is wrong') == ('', '')
     assert _slash('/model gpt-5') == ('model', 'gpt-5')
@@ -324,7 +324,7 @@ async def test_a_title_a_person_set_is_never_overwritten(tmp_path: Path):
 
 
 def test_needs_title_only_fires_on_a_placeholder():
-    from openmirror.titles import needs_title
+    from omote.titles import needs_title
 
     assert needs_title('myproject', 'myproject')
     assert needs_title('', 'myproject')
@@ -364,7 +364,7 @@ def test_the_order_is_agencies_claude_opencode_own(tmp_path: Path):
         ('AGENTS.md', 'a'),
         ('CLAUDE.md', 'b'),
         ('opencode.md', 'c'),
-        ('.openmirror/AGENTS.md', 'd'),
+        ('.omote/AGENTS.md', 'd'),
     ):
         root = tmp_path / name.replace('/', '_')
         target = root / name

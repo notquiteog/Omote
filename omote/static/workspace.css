@@ -1,0 +1,101 @@
+/* The default workspace follows the system with the quiet, opaque surfaces of
+   a coding workspace. Existing explicit color themes remain available. */
+html:not([data-theme]), html[data-theme='auto'] {
+  --bg: #fff;
+  --glass: #f7f7f7;
+  --glass-strong: #fff;
+  --glass-weak: #fafafa;
+  --raise: #fff;
+  --edge: #dedede;
+  --edge-soft: #ededed;
+  --hover: #ededed;
+  --ink: #242424;
+  --dim: #646464;
+  --faint: #777;
+  --accent: #3c6bc5;
+  --solid: #242424;
+  --on-solid: #fff;
+  --blur: 0px;
+  --detail-opacity: 0;
+  --tint-opacity: 0;
+  --bg-tint-a: transparent;
+  --bg-tint-b: transparent;
+  --bg-tint-c: transparent;
+  --grid: transparent;
+  --shadow: 0 2px 8px #00000008;
+  --shadow-lift: 0 18px 60px #00000020;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]), html[data-theme='auto'] {
+    --bg: #212121;
+    --glass: #181818;
+    --glass-strong: #292929;
+    --glass-weak: #242424;
+    --raise: #2b2b2b;
+    --edge: #424242;
+    --edge-soft: #303030;
+    --hover: #303030;
+    --ink: #ececec;
+    --dim: #aaa;
+    --faint: #919191;
+    --accent: #91b8fa;
+    --solid: #eee;
+    --on-solid: #212121;
+    --shadow: 0 2px 8px #00000015;
+    --shadow-lift: 0 18px 60px #00000055;
+  }
+}
+html[data-contrast='high']:is(:not([data-theme]), [data-theme='auto']) {
+  --edge: currentColor;
+  --edge-soft: currentColor;
+  --faint: var(--dim);
+  --hover: var(--glass-weak);
+  --shadow: none;
+  --shadow-lift: none;
+}
+html:is(:not([data-theme]), [data-theme='auto']) #sidebar { background: var(--glass); }
+html:is(:not([data-theme]), [data-theme='auto']) main { background: var(--bg); }
+html:is(:not([data-theme]), [data-theme='auto']) #bar { background: var(--bg); border-bottom-color: transparent; }
+html:is(:not([data-theme]), [data-theme='auto']) #hero-pet,
+html:is(:not([data-theme]), [data-theme='auto']) #perch-rail,
+html:is(:not([data-theme]), [data-theme='auto']) #starters { display: none; }
+html:is(:not([data-theme]), [data-theme='auto']) #field { border-radius: 22px; box-shadow: none; background: var(--glass-strong); }
+html:is(:not([data-theme]), [data-theme='auto']) #composer { background: var(--bg); }
+/* Balance the blank workspace now that task cards replace the old starter list. */
+html:is(:not([data-theme]), [data-theme='auto']) body.blank #composer { margin-bottom: auto; }
+#hero { width: min(800px, 100%); margin: auto; padding-inline: 18px; }
+#hero h2 { font-size: clamp(23px, 3vw, 32px); font-weight: 500; letter-spacing: -.035em; }
+.workspace-starters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 10px; margin: 30px 0 0; }
+.workspace-starter { display: grid; grid-template-columns: 20px 1fr; gap: 3px 10px; text-align: left; padding: 15px; border: 1px solid var(--edge-soft); border-radius: 12px; background: transparent; box-shadow: none; }
+.workspace-starter .ic { grid-row: span 2; margin-top: 2px; color: var(--dim); }
+.workspace-starter strong { font-size: 13px; font-weight: 500; }
+.workspace-starter span { font-size: 12px; color: var(--dim); }
+.studio-workspace-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--edge-soft); }
+.studio-workspace-switch { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--edge-soft); border-radius: 10px; }
+.studio-controls { overflow-y: auto; min-height: 0; border-right: 1px solid var(--edge-soft); }
+.studio-controls .studio-form { border-right: none; overflow: visible; }
+.studio-controls .studio-edit { padding: 0 18px 14px; }
+#comfy-workspace { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.comfy-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 18px 0; }
+.comfy-toolbar select { max-width: 220px; }
+#comfy-status { margin: 10px 18px; }
+.comfy-help { margin: 0 18px 10px; font-size: 12px; color: var(--dim); }
+.comfy-help summary { cursor: pointer; }
+.comfy-help p { max-width: 900px; }
+#comfy-frame { flex: 1; min-height: 360px; width: 100%; border: 0; background: var(--bg); }
+#memory-dialog { width: min(760px, calc(100vw - 24px)); }
+.memory-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin: 12px 0; }
+.memory-toolbar .field { flex: 1; min-width: 140px; margin: 0; }
+.memory-form { border: 1px solid var(--edge); border-radius: 12px; padding: 14px; margin: 16px 0; }
+.memory-form textarea { width: 100%; resize: vertical; color: var(--ink); background: var(--glass-weak); border: 1px solid var(--edge); border-radius: 8px; padding: 10px; font: inherit; }
+.memory-actions { display: flex; gap: 4px; flex-shrink: 0; }
+#mem-list .text { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+#mem-status:empty { display: none; }
+@media (max-width: 640px) {
+  .workspace-starters { grid-template-columns: 1fr; gap: 6px; margin-top: 16px; }
+  .workspace-starter { padding: 10px; }
+  .studio-workspace-bar { padding: 8px; }
+  .studio-workspace-bar > .meta { display: none; }
+  .comfy-toolbar { padding: 10px 8px 0; }
+  .memory-actions { flex-direction: column; }
+}

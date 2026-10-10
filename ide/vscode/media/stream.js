@@ -1,6 +1,6 @@
 /* Streamed text, batched to the frame.
  *
- * A port of `openmirror/static/stream.js`. It exists here for the same reason
+ * A port of `omote/static/stream.js`. It exists here for the same reason
  * it exists there: every token the model emits arrives as its own event, and
  * `body.textContent += text` is not a small edit -- it reads the node, joins,
  * and writes back, re-laying-out the whole paragraph for every token. At the

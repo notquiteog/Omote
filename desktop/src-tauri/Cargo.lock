@@ -2407,7 +2407,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "openmirror-desktop"
+name = "omote-desktop"
 version = "0.7.0"
 dependencies = [
  "serde",

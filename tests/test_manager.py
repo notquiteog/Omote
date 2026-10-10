@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent.approval import Mode
-from openmirror.agent.manager import SessionManager
-from openmirror.protocol.agent import SessionStarted, TextDelta, ToolProposed, TurnCompleted
-from openmirror.providers.base import StreamDone, StreamText, StreamToolUse
+from omote.agent.approval import Mode
+from omote.agent.manager import SessionManager
+from omote.protocol.agent import SessionStarted, TextDelta, ToolProposed, TurnCompleted
+from omote.providers.base import StreamDone, StreamText, StreamToolUse
 from tests.test_agent import ScriptedProvider
 
 
@@ -224,7 +224,7 @@ async def test_every_event_is_numbered():
 
 # --- the undo history is one session's ---------------------------------------
 #
-# Found by running it, not by reading it: `openmirror run -c -p /undo` said
+# Found by running it, not by reading it: `omote run -c -p /undo` said
 # "Nothing to undo" on a session that had just written a file. Two causes, both
 # here, and the second one is the worse of the two because nothing about it
 # looks wrong from inside the session you are looking at.

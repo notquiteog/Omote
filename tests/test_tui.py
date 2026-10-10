@@ -13,7 +13,7 @@ Two properties are asserted rather than assumed, because both are the kind of
 thing that breaks silently:
 
 * **Nothing here imports the agent.** A terminal client that reached into
-  `openmirror.agent` would be a second implementation of the agent's rules, and
+  `omote.agent` would be a second implementation of the agent's rules, and
   every one of them would exist in two places with one of them stale. The
   source of this module is read and checked, the same way
   `test_signin_gate.py` reads `dom.js`, because a check that can pass by
@@ -32,8 +32,8 @@ from pathlib import Path
 
 import pytest
 
-from openmirror import tui
-from openmirror.tui import (
+from omote import tui
+from omote.tui import (
     MAX_ATTACHMENT_BYTES,
     App,
     AttachmentError,
@@ -71,7 +71,7 @@ from openmirror.tui import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = (ROOT / 'openmirror' / 'tui.py').read_text()
+SOURCE = (ROOT / 'omote' / 'tui.py').read_text()
 
 #: A real one-pixel PNG. Written out rather than imported from Pillow, which
 #: is an optional extra: this file has to run on a bare install.
@@ -97,19 +97,19 @@ def coloured(width: int = 80) -> Renderer:
 def test_the_client_does_not_import_the_agent():
     """The rule the whole design rests on, checked against the source.
 
-    Not a style preference: a client that imported `openmirror.agent` would
+    Not a style preference: a client that imported `omote.agent` would
     work in-process and would then need the agent's configuration, its
     providers and its event loop, which is a second client that can only ever
     talk to a daemon that happens to be in this process. It would also be the
     second copy of every approval rule.
     """
-    for forbidden in ('openmirror.agent', 'openmirror.sessions', 'openmirror.providers', 'openmirror.routers'):
+    for forbidden in ('omote.agent', 'omote.sessions', 'omote.providers', 'omote.routers'):
         assert not re.search(rf'^\s*(?:from|import)\s+{re.escape(forbidden)}', SOURCE, re.M), (
             f'{forbidden} is imported by the terminal client'
         )
     # Asserted rather than left to the loop above, which could pass by
     # matching nothing if the pattern stopped matching.
-    assert 'from openmirror import tui' not in SOURCE
+    assert 'from omote import tui' not in SOURCE
     assert 'aiohttp' in SOURCE, 'the transport is missing; the search above proved nothing'
 
 
@@ -129,7 +129,7 @@ def test_no_new_dependency_is_introduced():
             roots.update(alias.name.split('.')[0] for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
             roots.add(node.module.split('.')[0])
-    third_party = roots - set(sys.stdlib_module_names) - {'openmirror', '__future__'}
+    third_party = roots - set(sys.stdlib_module_names) - {'omote', '__future__'}
     assert third_party == {'aiohttp'}, f'unexpected imports: {sorted(third_party)}'
     assert 'aiohttp' in SOURCE, 'the transport is missing, so the search proved nothing'
 
@@ -158,7 +158,7 @@ class FakePipe(io.StringIO):
         ({'TERM': 'dumb'}, False),
         ({'TERM': 'DUMB'}, False),
         ({'TERM': 'xterm-256color'}, True),
-        ({'OPENMIRROR_NO_COLOUR': '1'}, False),
+        ({'OMOTE_NO_COLOUR': '1'}, False),
     ],
 )
 def test_colour_is_refused_when_something_asks(env, expected):
@@ -298,10 +298,10 @@ def test_tool_proposed_is_one_dim_line_with_the_summary_the_tool_wrote():
 def test_a_call_that_needs_approval_says_so_on_its_own_line():
     out = plain().feed({
         'type': 'tool.proposed',
-        'call': {'id': 'c1', 'name': 'write_file', 'summary': 'openmirror/tui.py'},
+        'call': {'id': 'c1', 'name': 'write_file', 'summary': 'omote/tui.py'},
         'needs_approval': True,
     })
-    assert out == '● write_file openmirror/tui.py  (needs approval)\n'
+    assert out == '● write_file omote/tui.py  (needs approval)\n'
 
 
 def test_tool_started_adds_nothing():
@@ -550,7 +550,7 @@ def test_a_whole_turn_renders_as_the_transcript_it_should_be():
         {'type': 'thinking.delta', 'seq': 3, 'turn_id': 't1', 'text': 'The default '},
         {'type': 'thinking.delta', 'seq': 4, 'turn_id': 't1', 'text': 'is in config.'},
         {'type': 'tool.proposed', 'seq': 5, 'turn_id': 't1',
-         'call': {'id': 'c1', 'name': 'read_file', 'summary': 'openmirror/config.py'},
+         'call': {'id': 'c1', 'name': 'read_file', 'summary': 'omote/config.py'},
          'needs_approval': False},
         {'type': 'tool.completed', 'seq': 6, 'turn_id': 't1',
          'result': {'id': 'c1', 'name': 'read_file', 'ok': True,
@@ -563,7 +563,7 @@ def test_a_whole_turn_renders_as_the_transcript_it_should_be():
         # A tool call somebody had to be asked about, answered no.
         {'type': 'turn.started', 'seq': 11, 'turn_id': 't2', 'text': 'and stop it', 'at': 1003.0},
         {'type': 'tool.proposed', 'seq': 12, 'turn_id': 't2',
-         'call': {'id': 'c2', 'name': 'shell', 'summary': 'systemctl stop openmirror'},
+         'call': {'id': 'c2', 'name': 'shell', 'summary': 'systemctl stop omote'},
          'needs_approval': True},
         {'type': 'tool.denied', 'seq': 13, 'turn_id': 't2', 'call_id': 'c2', 'reason': 'declined from the terminal'},
         {'type': 'text.delta', 'seq': 14, 'turn_id': 't2', 'text': 'Left it running.'},
@@ -572,13 +572,13 @@ def test_a_whole_turn_renders_as_the_transcript_it_should_be():
     assert plain().transcript(events) == (
         '> which port?\n'
         '· thinking: The default is in config.\n'
-        '● read_file openmirror/config.py\n'
+        '● read_file omote/config.py\n'
         '  ↳ port: int = 8477 (900ms)\n'
         'It listens on port 8477 by default.\n'
         '\n'
         '· 2.5s · context 2.4k/200.0k (1%)\n'
         '> and stop it\n'
-        '● shell systemctl stop openmirror  (needs approval)\n'
+        '● shell systemctl stop omote  (needs approval)\n'
         '  ✗ denied: declined from the terminal\n'
         'Left it running.\n'
         '\n'
@@ -758,7 +758,7 @@ def test_completion_is_capped():
 def test_the_mention_under_the_cursor_is_found_including_a_nested_path():
     """A whitespace-delimited token cannot express a nested path, which is
     most of them, so the scan goes back to the `@` rather than to a space."""
-    assert mention_at('look at @openmir/age', 18) == (8, 'openmir/a')
+    assert mention_at('look at @omote/age', 16) == (8, 'omote/a')
     assert mention_at('@src/tui.py', 11) == (0, 'src/tui.py')
 
 
@@ -769,23 +769,23 @@ def test_an_email_address_is_not_a_file_mention():
 
 def test_a_query_with_no_matches_offers_nothing_rather_than_everything():
     """The failure mode to avoid is a menu that appears on any `@` at all."""
-    hits = [{'path': 'openmirror/config.py'}, {'path': 'README.md'}]
+    hits = [{'path': 'omote/config.py'}, {'path': 'README.md'}]
     assert filter_files(hits, 'zzzz') == []
 
 
 def test_a_nested_query_finds_the_file_under_that_directory():
     hits = [
-        {'path': 'openmirror/config.py'},
-        {'path': 'openmirror/agent/session.py'},
-        {'path': 'openmirror/agent/runtime.py'},
+        {'path': 'omote/config.py'},
+        {'path': 'omote/agent/session.py'},
+        {'path': 'omote/agent/runtime.py'},
         {'path': 'README.md'},
     ]
-    assert filter_files(hits, 'agent/ru') == ['openmirror/agent/runtime.py']
+    assert filter_files(hits, 'agent/ru') == ['omote/agent/runtime.py']
     # A directory prefix matches both, and the daemon's order is kept: this
     # narrows what the daemon offered, it does not re-rank it.
-    assert filter_files(hits, 'openmirror/agent/') == [
-        'openmirror/agent/session.py',
-        'openmirror/agent/runtime.py',
+    assert filter_files(hits, 'omote/agent/') == [
+        'omote/agent/session.py',
+        'omote/agent/runtime.py',
     ]
 
 
@@ -806,14 +806,14 @@ def test_duplicate_paths_are_offered_once():
 
 
 def test_completing_replaces_the_token_and_puts_the_cursor_after_it():
-    assert apply_completion('look at @openmir/a now', 13, 'openmirror/agent/runtime.py') == (
-        'look at openmirror/agent/runtime.py now',
-        35,
+    assert apply_completion('look at @omot/a now', 13, 'omote/agent/runtime.py') == (
+        'look at omote/agent/runtime.py now',
+        30,
     )
 
 
 def test_completing_at_the_end_of_the_line_keeps_the_cursor_at_the_end():
-    assert apply_completion('@conf', 5, 'openmirror/config.py') == ('openmirror/config.py', 20)
+    assert apply_completion('@conf', 5, 'omote/config.py') == ('omote/config.py', 15)
 
 
 def test_completing_outside_a_mention_changes_nothing():
@@ -1015,9 +1015,9 @@ def test_several_images_can_be_attached_at_once(tmp_path):
 def test_the_parser_help_works_and_names_the_command():
     parser = build_parser()
     text = parser.format_help()
-    assert 'openmirror chat' in text
+    assert 'omote chat' in text
     assert '--session' in text
-    assert parser.prog == 'openmirror chat'
+    assert parser.prog == 'omote chat'
 
 
 @pytest.mark.parametrize('flag,attribute,expected', [
@@ -1071,9 +1071,9 @@ def test_the_parser_becomes_options_with_an_absolute_root(tmp_path):
 
 
 def test_defaults_come_from_the_environment_the_daemon_itself_reads(monkeypatch):
-    monkeypatch.setenv('OPENMIRROR_HOST', '10.0.0.5')
-    monkeypatch.setenv('OPENMIRROR_PORT', '9000')
-    monkeypatch.setenv('OPENMIRROR_TOKEN', 'shhh')
+    monkeypatch.setenv('OMOTE_HOST', '10.0.0.5')
+    monkeypatch.setenv('OMOTE_PORT', '9000')
+    monkeypatch.setenv('OMOTE_TOKEN', 'shhh')
     args = build_parser().parse_args([])
     assert (args.host, args.port, args.token) == ('10.0.0.5', 9000, 'shhh')
 
@@ -1201,7 +1201,7 @@ class StubDaemon(Daemon):
 
     async def files(self, session_id: str, query: str, limit: int = 40) -> list[dict[str, object]]:
         self.asked.append((session_id, query))
-        return [{'path': 'openmirror/tui.py'}, {'path': 'README.md'}]
+        return [{'path': 'omote/tui.py'}, {'path': 'README.md'}]
 
     async def agree_hook(self, session_id: str, command: str, allow: bool) -> None:
         self.asked.append((session_id, f'hook:{command}:{allow}'))
@@ -1221,7 +1221,7 @@ def commands_of(app: App) -> list[dict[str, object]]:
 
 
 def test_an_approval_is_asked_on_stderr_and_the_answer_becomes_a_command():
-    """stderr, because `openmirror chat | tee log.txt` should capture what the
+    """stderr, because `omote chat | tee log.txt` should capture what the
     agent said rather than a transcript of somebody typing."""
     app, out, err, _api = make_app()
     app.on_event({
@@ -1521,14 +1521,14 @@ def test_the_completion_menu_is_filled_from_the_daemon_and_inserted_at_the_curso
     import asyncio
 
     app, out, _err, api = make_app()
-    for char in 'see @openmir':
+    for char in 'see @omot':
         app.on_key(Key('char', char))
     # The lookup is debounced and asynchronous; run it now rather than wait.
-    asyncio.run(app._load_files('openmir'))
-    assert api.asked == [('sess-1', 'openmir')]
+    asyncio.run(app._load_files('omot'))
+    assert api.asked == [('sess-1', 'omot')]
     assert app._menu_open is True
     app.on_key(Key('tab'))
-    assert app.line.text == 'see openmirror/tui.py'
+    assert app.line.text == 'see omote/tui.py'
 
 
 # ---------------------------------------------------------------------------
@@ -1610,7 +1610,7 @@ def test_an_unknown_session_id_says_so_rather_than_reporting_a_status_code():
 
 
 def test_status_the_client_generates_goes_to_stderr_when_there_is_no_repl():
-    """`openmirror chat --prompt x > answer.txt` should leave a file with the
+    """`omote chat --prompt x > answer.txt` should leave a file with the
     answer in it, not with a session banner and a note above it."""
     app, out, err, _api = make_app()
     app.show_input = False
@@ -1628,7 +1628,7 @@ def test_the_same_words_go_to_stdout_when_there_is_a_prompt_to_print_them_under(
 
 
 def test_an_error_reaches_stderr_and_the_answer_reaches_stdout():
-    """So that `openmirror chat --prompt x | tail -1` shows the answer and not
+    """So that `omote chat --prompt x | tail -1` shows the answer and not
     a complaint about something that happened an hour ago."""
     app, out, err, _api = make_app()
     app.on_event({'type': 'text.delta', 'text': 'the answer'})

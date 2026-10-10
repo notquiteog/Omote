@@ -1,9 +1,9 @@
 """Smoke tests for a desktop release, run by CI on a runner that has only the
 installer — the stand-in for the machines nobody on the project owns.
 
-    python desktop/ci/smoke.py daemon path/to/openmirror-daemon
-    python desktop/ci/smoke.py app --stop kill:openmirror-desktop --again -- /usr/bin/openmirror-desktop
-    python desktop/ci/smoke.py app --stop quit:openmirror -- open -n /Applications/openmirror.app
+    python desktop/ci/smoke.py daemon path/to/omote-daemon
+    python desktop/ci/smoke.py app --stop kill:omote-desktop --again -- /usr/bin/omote-desktop
+    python desktop/ci/smoke.py app --stop quit:Omote -- open -n /Applications/Omote.app
 
 `daemon` runs the frozen daemon by itself. It has to answer, serve the page
 and everything the page loads — which is how a file that freezing left out
@@ -36,12 +36,13 @@ from pathlib import Path
 
 # The app's port, which the app test has to use because the app does. Moved
 # only for running this on a machine that already has a daemon on 8477.
-PORT = int(os.environ.get('OPENMIRROR_PORT') or 8477)
-LOGS = Path.home() / '.openmirror' / 'logs'
+PORT = int(os.environ.get('OMOTE_PORT') or 8477)
+LOGS = Path.home() / '.omote' / 'logs'
 
 # The page, and a sample of what it loads. A missing module is a blank window
 # in a release that worked from a checkout.
-PAGE = ['/', '/static/app.js', '/static/native.js', '/static/style.css', '/static/companions/index.js']
+PAGE = ['/', '/static/app.js', '/static/native.js', '/static/style.css', '/static/companions/index.js',
+        '/static/workspace.css', '/static/comfyui.js', '/static/memory.js']
 
 
 class Failed(Exception):
@@ -56,10 +57,10 @@ def get(port: int, path: str) -> tuple[int, bytes]:
         return e.code, e.read()
 
 
-def is_openmirror(port: int) -> bool:
+def is_omote(port: int) -> bool:
     try:
         status, body = get(port, '/healthz')
-        return status == 200 and json.loads(body).get('service') == 'openmirror'
+        return status == 200 and json.loads(body).get('service') == 'omote'
     except (OSError, ValueError):
         return False
 
@@ -110,7 +111,7 @@ def check_page(port: int) -> None:
         status, body = get(port, f'{path}?smoke')
         if status != 200:
             raise Failed(f'GET {path} answered {status}')
-        if path == '/' and b'openmirror' not in body:
+        if path == '/' and b'omote' not in body:
             raise Failed('GET / answered, but not with the interface')
     print(f'serves the page and {len(PAGE) - 1} of the files it loads')
 
@@ -123,14 +124,14 @@ def daemon(exe: Path) -> None:
     with socket.socket() as s:
         s.bind(('127.0.0.1', 0))
         port = s.getsockname()[1]
-    tmp = Path(tempfile.mkdtemp(prefix='openmirror-smoke-'))
+    tmp = Path(tempfile.mkdtemp(prefix='omote-smoke-'))
     log = tmp / 'daemon.log'
     env = {
         **os.environ,
-        'OPENMIRROR_PORT': str(port),
-        'OPENMIRROR_DATA_DIR': str(tmp / 'data'),
-        'OPENMIRROR_ENV': str(tmp / 'absent.env'),
-        'OPENMIRROR_EXIT_WITH_STDIN': '1',
+        'OMOTE_PORT': str(port),
+        'OMOTE_DATA_DIR': str(tmp / 'data'),
+        'OMOTE_ENV': str(tmp / 'absent.env'),
+        'OMOTE_EXIT_WITH_STDIN': '1',
     }
     started = time.monotonic()
     with log.open('wb') as out:
@@ -138,7 +139,7 @@ def daemon(exe: Path) -> None:
             [str(exe)], cwd=tmp, env=env, stdin=subprocess.PIPE, stdout=out, stderr=subprocess.STDOUT
         )
     try:
-        if not wait(lambda: is_openmirror(port) or proc.poll() is not None, 180) or proc.poll() is not None:
+        if not wait(lambda: is_omote(port) or proc.poll() is not None, 180) or proc.poll() is not None:
             raise Failed(f'the daemon did not answer (exit code {proc.poll()})')
         print(f'answered after {time.monotonic() - started:.1f}s')
         check_page(port)
@@ -166,7 +167,7 @@ def app(command: list[str], stop: str, again: bool) -> None:
     started = time.monotonic()
     proc = subprocess.Popen(command)
     try:
-        if not wait(lambda: is_openmirror(PORT), 180):
+        if not wait(lambda: is_omote(PORT), 180):
             raise Failed(f'the app did not bring a daemon up on {PORT}')
         print(f'the app brought the daemon up after {time.monotonic() - started:.1f}s')
         check_page(PORT)
@@ -190,7 +191,7 @@ def app(command: list[str], stop: str, again: bool) -> None:
             except subprocess.TimeoutExpired:
                 second.kill()
                 raise Failed('a second launch did not hand over to the first and leave') from None
-            if not is_openmirror(PORT):
+            if not is_omote(PORT):
                 raise Failed('a second launch took the daemon down with it')
             print(f'a second launch handed over to the first and left ({code})')
 

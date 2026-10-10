@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Omote</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/themes.css">
+<link rel="stylesheet" href="/static/workspace.css">
+<!-- The theme, before the first paint. A module arrives after the stylesheet
+     and the page flashes the wrong theme at somebody who chose dark months
+     ago; the flash happens on every load and is the reason this is here
+     rather than in a file. Kept in step with theme.js by a test. -->
+<script>
+(function(){try{
+  var t=localStorage.getItem('omote.theme'); if(t)document.documentElement.dataset.theme=t;
+  if(localStorage.getItem('omote.contrast')==='high')document.documentElement.dataset.contrast='high';
+}catch(e){}})();
+</script>
+</head>
+<body>
+
+<!-- Icons live here rather than in a sprite file: there are eight of them,
+     and a second request to fetch eight paths is a worse trade than the bytes. -->
+<svg id="icons" aria-hidden="true" hidden>
+  <symbol id="i-new" viewBox="0 0 16 16"><path d="M11.5 2.5 13.5 4.5 6 12l-3 1 1-3z"/><path d="M10 4 12 6"/></symbol>
+  <symbol id="i-memory" viewBox="0 0 16 16"><path d="M8 2.5a3 3 0 0 0-3 3v.2a2.3 2.3 0 0 0 0 4.6v.2a3 3 0 0 0 6 0v-.2a2.3 2.3 0 0 0 0-4.6v-.2a3 3 0 0 0-3-3Z"/><path d="M8 2.5v11"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 16 16"><path d="M3 8a5 5 0 1 0 1.6-3.7"/><path d="M3 3v3h3"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 16 16"><path d="M2 4.5h4l1.2 1.5H14v6.5H2z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 16 16"><path d="M8 2 13 4v4c0 3-2.2 5-5 6-2.8-1-5-3-5-6V4z"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 16 16"><rect x="6" y="2" width="4" height="7" rx="2"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0"/><path d="M8 12v2"/></symbol>
+  <symbol id="i-send" viewBox="0 0 16 16"><path d="M8 12.5v-9"/><path d="M4.5 7 8 3.5 11.5 7"/></symbol>
+  <symbol id="i-close" viewBox="0 0 16 16"><path d="M4 4l8 8"/><path d="M12 4l-8 8"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 16 16"><path d="M11 7.5 7 11.5a2.1 2.1 0 0 1-3-3l4.6-4.6a3.5 3.5 0 0 1 5 5L8.2 14.3a4.9 4.9 0 0 1-7-7L6.6 2.9"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 16 16"><path d="M13.5 8.5c0 2.2-2.5 4-5.5 4a7 7 0 0 1-1.6-.2L3 13.5l.8-2.3A4.3 4.3 0 0 1 2.5 8.5c0-2.2 2.5-4 5.5-4s5.5 1.8 5.5 4Z"/></symbol>
+  <symbol id="i-code" viewBox="0 0 16 16"><path d="M5.5 4.5 2 8l3.5 3.5"/><path d="M10.5 4.5 14 8l-3.5 3.5"/><path d="M9.2 3 6.8 13"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 16 16"><path d="M2 8h1.5"/><path d="M5 5.5v5"/><path d="M7.5 3v10"/><path d="M10 5.5v5"/><path d="M12.5 6.8v2.4"/><path d="M14.5 8H14"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 16 16"><path d="M8.8 2 4 9h3.4l-.6 5L12 7H8.4z"/></symbol>
+  <symbol id="i-screen" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="8.5" rx="1.5"/><path d="M6 13.5h4"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.6M8 12.6v1.6M14.2 8h-1.6M3.4 8H1.8M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1M12.4 12.4l-1.1-1.1M4.7 4.7 3.6 3.6"/></symbol>
+  <symbol id="i-browser" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6h12"/><circle cx="4.2" cy="4.5" r=".5"/><circle cx="6" cy="4.5" r=".5"/></symbol>
+  <symbol id="i-wand" viewBox="0 0 16 16"><path d="M3 13 11 5"/><path d="m10 3 .7 1.8L12.5 5.5l-1.8.7L10 8l-.7-1.8L7.5 5.5l1.8-.7z"/><path d="M13.5 9.5 14 11l1.5.5-1.5.5-.5 1.5-.5-1.5L11 11l1.5-.5z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 14 14"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 16 16"><path d="M6 2v4"/><path d="M10 2v4"/><path d="M4 6h8v2.5A4 4 0 0 1 8 12.5 4 4 0 0 1 4 8.5z"/><path d="M8 12.5V14.5"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 16 16"><rect x="4.5" y="4.5" width="7" height="7" rx="1"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 16 16"><rect x="1.5" y="3.5" width="13" height="9" rx="1.2"/><path d="m1.8 4.4 6.2 4.4 6.2-4.4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 16 16"><path d="M5 4h9M5 8h9M5 12h9"/><path d="M2 4h.01M2 8h.01M2 12h.01"/></symbol>
+  <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 13V3"/><path d="m3.5 7.5 4.5-4.5 4.5 4.5"/></symbol>
+  <symbol id="i-git" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.8"/><circle cx="4.5" cy="12.5" r="1.8"/><circle cx="11.5" cy="8" r="1.8"/><path d="M4.5 5.3v5.4"/><path d="M4.5 8h5.2"/></symbol>
+</svg>
+
+<aside id="sidebar">
+  <header id="brand">
+    <!-- The companion is the app icon. Clicking it opens the same picker the
+         perch does. -->
+    <div id="brand-pet"></div>
+    <h1>Omote</h1>
+    <button id="new-session" class="icon" title="New session">
+      <svg class="ic"><use href="#i-new"></use></svg>
+    </button>
+  </header>
+
+  <!-- Two things, and only two, because those are the two there are: a
+       conversation, and a place to make things.
+
+       There were seven. The other five were all places a decision had been
+       pushed out to — talk, live, autopilot, search and mail — and each one
+       cost something real. Talking to it is now a call surface inside Chat,
+       entered by the button in the bar. Looking something up and reading mail
+       are drawers that open over the conversation, because they are tools the
+       agent has always had and a tool you can also visit is strictly worse
+       than a tool. And autopilot is not a place at all: the harness decides to
+       use it, the way it decides anything else, and the run is a turn you can
+       read afterwards. -->
+  <nav id="modes" aria-label="Mode">
+    <button class="nav-row mode" data-mode="chat" aria-current="true">
+      <svg class="ic"><use href="#i-code"></use></svg><span>Chat</span>
+    </button>
+    <button class="nav-row mode" data-mode="studio">
+      <svg class="ic"><use href="#i-wand"></use></svg><span>Studio</span>
+    </button>
+  </nav>
+
+  <nav id="nav">
+    <button class="nav-row" id="nav-new">
+      <svg class="ic"><use href="#i-new"></use></svg><span>New session</span>
+    </button>
+    <button class="nav-row" id="nav-rewind" disabled>
+      <svg class="ic"><use href="#i-undo"></use></svg><span>Rewind</span>
+    </button>
+    <!-- Review is a different act from Rewind: rewind throws a whole turn away,
+         review keeps the parts you agree with. Separate buttons because they
+         are separate decisions, and a panel where the two sit together is a
+         panel where the wrong one gets pressed. -->
+    <button class="nav-row" id="nav-review" hidden>
+      <svg class="ic"><use href="#i-list"></use></svg><span>Review changes</span>
+    </button>
+    <button class="nav-row" id="open-memory" hidden>
+      <svg class="ic"><use href="#i-memory"></use></svg><span>Memory</span>
+    </button>
+  </nav>
+
+  <div id="session-pane">
+    <div class="sec-head"><span>Sessions</span></div>
+    <!-- Search reaches the closed conversations too, not just the ones the
+         live list holds — which on a machine that has been working all week is
+         the only place the answer is. Escape or an emptied box puts the
+         ordinary list back. -->
+    <input id="session-search" type="search" placeholder="Search every conversation…" aria-label="Search conversations" autocomplete="off">
+    <ul id="sessions" aria-label="Sessions"></ul>
+  </div>
+
+  <footer id="foot">
+    <button id="providers-toggle" class="sec-head" aria-expanded="false">
+      <span>Providers</span><span class="chev">›</span>
+    </button>
+    <div id="providers" aria-label="Providers" hidden></div>
+    <!-- Worktree and Hooks sit together at the bottom rather than up in the
+         rail: both are things you do *to a project*, not to a conversation,
+         and a fourth row up there pushes the session list off the bottom of a
+         short sidebar. -->
+    <button class="nav-row" id="worktree-open" hidden>
+      <svg class="ic"><use href="#i-git"></use></svg><span>Worktree</span>
+    </button>
+    <button class="nav-row" id="hooks-open">
+      <svg class="ic"><use href="#i-list"></use></svg><span>Hooks</span>
+    </button>
+    <button class="nav-row" id="open-settings">
+      <svg class="ic"><use href="#i-gear"></use></svg><span>Settings</span>
+    </button>
+  </footer>
+</aside>
+
+<main>
+  <header id="bar">
+    <div id="session-title">No session</div>
+    <span id="session-meta" class="meta"></span>
+    <div class="spacer"></div>
+    <!-- Two buttons, and each one does the whole thing: opens the microphone
+         and starts listening, or ends the call. Nothing else to set up, because
+         a control you have to configure before you can speak is a control you
+         use once.
+
+         They are here rather than in the rail because a call is not a place.
+         You are still in the conversation — you can read what it said when the
+         call stops — and pressing Talk again puts you back exactly where you
+         were. That is the same guarantee the seven-mode version gave by making
+         them modes, without the cost of five extra places to be. -->
+    <button id="talk-button" class="talk-button" title="Talk to it instead (opens the microphone)">
+      <svg class="ic"><use href="#i-wave"></use></svg><span>Talk</span>
+    </button>
+    <!-- Speech to speech, one model, no transcript in the middle. Latency and
+         prosody, paid for with choice: it is one vendor's model, it cannot run
+         on your own hardware, and everything said in the room goes to them
+         while it is open. Ordinary Talk routes dictation, thinking and speech
+         separately, so each of those can stay on your machine. -->
+    <button id="live-button" class="talk-button live-button" title="Speech to speech — one vendor's model, and they hear the room">
+      <svg class="ic"><use href="#i-bolt"></use></svg><span>Live</span>
+    </button>
+    <span id="diffstat" class="diffstat" hidden></span>
+    <!-- Commit, from the project you are in. The bar only appears in a
+         working root that is a git repository with something in it, and the
+         AI button writes a message you can edit rather than one it sends —
+         see commit.js for why those are two buttons. -->
+    <span id="commit-slot" hidden>
+      <button id="commit-open" class="chip flat" title="Commit the work in this project">
+        <svg class="ic"><use href="#i-git"></use></svg><span id="commit-count">0 changed</span>
+      </button>
+    </span>
+    <button id="rewind" class="icon" hidden title="Undo the agent's file changes">
+      <svg class="ic"><use href="#i-undo"></use></svg>
+    </button>
+    <span id="link" class="pill off">offline</span>
+  </header>
+
+  <!-- A hook from this project wants to run. A strip, not a dialog: it must
+       not cover the turn that is running, and a question nobody is asked is a
+       policy nobody agreed to. -->
+  <div id="hooks-banner" class="hooks-banner" hidden aria-live="polite"></div>
+
+  <div id="transcript" role="log" aria-live="polite">
+    <!-- What an empty session looks like: the companion, a question, and the
+         composer under it. Removed the moment there is anything to read. -->
+    <div id="hero" hidden>
+      <div id="hero-pet"></div>
+      <h2 id="hero-ask">What would you like to work on?</h2>
+      <p id="hero-sub" class="meta"></p>
+      <div class="workspace-starters" aria-label="Start a task">
+        <button type="button" class="workspace-starter" data-start="Explore this project, explain how it works, and help me build ">
+          <svg class="ic"><use href="#i-code"></use></svg><strong>Build something</strong><span>Code, fix, test and review</span>
+        </button>
+        <button type="button" class="workspace-starter" data-start="Search the web and compare sources for ">
+          <svg class="ic"><use href="#i-browser"></use></svg><strong>Research the web</strong><span>Browse and find answers</span>
+        </button>
+        <button type="button" class="workspace-starter" data-start="Help me work on my computer. First inspect the screen, then ">
+          <svg class="ic"><use href="#i-list"></use></svg><strong>Work in my apps</strong><span>Desktop tasks and creative tools</span>
+        </button>
+        <button type="button" class="workspace-starter" id="start-studio">
+          <svg class="ic"><use href="#i-wand"></use></svg><strong>Create an image or video</strong><span>Generate or build a ComfyUI graph</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zero height, so the companion floats over the bottom of the transcript
+       rather than taking a strip of it. -->
+  <div id="perch-rail"><div id="perch"></div></div>
+
+  <div id="voice-strip" hidden>
+    <div id="voice-pet" class="mini"></div>
+    <span id="voice-state">listening</span>
+    <span id="voice-partial"></span>
+    <div class="spacer"></div>
+    <button id="voice-interrupt" class="ghost small">Interrupt</button>
+    <button id="voice-mute" class="ghost small">Mute</button>
+  </div>
+
+  <form id="composer">
+    <!-- What stays in view while the transcript scrolls: where the agent is in
+         its to-do list, and anything it has left running. Both hidden until
+         there is something in them. -->
+    <div id="todo-panel" hidden>
+      <button id="todo-head" type="button" aria-expanded="true" aria-controls="todo-list">
+        <span id="todo-title">To-do</span><span id="todo-count" class="meta"></span><span class="chev">›</span>
+      </button>
+      <ol id="todo-list" class="todos"></ol>
+    </div>
+    <div id="tasks-strip" aria-label="Running in the background" hidden></div>
+
+    <div id="field">
+      <ul id="slash" role="listbox" aria-label="Commands and skills" hidden></ul>
+      <ul id="files" role="listbox" aria-label="Files to mention" hidden></ul>
+      <!-- Pictures pasted or dropped into the composer, with a way to take each
+           one back out. Hidden when empty, which is most of the time. -->
+      <div id="attachments" aria-label="Attached pictures" hidden></div>
+      <textarea id="input" rows="1" placeholder="Ask it to do something, or / for commands and skills…  (Enter to send, Shift+Enter for a newline)" disabled></textarea>
+      <div id="controls">
+        <!-- The buddy, at thumbnail size, saying what it is doing in words.
+             Same state as the perch, close enough to the caret to catch. -->
+        <span id="buddy" class="chip flat" title="what it is doing right now">
+          <span id="buddy-pet" class="mini"></span>
+          <span id="buddy-state" aria-live="polite">ready</span>
+        </span>
+        <label id="mode-wrap" class="chip" hidden>
+          <svg class="ic"><use href="#i-shield"></use></svg>
+          <select id="mode">
+            <option value="read_only">read only</option>
+            <option value="plan">plan first</option>
+            <option value="ask">ask first</option>
+            <option value="auto_edit">auto edit</option>
+            <option value="trusted">trusted</option>
+            <option value="unrestricted">unrestricted</option>
+          </select>
+        </label>
+        <div class="spacer"></div>
+        <span id="model-chip" class="chip flat" hidden></span>
+        <button id="attach" type="button" class="icon" title="Attach a picture (or just paste one)">
+          <svg class="ic"><use href="#i-clip"></use></svg>
+        </button>
+        <button id="voice-toggle" type="button" class="icon" disabled title="Start voice">
+          <svg class="ic"><use href="#i-mic"></use></svg>
+        </button>
+        <button id="send" type="submit" class="round" disabled title="Send">
+          <svg class="ic"><use href="#i-send"></use></svg>
+        </button>
+        <button id="stop" type="button" class="round danger" hidden title="Stop">
+          <span class="square"></span>
+        </button>
+      </div>
+    </div>
+
+    <div id="context-row">
+      <span id="root-chip" class="chip flat" hidden>
+        <svg class="ic"><use href="#i-folder"></use></svg><span></span>
+      </span>
+      <span id="provider-chip" class="chip flat" hidden></span>
+      <div class="spacer"></div>
+      <!-- How full the context is, and how far from being summarised. The
+           number is exact; the bar only appears when there is a denominator
+           to draw it against, because a bar at 40% on a model that will
+           refuse the request is worse than no bar. Clicking it is the same
+           as typing /compact, which is what somebody looking at 92% wants. -->
+      <button id="context-meter" class="context-meter" hidden
+              title="How full the conversation is. Click to compact it.">
+        <span class="ctx-bar"><span id="context-fill"></span></span>
+        <span id="context-text"></span>
+      </button>
+    </div>
+  </form>
+
+  <div id="starters" hidden></div>
+
+  <!-- ------------------------------------------------------ call surface -->
+  <!-- Not a mode. A call is a state of Chat, entered by the button in the bar,
+       and this is where it puts you while you are in it.
+
+       "Nothing to type into" is still the rule, and it is now a structural one
+       rather than a promise: the composer and the transcript are given back
+       rather than covered, so there is nothing left on screen to type into. A
+       "just talk to it" surface with a text box on it is a text box. -->
+  <section id="call-surface" class="call-surface" hidden>
+  <section id="call-talk" class="call-stage">
+    <div class="talk-stage">
+      <div id="talk-pet" class="talk-pet"></div>
+      <button id="talk-orb" class="orb" aria-live="polite">
+        <span class="orb-ring"></span>
+        <span id="talk-label">Start talking</span>
+      </button>
+      <p id="talk-state" class="meta">The microphone is off.</p>
+      <p id="talk-heard" class="talk-heard"></p>
+    </div>
+    <div id="talk-log" class="talk-log" role="log" aria-live="polite"></div>
+    <div class="talk-foot">
+      <label class="chip">
+        <input type="checkbox" id="talk-acts"> can act on the machine
+      </label>
+      <span id="talk-route" class="chip flat"></span>
+      <div class="spacer"></div>
+      <button id="talk-mute" class="ghost small" disabled>Mute</button>
+      <button id="talk-stop" class="ghost small" disabled>Stop talking</button>
+    </div>
+  </section>
+
+  <section id="call-live" class="call-stage" hidden>
+    <div class="talk-stage">
+      <div id="live-pet" class="talk-pet"></div>
+      <button id="live-orb" class="orb live" aria-live="polite">
+        <span class="orb-ring"></span>
+        <span id="live-label">Go live</span>
+      </button>
+      <p id="live-state" class="meta">OpenAI Realtime voice · speech to speech with a visible transcript.</p>
+      <p id="live-heard" class="talk-heard"></p>
+    </div>
+    <div id="live-log" class="talk-log" role="log" aria-live="polite"></div>
+    <div class="talk-foot">
+      <label class="chip">
+        <input type="checkbox" id="live-acts" checked> can act on the machine
+      </label>
+      <span id="live-model" class="chip flat"></span>
+      <div class="spacer"></div>
+      <button id="live-stop" class="ghost small" disabled>End</button>
+    </div>
+    <p class="explain warn live-note">
+      This one is OpenAI's, and only OpenAI's: it cannot run on your own hardware, and
+      everything said in the room goes to them for as long as it is open. The ordinary
+      Talk routes dictation, thinking and speech separately, so each of those can
+      stay on your machine. The same note is on the button, because a control
+      with a warning behind it is a warning nobody reads until after.
+    </p>
+  </section>
+  </section>
+
+  <!-- ----------------------------------------------------------- studio -->
+  <!-- Two columns: the form on the left, and everything that came out of it on
+       the right. The form is one scrolling column rather than a set of tabs
+       because the whole argument for this panel is that a backend's thirtieth
+       knob is *present* — and a knob on another tab is a knob nobody finds. -->
+  <section id="pane-studio" class="pane" hidden>
+    <div class="studio-workspace-bar">
+      <div class="studio-workspace-switch" role="group" aria-label="Studio workspace">
+        <button type="button" id="studio-simple" class="seg on" aria-pressed="true">Generate</button>
+        <button type="button" id="studio-graph" class="seg" aria-pressed="false">Advanced · ComfyUI</button>
+      </div>
+      <span class="meta">Images, video &amp; workflows</span>
+    </div>
+    <section id="comfy-workspace" hidden aria-label="ComfyUI graph editor">
+      <div class="comfy-toolbar">
+        <label class="chip">Connection <select id="comfy-provider" aria-label="ComfyUI connection"></select></label>
+        <button id="comfy-connect" class="ghost small" type="button">Open editor</button>
+        <button id="comfy-refresh" class="ghost small" type="button">Refresh connections</button>
+        <button id="comfy-settings" class="ghost small" type="button">Connections</button>
+        <a id="comfy-external" class="chip" target="_blank" rel="noopener noreferrer" hidden>Open in tab ↗</a>
+      </div>
+      <p id="comfy-status" class="explain" role="status"></p>
+      <details class="comfy-help"><summary>Nodes 2.0 &amp; workflow help</summary>
+        <p>This is your ComfyUI installation’s full editor: connect nodes, use custom nodes and subgraphs,
+          import and save workflows, and queue images or video. Enable Nodes 2.0 in the ComfyUI menu
+          on a frontend version that supports it. Update ComfyUI if that option is missing.</p>
+        <p>Workflows and outputs here are saved by ComfyUI. To reuse a graph in Generate,
+          export it in API format and use Import a workflow. If embedding is blocked by your server,
+          use Open in tab. The editor address must be reachable from this browser.</p>
+      </details>
+      <iframe id="comfy-frame" title="ComfyUI full node and graph editor" hidden
+        sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-popups allow-modals"
+        referrerpolicy="no-referrer" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+    </section>
+    <div class="studio" id="studio-generate">
+      <div class="studio-controls">
+      <form id="studio-form" class="studio-form">
+        <div class="studio-kind" role="group" aria-label="What to make">
+          <button type="button" class="seg on" data-kind="image">Image</button>
+          <button type="button" class="seg" data-kind="video">Video</button>
+          <!-- Music is a third kind and not a flag on video: a music model is
+               asked for a length in bars and returns a .wav, a video model is
+               asked for a resolution and returns an .mp4, and the two lists
+               have almost nothing in common. Offering the video models here
+               would be offering failures. -->
+          <button type="button" class="seg" data-kind="music">Music</button>
+        </div>
+        <label class="field">
+          <span>Prompt</span>
+          <textarea id="studio-prompt" rows="4" placeholder="What should it make?"></textarea>
+        </label>
+        <div class="studio-route">
+          <label class="chip">Provider <select id="studio-provider"></select></label>
+          <!-- A combo box, not a dropdown. On Replicate and fal the model worth
+               using is often the one published this week, and a closed list is
+               a list that cannot name it. -->
+          <label class="chip wide">Model
+            <input id="studio-model" list="studio-models" autocomplete="off" spellcheck="false"
+                   placeholder="pick one, or type any id">
+          </label>
+          <datalist id="studio-models"></datalist>
+        </div>
+        <p id="studio-model-note" class="why model-note"></p>
+        <div id="studio-params" class="studio-params"></div>
+        <button type="button" id="studio-advanced" class="ghost small" aria-expanded="false">
+          Everything else ›
+        </button>
+        <div id="studio-advanced-params" class="studio-params" hidden></div>
+        <div class="studio-go">
+          <button id="studio-make" class="primary" type="submit">Make it</button>
+          <span id="studio-status" class="meta"></span>
+        </div>
+      </form>
+
+        <!-- Editing, not generating. Separate from the form above on purpose:
+             an edit has a file and an operation and no prompt, and a panel
+             that asked for both would make the person type into a box that is
+             ignored. -->
+        <details id="studio-edit" class="studio-edit">
+          <summary>Edit something you already have</summary>
+          <p class="explain">
+            Trim, cut, join, pull frames out, change the speed, drop the sound or burn in
+            subtitles for a clip; crop, resize, rotate, flip, sharpen or convert for a picture.
+            Nothing is overwritten — every edit is a new file beside the original, with the
+            operation recorded so you can change one thing and run it again.
+          </p>
+          <div id="studio-edit-form" class="studio-edit-form"></div>
+          <p id="studio-edit-note" class="meta"></p>
+        </details>
+      </div>
+      <div class="studio-out">
+        <div class="studio-bar">
+          <div class="studio-filters" role="group" aria-label="Filter">
+            <button type="button" class="seg on" data-filter="">All</button>
+            <button type="button" class="seg" data-filter="image">Images</button>
+            <button type="button" class="seg" data-filter="video">Video</button>
+            <button type="button" class="seg" data-filter="music">Music</button>
+          </div>
+          <input id="studio-search" class="studio-search" placeholder="Search prompts" autocomplete="off">
+          <div class="spacer"></div>
+          <button type="button" id="studio-import" class="ghost small"
+                  title="A ComfyUI graph exported with Save (API format). The prompt, seed, size and sampler settings are found and turned into controls.">
+            Import a workflow
+          </button>
+          <input type="file" id="studio-workflow" accept="application/json,.json" hidden>
+        </div>
+
+        <!-- Everything in flight, with what each one honestly knows about its
+             own progress and a stop button that reaches the provider. -->
+        <div id="studio-jobs" class="studio-jobs" aria-live="polite" hidden></div>
+
+        <div id="studio-gallery" class="gallery"></div>
+        <button type="button" id="studio-more" class="ghost more" hidden>Older</button>
+      </div>
+    </div>
+
+    <!-- One result, large, with the whole recipe and a way to act on it. -->
+    <dialog id="shot-dialog" class="lightbox">
+      <div class="shot-stage" id="shot-stage"></div>
+      <div class="shot-side">
+        <header>
+          <span id="shot-count" class="meta"></span>
+          <div class="spacer"></div>
+          <button type="button" id="shot-prev" class="ghost tiny" title="Previous (←)">‹</button>
+          <button type="button" id="shot-next" class="ghost tiny" title="Next (→)">›</button>
+          <button type="button" id="shot-close" class="ghost tiny" title="Close (Esc)">✕</button>
+        </header>
+        <p id="shot-prompt" class="shot-prompt"></p>
+        <p id="shot-where" class="meta"></p>
+        <div id="shot-recipe" class="shot-recipe"></div>
+        <div class="shot-actions">
+          <button type="button" id="shot-reuse" class="primary">Use these settings</button>
+          <button type="button" id="shot-copy" class="ghost small">Copy prompt</button>
+          <button type="button" id="shot-download" class="ghost small">Download</button>
+          <button type="button" id="shot-delete" class="ghost small danger">Delete</button>
+        </div>
+      </div>
+    </dialog>
+  </section>
+
+</main>
+
+<dialog id="worktree-dialog">
+  <form method="dialog">
+    <h2>Worktrees</h2>
+    <p class="explain">
+      A second checkout of this repository, on its own branch, that a session works in — so a turn
+      cannot touch the tree you have open. The branch is there afterwards to merge, look at, or
+      throw away.
+    </p>
+    <div id="worktree-body" class="worktree-body"></div>
+    <p id="worktree-note" class="meta"></p>
+    <menu>
+      <input id="worktree-label" placeholder="name it, or leave blank" autocomplete="off">
+      <div class="spacer"></div>
+      <button type="submit" value="close" class="ghost" id="worktree-close">Close</button>
+      <button type="button" class="primary" id="worktree-make">New worktree</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="hooks-dialog">
+  <form method="dialog">
+    <h2>Hooks</h2>
+    <p class="explain">
+      Commands that run around a tool call. One that exits non-zero stops the call and its reason goes
+      back to the model — a hook can take things away and can never allow them, so a project can stop
+      you doing something without being able to do it for you.
+    </p>
+    <p class="explain">
+      Yours in <code>~/.omote/hooks.json</code> run as written. A project's are code you did not
+      write, so the first time one would fire you are asked, and the answer lasts for the session.
+    </p>
+    <div id="hooks-body" class="hooks-body"></div>
+    <menu>
+      <div class="spacer"></div>
+      <button type="submit" value="close" class="ghost" id="hooks-close">Close</button>
+    </menu>
+    <p id="hooks-foot" class="meta"></p>
+  </form>
+</dialog>
+
+<dialog id="review-dialog">
+  <form method="dialog">
+    <h2>Review this turn's changes</h2>
+    <p class="explain">
+      Each block is one change. Put back the ones you disagree with and leave the rest — the undo of
+      "the agent changed this and got it right" is not the undo of the turn.
+      Nothing is written until you press the button.
+    </p>
+    <div id="review-body" class="review-body"></div>
+    <p id="review-note" class="meta"></p>
+    <menu>
+      <button id="review-keep-all" type="button" class="ghost small">Keep everything</button>
+      <button id="review-drop-all" type="button" class="ghost small">Put everything back</button>
+      <div class="spacer"></div>
+      <button type="submit" value="close" class="ghost">Close</button>
+      <button id="review-apply" type="button" class="primary">Apply</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="commit-dialog">
+  <form method="dialog">
+    <h2>Commit</h2>
+    <p id="commit-root" class="meta"></p>
+    <div id="commit-files" class="commit-files" aria-label="What has changed"></div>
+    <label>Message
+      <textarea id="commit-message" rows="3" placeholder="What changed, and why — in the imperative, under 72 characters."></textarea>
+    </label>
+    <p id="commit-note" class="meta"></p>
+    <div class="commit-actions">
+      <!-- Two buttons, and the order is the argument: the model writes, a
+           person commits. "Write it for me" fills the box and stops; nothing
+           in this dialog reaches a commit without the message field being
+           read on the way. -->
+      <button id="commit-ai" type="button" class="ghost" title="Write a first draft from the staged diff. It does not commit.">
+        Write it for me
+      </button>
+      <button id="commit-stage-all" type="button" class="ghost small">Stage everything</button>
+      <div class="spacer"></div>
+      <button type="submit" value="cancel" class="ghost">Close</button>
+      <button id="commit-go" type="button" class="primary">Commit</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="new-dialog">
+  <form method="dialog">
+    <h2>New session</h2>
+    <label>Working root<input name="root" placeholder="leave blank for the server default"></label>
+    <label>Model<input name="model" placeholder="leave blank to use the first available"></label>
+    <label>Provider
+      <select name="provider"><option value="">first that can do chat</option></select>
+    </label>
+    <label>Tools
+      <select name="tools">
+        <option value="">everything it has</option>
+        <option value="files,shell,todo,web,agents,skills">code — files, commands, the web</option>
+        <option value="browser,web">the web — a real browser, search, research</option>
+        <option value="browser,desktop">the screen — browser and desktop control</option>
+        <option value="files,todo">files only — no commands, no network</option>
+        <option value="git">a repository — read the working tree, stage, commit</option>
+        <option value="mail">mail — read, search, draft and answer</option>
+        <option value="calendar">your week — what is on, and where there is room</option>
+        <option value="hr">leave — requests, decisions, and what your record says</option>
+        <option value="media">making things — images and video</option>
+        <option value="system,shell">the machine — install software, system settings</option>
+      </select>
+    </label>
+    <p class="explain">
+      A long tool list costs a small model accuracy: a 12B model given every tool failed a
+      five-step browser task that it finished in twenty-six seconds with only the browser
+      ones. Leave this alone on a large model.
+    </p>
+    <label>Approval
+      <select name="mode">
+        <option value="read_only">read only — nothing that changes anything</option>
+        <option value="plan">plan — it looks around, then shows you a plan before changing anything</option>
+        <option value="ask" selected>ask — reads run, everything else is confirmed</option>
+        <option value="auto_edit">auto edit — reads and file writes run</option>
+        <option value="trusted">trusted — commands run too</option>
+        <option value="unrestricted">unrestricted — nothing is asked</option>
+      </select>
+    </label>
+    <menu>
+      <button value="cancel" class="ghost">Cancel</button>
+      <button value="create" id="create-session">Create</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="rewind-dialog">
+  <h2>Rewind</h2>
+  <p class="explain">
+    Put files back to how they were before a turn. This undoes that turn and every
+    one after it — undoing one in the middle would leave a state that never existed.
+  </p>
+  <p class="explain warn">
+    Only the agent's own file edits are recorded. Anything a shell command wrote is
+    not covered, and cannot be: snapshotting the whole filesystem before every
+    command is not something anyone wants.
+  </p>
+  <ul id="rewind-list"></ul>
+  <menu>
+    <div class="spacer"></div>
+    <button id="rewind-close" class="ghost">Close</button>
+  </menu>
+</dialog>
+
+<dialog id="memory-dialog">
+  <h2>Memory</h2>
+  <p class="explain">
+    What Omote remembers about you between conversations. It is off until you turn
+    it on, everything stored is listed here, and you can remove any of it or all of it.
+  </p>
+
+  <label class="switch">
+    <input type="checkbox" id="mem-enabled">
+    <span>Remember things between conversations</span>
+  </label>
+  <label class="switch">
+    <input type="checkbox" id="mem-auto">
+    <span>Also pick things up automatically from what I say
+      <em>— otherwise only what you explicitly ask to be remembered is stored</em></span>
+  </label>
+
+  <div id="mem-count" class="explain"></div>
+  <p id="mem-provider" class="meta"></p>
+  <div class="memory-toolbar">
+    <button id="mem-export" class="ghost small">Export all</button>
+    <button id="mem-reembed" class="ghost small">Rebuild pending embeddings</button>
+    <button id="mem-connections" class="ghost small">Embedding connection</button>
+  </div>
+  <form id="mem-form" class="memory-form">
+    <label class="field"><span>Memory</span><textarea id="mem-text" required maxlength="20000" rows="3"
+      placeholder="A preference, project detail, or fact to remember"></textarea></label>
+    <div class="memory-toolbar">
+      <label class="field"><span>Kind</span><select id="mem-kind"></select></label>
+      <label class="field"><span>Project / subject (optional)</span><input id="mem-subject" maxlength="500" placeholder="e.g. omote"></label>
+    </div>
+    <button id="mem-save" type="submit">Add memory</button>
+    <button id="mem-cancel" type="button" class="ghost" hidden>Cancel edit</button>
+  </form>
+  <p id="mem-status" class="explain" role="status"></p>
+  <ul id="mem-list"></ul>
+  <button id="mem-more" class="ghost small" hidden>Load more</button>
+
+  <menu>
+    <button id="mem-wipe" class="danger">Forget everything</button>
+    <div class="spacer"></div>
+    <button id="mem-close" class="ghost">Close</button>
+  </menu>
+</dialog>
+
+<dialog id="settings-dialog">
+  <h2>Settings</h2>
+
+  <!-- Tabs rather than one long scroll: these are unrelated decisions that
+       happen to be settings, and a person opening this has come for exactly
+       one of them. The panels are `hidden` rather than styled away, so the
+       tab that is not showing is also not reachable by keyboard. -->
+  <div class="sec-head"><span>Theme</span></div>
+  <div class="theme-picker">
+    <div id="theme-row" class="theme-row" role="group" aria-label="Theme"></div>
+    <span id="theme-name" class="meta">Automatic</span>
+    <button id="theme-contrast" class="ghost small" type="button"
+            title="High contrast" aria-pressed="false">Contrast</button>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Settings">
+    <button class="tab" role="tab" id="tab-browser" aria-controls="panel-browser" aria-selected="true">
+      <svg class="ic"><use href="#i-browser"></use></svg><span>Browser</span>
+    </button>
+    <button class="tab" role="tab" id="tab-connections" aria-controls="panel-connections" aria-selected="false">
+      <svg class="ic"><use href="#i-plug"></use></svg><span>Connections</span>
+    </button>
+    <button class="tab" role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false">
+      <svg class="ic"><use href="#i-up"></use></svg><span>Updates</span>
+      <span id="update-dot" class="tab-dot" hidden title="a newer release exists"></span>
+    </button>
+  </div>
+
+  <section class="tab-panel" role="tabpanel" id="panel-updates" aria-labelledby="tab-updates" hidden>
+    <p class="explain">
+      Omote checks GitHub for a newer release and tells you. It never downloads or
+      installs anything on its own: downloading waits for you to press the button, and
+      installing waits for you to confirm, because a message that appears over work you are
+      doing is a message that gets dismissed without being read.
+    </p>
+    <p id="update-current" class="explain"></p>
+    <div id="update-state" class="update-state"></div>
+    <div id="update-notes" class="update-notes" hidden></div>
+    <p id="update-staged" class="explain" hidden></p>
+    <menu>
+      <button id="update-check" type="button" class="ghost">Check now</button>
+      <div class="spacer"></div>
+      <button id="update-dismiss" type="button" class="ghost small" hidden>Not now</button>
+      <button id="update-apply" type="button" class="primary" hidden>Download</button>
+    </menu>
+    <p id="update-progress-wrap" class="explain" hidden>
+      <span id="update-progress-bar" class="update-bar"><span id="update-progress-fill"></span></span>
+      <span id="update-progress-text"></span>
+    </p>
+    <p class="explain" id="update-foot">
+      A downloaded installer is checked against the SHA256 published in the same release before
+      it is offered to run. That is an integrity check, not a signature: it catches a truncated
+      download and a mirror serving last week's build, and it does not prove who published
+      anything.
+    </p>
+  </section>
+
+  <section class="tab-panel" role="tabpanel" id="panel-browser" aria-labelledby="tab-browser">
+    <p class="explain">
+      Which browser Omote drives — both when the agent browses and when it searches.
+      Chromium comes with the browser extra and is always the right version for it;
+      your own Chrome has the codecs Chromium lacks and looks like an ordinary visitor
+      to sites that check. Firefox and WebKit are different engines, not reskinned
+      Chromium.
+    </p>
+    <p class="explain">
+      Your profile and logins are per browser. Switching means signing in again in the
+      new one — once, by hand, which is the arrangement that keeps Omote from ever
+      needing a password.
+    </p>
+
+    <ul id="browser-list" class="conn-list"></ul>
+
+    <label class="field" id="browser-path-field" hidden>
+      <span>Path to the binary <em>— a Chromium-based build: Brave, ungoogled-chromium, a
+        distribution build</em></span>
+      <input id="browser-path" placeholder="/usr/bin/brave-browser" autocomplete="off">
+    </label>
+
+    <p id="browser-state" class="explain"></p>
+
+    <menu>
+      <button id="browser-reset" class="ghost">Use the default</button>
+      <div class="spacer"></div>
+      <span id="browser-status" class="meta"></span>
+    </menu>
+  </section>
+
+  <section class="tab-panel" role="tabpanel" id="panel-connections" aria-labelledby="tab-connections" hidden>
+    <p class="explain">
+      What answers each kind of request. Chat and embedding are chosen separately on
+      purpose: the model you think with and the model you remember with are different
+      decisions, and they send different things to different places.
+    </p>
+
+    <div id="conn-routes" class="conn-routes"></div>
+
+    <div class="sec-head"><span>Connected</span></div>
+    <ul id="conn-list" class="conn-list"></ul>
+
+    <div class="sec-head"><span>Add</span></div>
+    <form id="conn-add" class="conn-add">
+      <label class="field">
+        <span>Service</span>
+        <select id="conn-host"></select>
+      </label>
+      <p id="conn-note" class="explain"></p>
+      <label class="field">
+        <span>Address</span>
+        <input id="conn-url" placeholder="https://…">
+      </label>
+      <label class="field" id="conn-editor-field" hidden>
+        <span>ComfyUI editor address <em>— optional, if different from the API address</em></span>
+        <input id="conn-editor-url" type="url" placeholder="http://localhost:8188">
+      </label>
+      <label class="field">
+        <span>Key <em>— kept in a file on this machine, never sent back to this page</em></span>
+        <input id="conn-key" type="password" autocomplete="off" placeholder="leave blank if it needs none">
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="conn-local">
+        <span>This runs on hardware I control
+          <em>— decides whether "local only" will accept it</em></span>
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="conn-tor">
+        <span>Reach it through Tor
+          <em id="conn-tor-note">— checked before saving; if the proxy is not there, this is refused
+          rather than saved and quietly ignored</em></span>
+      </label>
+      <menu>
+        <span id="conn-status" class="meta"></span>
+        <div class="spacer"></div>
+        <button type="submit" class="primary">Connect</button>
+      </menu>
+    </form>
+  </section>
+
+  <menu>
+    <div class="spacer"></div>
+    <button id="settings-close" class="ghost">Close</button>
+  </menu>
+</dialog>
+
+<script src="/static/app.js" type="module"></script>
+<script src="/static/native.js" type="module"></script>
+</body>
+</html>

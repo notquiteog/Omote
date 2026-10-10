@@ -19,11 +19,11 @@ from __future__ import annotations
 import pytest
 from starlette.testclient import TestClient
 
-from openmirror.agent.manager import manager
-from openmirror.config import config
-from openmirror.routers.auth import TokenMiddleware
-from openmirror.routers.history import router
-from openmirror.sessions import SessionStore, Stored
+from omote.agent.manager import manager
+from omote.config import config
+from omote.routers.auth import TokenMiddleware
+from omote.routers.history import router
+from omote.sessions import SessionStore, Stored
 
 TOKEN = 'test-token-7c41be'
 
@@ -125,7 +125,7 @@ def test_searching_when_there_is_nowhere_to_search_is_empty(client, monkeypatch)
     """A store that could not be built is a 200 with nothing in it, not a 500.
     The sidebar asks on every keystroke and it has nothing to show either way."""
     monkeypatch.setattr(manager, '_store', None)
-    monkeypatch.setattr('openmirror.agent.runtime._STORE', None)
+    monkeypatch.setattr('omote.agent.runtime._STORE', None)
     got = client.get('/api/sessions/search', params={'q': 'anything'})
     assert got.status_code == 200
     assert got.json() == {'results': [], 'count': 0}

@@ -1,7 +1,7 @@
 [package]
-name = "openmirror-desktop"
+name = "omote-desktop"
 version = "0.7.0"
-description = "Desktop app for openmirror, an open-source digital twin"
+description = "Desktop app for Omote, an open-source digital twin"
 edition = "2021"
 rust-version = "1.77.2"
 

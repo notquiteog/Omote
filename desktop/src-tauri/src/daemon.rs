@@ -13,10 +13,10 @@ use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-/// The daemon's own default, from `openmirror/config.py`.
+/// The daemon's own default, from `omote/config.py`.
 pub const DEFAULT_PORT: u16 = 8477;
 
-/// `~/.openmirror`: where the daemon already keeps its browser profile, and
+/// `~/.omote`: where the daemon already keeps its browser profile, and
 /// where a daemon this app starts keeps everything else. Not the directory
 /// the app was launched from, which is where the daemon's own defaults point
 /// — and from a Dock or a Start menu that is `/` or the install directory.
@@ -29,7 +29,7 @@ pub struct Home {
 
 impl Home {
     pub fn new(user: PathBuf) -> Self {
-        let root = user.join(".openmirror");
+        let root = user.join(".omote");
         Self { user, root }
     }
 
@@ -51,7 +51,7 @@ pub struct Settings {
 impl Settings {
     pub fn load(home: &Home) -> Self {
         // Relative to where the daemon runs, which is the home directory.
-        let env_file = match std::env::var_os("OPENMIRROR_ENV") {
+        let env_file = match std::env::var_os("OMOTE_ENV") {
             Some(path) if !path.is_empty() => home.user.join(path),
             _ => home.root.join(".env"),
         };
@@ -67,13 +67,13 @@ impl Settings {
     }
 
     pub fn port(&self) -> u16 {
-        self.get("OPENMIRROR_PORT")
+        self.get("OMOTE_PORT")
             .and_then(|port| port.trim().parse().ok())
             .unwrap_or(DEFAULT_PORT)
     }
 }
 
-/// `KEY=value` lines, as `openmirror/config.py` reads them: `#` comments, an
+/// `KEY=value` lines, as `omote/config.py` reads them: `#` comments, an
 /// optional `export `, optional matching quotes, and the first of a repeated
 /// key winning — the daemon only ever sets a key that is not set yet.
 pub fn parse_env(text: &str) -> HashMap<String, String> {
@@ -102,9 +102,9 @@ pub fn parse_env(text: &str) -> HashMap<String, String> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Probe {
     Nothing,
-    /// An openmirror daemon that has finished starting: it only listens once
+    /// An omote daemon that has finished starting: it only listens once
     /// start-up is done, so answering at all means ready.
-    Openmirror,
+    Omote,
     /// Something else, or something that would not say what it is.
     Other(String),
 }
@@ -134,7 +134,7 @@ pub fn probe(port: u16) -> Probe {
     classify(&String::from_utf8_lossy(&response))
 }
 
-/// Whether a response to `GET /healthz` came from openmirror.
+/// Whether a response to `GET /healthz` came from omote.
 pub fn classify(response: &str) -> Probe {
     let status = response.lines().next().unwrap_or("").trim();
     if !status.starts_with("HTTP/") {
@@ -145,9 +145,9 @@ pub fn classify(response: &str) -> Probe {
         });
     }
     let ok = status.split_whitespace().nth(1) == Some("200");
-    let ours = response.contains("\"service\":\"openmirror\"") || response.contains("\"service\": \"openmirror\"");
+    let ours = response.contains("\"service\":\"omote\"") || response.contains("\"service\": \"omote\"");
     if ok && ours {
-        Probe::Openmirror
+        Probe::Omote
     } else {
         Probe::Other(format!("it answered /healthz with \"{status}\""))
     }
@@ -156,7 +156,7 @@ pub fn classify(response: &str) -> Probe {
 /// A daemon this app started, and the pipe it watches.
 pub struct Daemon {
     child: Child,
-    /// Never written to. The daemon runs with OPENMIRROR_EXIT_WITH_STDIN and
+    /// Never written to. The daemon runs with OMOTE_EXIT_WITH_STDIN and
     /// shuts itself down when this closes — which happens however this app
     /// ends, crash and kill included, because the operating system closes it.
     lifeline: Option<ChildStdin>,
@@ -180,16 +180,16 @@ impl Daemon {
             let mut cmd = Command::new(&program);
             cmd.args(&args)
                 .current_dir(&home.user)
-                .env("OPENMIRROR_EXIT_WITH_STDIN", "1")
+                .env("OMOTE_EXIT_WITH_STDIN", "1")
                 // Always the file the port was read from. The daemon's own
                 // default is a .env in its working directory — here the home
                 // directory, where a .env belongs to whatever else put it there.
-                .env("OPENMIRROR_ENV", &settings.env_file)
+                .env("OMOTE_ENV", &settings.env_file)
                 .stdin(Stdio::piped())
                 .stdout(clone()?)
                 .stderr(clone()?);
-            if settings.get("OPENMIRROR_DATA_DIR").is_none() {
-                cmd.env("OPENMIRROR_DATA_DIR", home.root.join("data"));
+            if settings.get("OMOTE_DATA_DIR").is_none() {
+                cmd.env("OMOTE_DATA_DIR", home.root.join("data"));
             }
             if let Some(path) = &path {
                 cmd.env("PATH", path);
@@ -246,17 +246,17 @@ fn candidates() -> Vec<(PathBuf, Vec<String>)> {
     // The one this release ships with. Tauri puts a sidecar beside the app's
     // own executable on every platform, the AppImage included, and it is the
     // daemon that matches this app's version.
-    let sidecar = if cfg!(windows) { "openmirror-daemon.exe" } else { "openmirror-daemon" };
+    let sidecar = if cfg!(windows) { "omote-daemon.exe" } else { "omote-daemon" };
     if let Some(dir) = std::env::current_exe().ok().and_then(|exe| exe.parent().map(Path::to_path_buf)) {
         if dir.join(sidecar).is_file() {
             found.push((dir.join(sidecar), vec![]));
         }
     }
-    // Then an installed `openmirror`, or a source checkout: what a build with
+    // Then an installed `omote`, or a source checkout: what a build with
     // no sidecar, like `cargo run`, has to go on.
-    found.push((PathBuf::from("openmirror"), vec![]));
-    let python = std::env::var("OPENMIRROR_PYTHON").unwrap_or_else(|_| "python3".into());
-    found.push((PathBuf::from(python), vec!["-m".into(), "openmirror.main".into()]));
+    found.push((PathBuf::from("omote"), vec![]));
+    let python = std::env::var("OMOTE_PYTHON").unwrap_or_else(|_| "python3".into());
+    found.push((PathBuf::from(python), vec!["-m".into(), "omote.main".into()]));
     found
 }
 
@@ -345,7 +345,7 @@ fn login_path() -> (Option<String>, Option<String>) {
 }
 
 #[cfg(any(target_os = "macos", test))]
-const MARK: &str = "__OPENMIRROR_PATH__";
+const MARK: &str = "__OMOTE_PATH__";
 
 /// The PATH an interactive login shell ends up with. Marked, because an
 /// interactive shell may print a banner of its own around it.
@@ -404,28 +404,28 @@ mod tests {
     fn env_files_are_read_the_way_the_daemon_reads_them() {
         let found = parse_env(
             "# a comment\n\
-             OPENMIRROR_PORT=8500\n\
-             export OPENMIRROR_DATA_DIR = \"/srv/openmirror\"\n\
+             OMOTE_PORT=8500\n\
+             export OMOTE_DATA_DIR = \"/srv/omote\"\n\
              QUOTED='single'\n\
              not a setting\n\
-             OPENMIRROR_PORT=9999\n\
+             OMOTE_PORT=9999\n\
              EMPTY=\n",
         );
-        assert_eq!(found["OPENMIRROR_PORT"], "8500", "the first of a repeated key wins");
-        assert_eq!(found["OPENMIRROR_DATA_DIR"], "/srv/openmirror");
+        assert_eq!(found["OMOTE_PORT"], "8500", "the first of a repeated key wins");
+        assert_eq!(found["OMOTE_DATA_DIR"], "/srv/omote");
         assert_eq!(found["QUOTED"], "single");
         assert_eq!(found["EMPTY"], "");
         assert_eq!(found.len(), 4);
     }
 
     #[test]
-    fn healthz_from_openmirror_is_told_apart_from_anything_else() {
-        let ours = "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n{\"ok\":true,\"service\":\"openmirror\",\"providers\":[]}";
-        assert_eq!(classify(ours), Probe::Openmirror);
+    fn healthz_from_omote_is_told_apart_from_anything_else() {
+        let ours = "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n{\"ok\":true,\"service\":\"omote\",\"providers\":[]}";
+        assert_eq!(classify(ours), Probe::Omote);
 
         let theirs = "HTTP/1.1 200 OK\r\n\r\n{\"ok\":true,\"service\":\"something-else\"}";
         assert!(matches!(classify(theirs), Probe::Other(_)));
-        let missing = "HTTP/1.1 404 Not Found\r\n\r\n{\"service\":\"openmirror\"}";
+        let missing = "HTTP/1.1 404 Not Found\r\n\r\n{\"service\":\"omote\"}";
         assert!(matches!(classify(missing), Probe::Other(_)));
         assert!(matches!(classify(""), Probe::Other(_)));
         assert!(matches!(classify("SSH-2.0-OpenSSH_9.6\r\n"), Probe::Other(_)));
@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn a_log_keeps_the_previous_run() {
-        let dir = std::env::temp_dir().join(format!("openmirror-log-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("omote-log-test-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("daemon.log");
         writeln!(open_log(&path).unwrap(), "first run").unwrap();

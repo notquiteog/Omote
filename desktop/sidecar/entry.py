@@ -1,8 +1,8 @@
 """The daemon, as the desktop app carries it.
 
-PyInstaller freezes this rather than `openmirror.main` directly because it needs
+PyInstaller freezes this rather than `omote.main` directly because it needs
 a script, not a module, to start from. It is the same `main()` that the
-`openmirror` command runs, with one thing put right first.
+`omote` command runs, with one thing put right first.
 """
 
 import os
@@ -22,7 +22,7 @@ if getattr(sys, 'frozen', False) and sys.platform.startswith('linux'):
     else:
         os.environ['LD_LIBRARY_PATH'] = original
 
-from openmirror.main import main  # noqa: E402 - after the environment is put right
+from omote.main import main  # noqa: E402 - after the environment is put right
 
 if __name__ == '__main__':
     main()

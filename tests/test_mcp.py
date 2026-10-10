@@ -15,11 +15,11 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent.tools.base import ToolContext
-from openmirror.agent.tools.mcp import mcp_tools, qualified_name
-from openmirror.mcp.client import MCPError, StdioServer
-from openmirror.mcp.manager import MCPManager, ServerConfig, load_config
-from openmirror.protocol.agent import Risk
+from omote.agent.tools.base import ToolContext
+from omote.agent.tools.mcp import mcp_tools, qualified_name
+from omote.mcp.client import MCPError, StdioServer
+from omote.mcp.manager import MCPManager, ServerConfig, load_config
+from omote.protocol.agent import Risk
 
 SERVER = Path(__file__).parent / 'fixtures' / 'mcp_server.py'
 
@@ -307,7 +307,7 @@ async def test_a_server_with_no_resources_is_never_asked(tmp_path):
     """A tools-only server answers `resources/list` with "no method". Asking it
     anyway would log an error on every start-up for a server that is working
     perfectly."""
-    from openmirror.mcp.client import MCPUnsupported
+    from omote.mcp.client import MCPUnsupported
 
     server = StdioServer('test', sys.executable, [str(SERVER)])
     try:
@@ -366,7 +366,7 @@ def test_the_transport_is_inferred_from_the_url():
     """A URL ending in /sse is the older transport. Every SSE server uses that
     path, and making people declare it in a file they copied from somewhere else
     is a way to be told the server is broken."""
-    from openmirror.mcp.manager import build_server
+    from omote.mcp.manager import build_server
 
     assert ServerConfig(name='a', command='x').resolved_transport() == 'stdio'
     assert ServerConfig(name='a', url='https://x/mcp').resolved_transport() == 'http'
@@ -399,7 +399,7 @@ def test_a_remote_server_is_read_from_the_config_file(tmp_path):
 
 @pytest.mark.asyncio
 async def test_a_config_entry_with_neither_is_refused_at_build_time():
-    from openmirror.mcp.manager import build_server
+    from omote.mcp.manager import build_server
 
     with pytest.raises(MCPError):
         build_server(ServerConfig(name='empty'))

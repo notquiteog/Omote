@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 import struct
 
-from openmirror.voice.vad import Vad, VadConfig, VadEvent, rms_dbfs
+from omote.voice.vad import Vad, VadConfig, VadEvent, rms_dbfs
 
 
 def tone(ms: int, *, amplitude: float, rate: int = 16_000, freq: float = 220.0) -> bytes:

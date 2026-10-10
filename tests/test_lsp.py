@@ -21,13 +21,13 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent.approval import Mode
-from openmirror.agent.lsp import LspPool, ServerSpec, find_servers
-from openmirror.agent.runtime import build_session
-from openmirror.agent.tools.base import ToolContext, ToolError
-from openmirror.agent.tools.lsp import LspTool
-from openmirror.protocol.agent import Risk, ToolCompleted
-from openmirror.providers.base import StreamDone, StreamText, StreamToolUse
+from omote.agent.approval import Mode
+from omote.agent.lsp import LspPool, ServerSpec, find_servers
+from omote.agent.runtime import build_session
+from omote.agent.tools.base import ToolContext, ToolError
+from omote.agent.tools.lsp import LspTool
+from omote.protocol.agent import Risk, ToolCompleted
+from omote.providers.base import StreamDone, StreamText, StreamToolUse
 from tests.test_agent import ScriptedProvider, turn
 
 FAKE = Path(__file__).parent / 'fixtures' / 'lsp_server.py'
@@ -175,7 +175,7 @@ def test_a_rustup_proxy_with_nothing_behind_it_is_not_a_server(tmp_path: Path, m
     """rustup links a proxy for every tool it knows about, installed or not.
     Found on the machine this was written on: `rust-analyzer` was on PATH
     and had never been installed, so the tool was offered and failed."""
-    from openmirror.agent import lsp as lsp_mod
+    from omote.agent import lsp as lsp_mod
 
     rustup = tmp_path / 'rustup'
     rustup.write_text('#!/bin/sh\necho "error: unknown binary" >&2\nexit 1\n')

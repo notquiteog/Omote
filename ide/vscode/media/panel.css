@@ -18,7 +18,7 @@
  *   --vscode-editor-background      the ground, so the panel matches the editor
  *   --vscode-editorWidget-background the menus, so they match everything else
  *
- * The shapes are the ones `openmirror/static/` uses, at a size that fits 300px.
+ * The shapes are the ones `omote/static/` uses, at a size that fits 300px.
  * No animation anywhere is longer than 150ms, and the one animation there is
  * gone entirely under `prefers-reduced-motion`.
  */

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from openmirror.providers.control_tokens import strip_control_tokens
+from omote.providers.control_tokens import strip_control_tokens
 
 
 @pytest.mark.parametrize(

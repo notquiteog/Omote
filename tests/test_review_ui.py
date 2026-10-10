@@ -28,7 +28,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-STATIC = ROOT / 'openmirror' / 'static'
+STATIC = ROOT / 'omote' / 'static'
 REVIEW = (STATIC / 'review.js').read_text()
 APP = (STATIC / 'app.js').read_text()
 INDEX = (STATIC / 'index.html').read_text()
@@ -113,7 +113,7 @@ def test_the_panel_is_told_which_session_it_describes():
     assert 'wireReview({ sessionId })' in APP
     assert 'export function wireReview({ sessionId })' in REVIEW
     assert 'sessionId: null' in REVIEW, 'and it is not read out of storage'
-    assert 'openmirror.session' not in REVIEW
+    assert 'omote.session' not in REVIEW
     # And it is a function, not a copied value: a copy goes stale the moment
     # the session changes, and a stale one is how a panel ends up describing
     # the session you just left. Same shape `wireTalk` takes.
@@ -233,16 +233,16 @@ def test_a_held_message_is_told_apart_from_a_started_one():
     assert 'Held — it runs when this turn finishes' in APP
     # And the server reports a held message as an empty turn id, which is the
     # only way the client can tell.
-    assert "if not turn_id:" in (ROOT / 'openmirror' / 'routers' / 'agent.py').read_text()
-    assert "'type': 'turn.queued'" in (ROOT / 'openmirror' / 'routers' / 'agent.py').read_text()
+    assert "if not turn_id:" in (ROOT / 'omote' / 'routers' / 'agent.py').read_text()
+    assert "'type': 'turn.queued'" in (ROOT / 'omote' / 'routers' / 'agent.py').read_text()
 
 
 def test_the_socket_does_not_report_an_error_for_a_busy_session_any_more():
     """It used to: "a turn is already running — interrupt it first". That is
     the error this feature removed."""
-    agent_router = (ROOT / 'openmirror' / 'routers' / 'agent.py').read_text()
+    agent_router = (ROOT / 'omote' / 'routers' / 'agent.py').read_text()
     assert 'a turn is already running' not in agent_router
-    session = (ROOT / 'openmirror' / 'agent' / 'session.py').read_text()
+    session = (ROOT / 'omote' / 'agent' / 'session.py').read_text()
     assert 'raise RuntimeError(\'a turn is already running' not in session
 
 

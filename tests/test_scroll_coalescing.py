@@ -34,7 +34,7 @@ from pathlib import Path
 
 import pytest
 
-APP = Path(__file__).resolve().parents[1] / 'openmirror' / 'static' / 'app.js'
+APP = Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'app.js'
 
 
 def node() -> str:

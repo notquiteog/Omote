@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import pytest
 
-from openmirror.providers.base import (
+from omote.providers.base import (
     ChatRequest,
     Message,
     NoProviderError,
@@ -128,7 +128,7 @@ def test_the_draft_routes_pass_no_ceiling():
     catch somebody adding `max_tokens` back with good intentions."""
     from pathlib import Path
 
-    root = Path(__file__).resolve().parents[1] / 'openmirror' / 'routers'
+    root = Path(__file__).resolve().parents[1] / 'omote' / 'routers'
     for name in ('git.py', 'mail.py'):
         text = (root / name).read_text()
         assert 'max_tokens=' not in text, f'{name} caps a one-shot request again'

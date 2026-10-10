@@ -16,10 +16,10 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent.tools.base import ToolContext, ToolError
-from openmirror.agent.tools.system import PackageInstallTool, PackageRemoveTool, _elevate
-from openmirror.protocol.agent import Risk
-from openmirror.system import (
+from omote.agent.tools.base import ToolContext, ToolError
+from omote.agent.tools.system import PackageInstallTool, PackageRemoveTool, _elevate
+from omote.protocol.agent import Risk
+from omote.system import (
     LINUX_MANAGERS,
     WINDOWS_MANAGERS,
     Platform,

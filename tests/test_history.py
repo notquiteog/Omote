@@ -1,10 +1,10 @@
 """Finding a conversation you can no longer remember having.
 
-`openmirror/sessions.py` writes one append-only JSONL transcript per session,
+`omote/sessions.py` writes one append-only JSONL transcript per session,
 which means everything said in this daemon is on disk and there was no way to go
 and look at it. Both other harnesses can. Somebody who remembers *that* they
-fixed the parser last Tuesday, in a session called `openmirror`, had to scroll
-a list of forty sessions called `openmirror` and open each one.
+fixed the parser last Tuesday, in a session called `omote`, had to scroll
+a list of forty sessions called `omote` and open each one.
 
 So the tests here are mostly about the two ways a search over files goes wrong
 that a search over a database does not. **A transcript is a file a running
@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.history import (
+from omote.history import (
     TAIL_BYTES,
     as_json,
     export_html,
@@ -31,7 +31,7 @@ from openmirror.history import (
     search_sessions,
     searchable_session_ids,
 )
-from openmirror.sessions import SessionStore, Stored, TranscriptError
+from omote.sessions import SessionStore, Stored, TranscriptError
 
 
 @pytest.fixture

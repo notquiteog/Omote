@@ -16,8 +16,8 @@ import sys
 
 import pytest
 
-from openmirror.agent import stage as stage_mod
-from openmirror.agent import win32
+from omote.agent import stage as stage_mod
+from omote.agent import win32
 
 
 def test_imports_everywhere():

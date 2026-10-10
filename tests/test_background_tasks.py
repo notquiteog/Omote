@@ -9,13 +9,13 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent.approval import Mode
-from openmirror.agent.runtime import build_session
-from openmirror.agent.tasks import TaskBoard
-from openmirror.agent.tools.base import ToolContext
-from openmirror.agent.tools.tasks import TasksTool
-from openmirror.protocol.agent import Risk, TaskUpdated, ToolCompleted
-from openmirror.providers.base import StreamDone, StreamText, StreamToolUse, TextBlock
+from omote.agent.approval import Mode
+from omote.agent.runtime import build_session
+from omote.agent.tasks import TaskBoard
+from omote.agent.tools.base import ToolContext
+from omote.agent.tools.tasks import TasksTool
+from omote.protocol.agent import Risk, TaskUpdated, ToolCompleted
+from omote.providers.base import StreamDone, StreamText, StreamToolUse, TextBlock
 from tests.test_agent import ScriptedProvider, turn
 
 posix = pytest.mark.skipif(sys.platform == 'win32', reason='process groups are a POSIX idea')
@@ -183,8 +183,8 @@ async def test_interrupting_a_turn_leaves_background_work_alone(tmp_path: Path):
 
 
 async def test_a_subagent_cannot_leave_anything_running(tmp_path: Path):
-    from openmirror.agent.tools.base import ToolError
-    from openmirror.agent.tools.shell import ShellTool
+    from omote.agent.tools.base import ToolError
+    from omote.agent.tools.shell import ShellTool
 
     no_board = ctx(tmp_path, None)
     with pytest.raises(ToolError, match='foreground'):

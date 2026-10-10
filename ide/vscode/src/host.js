@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * The extension's bridge to a running openmirror daemon.
+ * The extension's bridge to a running omote daemon.
  *
  * This file exists because of one rule, written down in `PROTOCOL.md`: the
  * extension host owns the socket, and the webview never sees the daemon's
@@ -12,7 +12,7 @@
  * be the one thing in this extension that undoes the confinement everything
  * else here is for.
  *
- * So this class is a pure client in the same sense `openmirror/tui.py` is: it
+ * So this class is a pure client in the same sense `omote/tui.py` is: it
  * starts no daemon, spawns no agent, and keeps no state that outlives the
  * panel. The daemon stays the only thing holding sessions, providers and tools.
  *
@@ -33,14 +33,14 @@
  *
  * What it deliberately does *not* do is translate the daemon's events. They
  * cross the bridge verbatim, as one `{t: 'event', event}` frame each. The
- * reasoning is in `PROTOCOL.md` and it holds up: `openmirror/static/app.js`
+ * reasoning is in `PROTOCOL.md` and it holds up: `omote/static/app.js`
  * already renders the whole union, and a third renderer in `media/` is the one
  * that stops being updated when an event is added. A new event shows up in the
  * panel as one line saying it is unknown, which is the correct behaviour and
  * not a silent disappearance.
  */
 
-/** The daemon's own defaults, from `openmirror/config.py`. */
+/** The daemon's own defaults, from `omote/config.py`. */
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 8477;
 
@@ -52,7 +52,7 @@ const OPEN = 1;
 /**
  * Close codes the daemon uses for "this will never work".
  *
- * Read out of `openmirror/routers/agent.py` rather than guessed:
+ * Read out of `omote/routers/agent.py` rather than guessed:
  * 4401 before `accept()` when the token does not match, and 4404 when the
  * named session is not live or cannot be created. 4400 is carried for parity
  * with `tui.py`'s `FATAL_CLOSE`; `/ws/agent` does not send it today (only
@@ -70,7 +70,7 @@ const FATAL_CLOSE = {
     + 'survive a restart, so start a new one or open a stored conversation.',
 };
 
-/** The approval modes `openmirror/agent/approval.py` defines.
+/** The approval modes `omote/agent/approval.py` defines.
  *
  *  The create endpoint answers with a *sentence* describing the mode while
  *  resume answers with the mode's own name, so the value has to be recognised
@@ -121,14 +121,14 @@ function resolveDaemon(settings, env) {
     }
     return fallback;
   };
-  const port = Number(pick('port', 'OPENMIRROR_PORT', DEFAULT_PORT));
+  const port = Number(pick('port', 'OMOTE_PORT', DEFAULT_PORT));
   return {
-    host: pick('host', 'OPENMIRROR_HOST', DEFAULT_HOST),
+    host: pick('host', 'OMOTE_HOST', DEFAULT_HOST),
     // A setting of "eight thousand" is not a port. Falling back beats starting
     // a request against `NaN`, which `fetch` rejects with a message nobody can
     // act on.
     port: Number.isFinite(port) && port > 0 ? Math.trunc(port) : DEFAULT_PORT,
-    token: pick('token', 'OPENMIRROR_TOKEN', ''),
+    token: pick('token', 'OMOTE_TOKEN', ''),
   };
 }
 
@@ -162,8 +162,8 @@ function defaultCreateSocket(url) {
 class Host {
   /**
    * @param {object} options
-   * @param {object} [options.settings]     the `openmirror.*` settings, as read
-   *   from `workspace.getConfiguration('openmirror')`. Missing keys are unset,
+   * @param {object} [options.settings]     the `omote.*` settings, as read
+   *   from `workspace.getConfiguration('omote')`. Missing keys are unset,
    *   which is what VS Code returns for a setting nobody has changed.
    * @param {object} [options.env]          defaults to `process.env`.
    * @param {function} [options.fetch]      defaults to the global `fetch`.
@@ -195,7 +195,7 @@ class Host {
     // `console.error` rather than a no-op: a silent host is how a reconnect
     // bug turns into a panel that quietly stops working. extension.js passes
     // the real output channel; this is the floor.
-    this._log = given.log || ((message) => console.error(`openmirror: ${message}`));
+    this._log = given.log || ((message) => console.error(`omote: ${message}`));
 
     this._root = given.root || '';
     this._defaults = {
@@ -351,7 +351,7 @@ class Host {
     }
     if (this._token) {
       headers.Authorization = `Bearer ${this._token}`;
-      headers['X-Openmirror-Token'] = this._token;
+      headers['X-Omote-Token'] = this._token;
     }
     return headers;
   }
@@ -839,9 +839,9 @@ class Host {
       // The HTTP guard's own words are 'that is not the token', which does not
       // say where to change it. `tui.py` says the same thing here, and both of
       // them are wrong in the same direction: the token lives in a setting.
-      this.status('failed', `${message} Set \`openmirror.token\`, or OPENMIRROR_TOKEN, to the daemon's token.`);
+      this.status('failed', `${message} Set \`omote.token\`, or OMOTE_TOKEN, to the daemon's token.`);
     } else if (error && (error.unreachable || error.timedOut)) {
-      this.status('failed', `${message} Start it with \`openmirror serve\`, then reopen the panel.`);
+      this.status('failed', `${message} Start it with \`omote serve\`, then reopen the panel.`);
     } else {
       this.notice(message, 'error');
     }

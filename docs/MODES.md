@@ -62,7 +62,7 @@ bar three hundred pixels away.
 Beside them are two buttons:
 
 **Talk** opens the microphone and starts listening. Press it again and the call
-ends. Barge-in works the way it does everywhere else in openmirror: talk over
+ends. Barge-in works the way it does everywhere else in Omote: talk over
 it and the synthesis is killed server-side, the client drops what it has
 buffered, and the history records only what you actually heard.
 
@@ -179,14 +179,14 @@ Studio or not.
 Deciding the music is the part worth delegating — a chord progression, a bass
 line that follows the harmony, a piece that turns before the end — and writing
 the file is the part that must not be. So the model arranges and
-`openmirror/music/midi.py` renders, in a hundred lines of standard library with
+`omote/music/midi.py` renders, in a hundred lines of standard library with
 a round-trip test, because a MIDI file nothing else can open is not a file.
 
 ### Bringing a ComfyUI workflow
 
 None ship, because a template names the checkpoints and custom nodes your
 ComfyUI has. Bringing yours is one command — see
-[openmirror/providers/workflows/README.md](../openmirror/providers/workflows/README.md).
+[omote/providers/workflows/README.md](../omote/providers/workflows/README.md).
 The prompt, seed, size and sampler settings are found and turned into
 controls, and what it found is reported back so you can see whether it worked.
 

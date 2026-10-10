@@ -1,6 +1,6 @@
 # Updates
 
-openmirror checks GitHub for a newer release and tells you. That is the whole
+Omote checks GitHub for a newer release and tells you. That is the whole
 feature, and the rest of this page is about why it stops there.
 
 ## What happens, in order
@@ -77,13 +77,13 @@ not a safety property.
 
 ## Privacy
 
-`OPENMIRROR_LOCAL_ONLY=true` stops the check entirely. A version check is a
+`OMOTE_LOCAL_ONLY=true` stops the check entirely. A version check is a
 request to a third party, and somebody who asked for no remote traffic did not
 ask for that either.
 
-`OPENMIRROR_UPDATE_CHECK=false` turns it off without that.
+`OMOTE_UPDATE_CHECK=false` turns it off without that.
 
-Tor is not used, and the reason is in `openmirror/update.py`: the update host
+Tor is not used, and the reason is in `omote/update.py`: the update host
 is a CDN-hosted release asset, and routing a version check through a proxy
 buys nothing.
 
@@ -91,9 +91,9 @@ buys nothing.
 
 | setting | default | does |
 |---|---|---|
-| `OPENMIRROR_UPDATE_CHECK` | `true` | may ask GitHub at all |
-| `OPENMIRROR_UPDATE_CHECK_ON_START` | `false` | asks at start-up rather than waiting to be asked |
-| `OPENMIRROR_UPDATE_DIR` | `data/updates` | where a downloaded installer waits |
+| `OMOTE_UPDATE_CHECK` | `true` | may ask GitHub at all |
+| `OMOTE_UPDATE_CHECK_ON_START` | `false` | asks at start-up rather than waiting to be asked |
+| `OMOTE_UPDATE_DIR` | `data/updates` | where a downloaded installer waits |
 
 The start-up check is off by default on purpose. A process that makes a
 network call nobody asked for, before anybody has seen the window, is the
@@ -110,7 +110,7 @@ that replaced itself; a source install is a `git pull`. The message says which
 you have and what to do about it:
 
 ```
-pip install --upgrade git+https://github.com/notquiteog/openmirror@v0.2.0
+pip install --upgrade git+https://github.com/notquiteog/Omote@v0.2.0
 ```
 
 ## The routes

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "openmirror",
-  "mainBinaryName": "openmirror-desktop",
-  "identifier": "dev.openmirror.desktop",
+  "productName": "Omote",
+  "mainBinaryName": "omote-desktop",
+  "identifier": "dev.omote.desktop",
   "build": {
     "frontendDist": "../ui"
   },
@@ -34,8 +34,8 @@
     ],
     "category": "DeveloperTool",
     "shortDescription": "An open-source digital twin",
-    "longDescription": "openmirror is an open-source digital twin: it runs on your machine with shell and file access, a real browser, desktop control, live voice, opt-in memory, and a choice of model provider for every kind of generation.",
-    "homepage": "https://github.com/notquiteog/openmirror",
+    "longDescription": "Omote is an open-source digital twin: it runs on your machine with shell and file access, a real browser, desktop control, live voice, opt-in memory, and a choice of model provider for every kind of generation.",
+    "homepage": "https://github.com/notquiteog/Omote",
     "license": "Apache-2.0",
     "macOS": {
       "entitlements": "Entitlements.plist",

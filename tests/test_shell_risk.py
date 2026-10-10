@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from openmirror.agent.tools.shell import classify
+from omote.agent.tools.shell import classify
 
 READS = [
     'ls -la', 'git status', 'git log --oneline -20', 'cat README.md | grep foo',
@@ -223,7 +223,7 @@ def test_the_reason_is_specific_enough_to_act_on():
     """The reason reaches the person being asked to approve. "This spends
     money" with nothing to distinguish three charges is a prompt that gets
     approved on reflex."""
-    from openmirror.agent.tools.shell import _spends_money
+    from omote.agent.tools.shell import _spends_money
 
     assert _spends_money('gcloud compute instances create box') == '`gcloud` bills for what it creates'
     assert _spends_money('curl https://checkout.stripe.com/pay/abc123') == 'a payment link'
@@ -245,7 +245,7 @@ def test_process_control_is_portable():
     """
     import sys
 
-    from openmirror.agent.tools.shell import WINDOWS, _spawn_kwargs
+    from omote.agent.tools.shell import WINDOWS, _spawn_kwargs
 
     kwargs = _spawn_kwargs()
     assert WINDOWS == (sys.platform == 'win32')
@@ -260,7 +260,7 @@ def test_no_posix_only_calls_outside_the_platform_guard():
     only inside the branch that is never taken there."""
     import inspect
 
-    from openmirror.agent.tools import shell
+    from omote.agent.tools import shell
 
     source = inspect.getsource(shell)
     for call in ('os.killpg', 'os.getpgid'):

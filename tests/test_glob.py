@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from openmirror.agent.tools.base import ToolContext
-from openmirror.agent.tools.search import GlobTool
+from omote.agent.tools.base import ToolContext
+from omote.agent.tools.search import GlobTool
 
 
 def ctx(root: Path) -> ToolContext:

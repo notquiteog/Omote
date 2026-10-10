@@ -1,6 +1,6 @@
 """The token has to actually stop something.
 
-`OPENMIRROR_TOKEN` guarded four websockets and every HTTP route. Around sixty
+`OMOTE_TOKEN` guarded four websockets and every HTTP route. Around sixty
 routes — the one that creates a session in whatever approval mode the body asks
 for, the one that starts an autopilot against a real screen, the one that wipes
 your memory, the one that spends money — were open to anything that could reach
@@ -26,8 +26,8 @@ import asyncio
 import pytest
 from starlette.testclient import TestClient
 
-from openmirror.config import config
-from openmirror.routers.auth import TokenMiddleware
+from omote.config import config
+from omote.routers.auth import TokenMiddleware
 
 TOKEN = 'test-token-3f8a2c'
 
@@ -44,7 +44,7 @@ def guarded(monkeypatch):
     """
     from fastapi import APIRouter, FastAPI
 
-    from openmirror.routers import auth as auth_router
+    from omote.routers import auth as auth_router
 
     monkeypatch.setattr(config, 'auth_token', TOKEN)
 
@@ -198,7 +198,7 @@ def test_a_bearer_header_opens_the_door(guarded):
 
 def test_the_dedicated_header_works_too(guarded):
     """curl, an editor, the desktop app — anything that can set a header."""
-    response = guarded.get('/api/memory', headers={'X-OpenMirror-Token': TOKEN})
+    response = guarded.get('/api/memory', headers={'X-Omote-Token': TOKEN})
     assert response.status_code == 200
 
 
@@ -213,7 +213,7 @@ def test_a_cookie_opens_the_door(guarded):
     """What the sign-in page sets, and what the whole web interface then rides
     on. If this did not work the app would be unusable, which is why the
     exemption for the shell and the login route is not optional."""
-    guarded.cookies.set('openmirror_token', TOKEN)
+    guarded.cookies.set('omote_token', TOKEN)
     try:
         assert guarded.get('/api/memory').status_code == 200
     finally:
@@ -289,7 +289,7 @@ def _real_routes():
     """
     from fastapi.routing import APIRoute, APIWebSocketRoute
 
-    from openmirror.main import app as real
+    from omote.main import app as real
 
     found: list[tuple[str, str]] = []
 
@@ -384,7 +384,7 @@ def test_a_real_destructive_route_is_refused_without_a_token(monkeypatch):
     """
     from starlette.testclient import TestClient
 
-    from openmirror.main import app as real
+    from omote.main import app as real
 
     monkeypatch.setattr(config, 'auth_token', TOKEN)
     client = TestClient(real)
@@ -405,7 +405,7 @@ def test_a_real_destructive_route_is_refused_without_a_token(monkeypatch):
 
 
 def test_a_real_websocket_is_refused_without_a_token(monkeypatch):
-    from openmirror.main import app as real
+    from omote.main import app as real
 
     monkeypatch.setattr(config, 'auth_token', TOKEN)
 
@@ -454,7 +454,7 @@ def test_the_login_route_is_reachable_without_a_token(guarded):
 
 def test_a_correct_sign_in_sets_a_cookie_guarded_cannot_read(guarded):
     response = guarded.post('/api/auth/session', json={'token': TOKEN})
-    cookie = response.cookies.get('openmirror_token')
+    cookie = response.cookies.get('omote_token')
     assert cookie == TOKEN
     raw = response.headers['set-cookie'].lower()
     assert 'httponly' in raw  # not readable from the page's JavaScript
@@ -464,11 +464,11 @@ def test_a_correct_sign_in_sets_a_cookie_guarded_cannot_read(guarded):
 def test_signing_in_with_the_wrong_token_sets_nothing(guarded):
     response = guarded.post('/api/auth/session', json={'token': 'nope'})
     assert response.status_code == 401
-    assert 'openmirror_token' not in response.cookies
+    assert 'omote_token' not in response.cookies
 
 
 def test_signing_out_clears_the_cookie(guarded):
     guarded.post('/api/auth/session', json={'token': TOKEN})
     response = guarded.delete('/api/auth/session')
     assert response.status_code == 200
-    assert 'openmirror_token=' in response.headers.get('set-cookie', '')
+    assert 'omote_token=' in response.headers.get('set-cookie', '')

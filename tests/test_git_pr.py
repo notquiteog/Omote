@@ -30,11 +30,11 @@ from typing import Any
 
 import pytest
 
-from openmirror.agent import git as core
-from openmirror.agent.approval import ApprovalPolicy, Decision, Mode
-from openmirror.agent.tools.base import ToolContext, ToolError
-from openmirror.agent.tools.git import ACTIONS, RISK, GitTool
-from openmirror.protocol.agent import Risk, ToolCall
+from omote.agent import git as core
+from omote.agent.approval import ApprovalPolicy, Decision, Mode
+from omote.agent.tools.base import ToolContext, ToolError
+from omote.agent.tools.git import ACTIONS, RISK, GitTool
+from omote.protocol.agent import Risk, ToolCall
 
 # Records argv, and the body on stdin, then answers. Written as a real file
 # with a real shebang rather than monkeypatching the subprocess layer, so that

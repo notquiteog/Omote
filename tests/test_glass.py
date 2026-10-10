@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-STATIC = Path(__file__).resolve().parents[1] / 'openmirror' / 'static'
+STATIC = Path(__file__).resolve().parents[1] / 'omote' / 'static'
 # Comments are stripped before anything is parsed. They are not whitespace in
 # this context: a selector regex that runs straight over the sheet captures
 # the comment sitting above the rule, so `sel == '.gate'` never matches and

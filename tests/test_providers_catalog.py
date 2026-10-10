@@ -12,10 +12,10 @@ import json
 
 import pytest
 
-from openmirror.providers import catalog, connections
-from openmirror.providers.base import Modality
-from openmirror.providers.connections import Connection, ConnectionStore
-from openmirror.providers.registry import can_serve, pick_model
+from omote.providers import catalog, connections
+from omote.providers.base import Modality
+from omote.providers.connections import Connection, ConnectionStore
+from omote.providers.registry import can_serve, pick_model
 
 # -- the catalogue ----------------------------------------------------------
 
@@ -138,8 +138,8 @@ def test_a_second_api_behind_the_same_key_gets_its_own_adapter():
     """OpenAI's video endpoint is not OpenAI-shaped chat, so the video slot on
     an OpenAI connection is Sora rather than the chat adapter with a different
     method called on it."""
-    from openmirror.providers.openai_compat import OpenAICompatProvider
-    from openmirror.providers.sora import SoraProvider
+    from omote.providers.openai_compat import OpenAICompatProvider
+    from omote.providers.sora import SoraProvider
 
     _, impls = connections.build(connections.from_host('openai'))
     assert isinstance(impls[Modality.CHAT], OpenAICompatProvider)
@@ -158,9 +158,9 @@ def test_voyage_is_embedding_only():
 def test_google_serves_media_from_a_different_adapter_than_embeddings():
     """One key, three request shapes: `:embedContent`, `:predict` and
     `:predictLongRunning` are not the same API and must not be one object."""
-    from openmirror.providers.google import GoogleProvider
-    from openmirror.providers.google_media import GoogleMediaProvider
-    from openmirror.providers.openai_compat import OpenAICompatProvider
+    from omote.providers.google import GoogleProvider
+    from omote.providers.google_media import GoogleMediaProvider
+    from omote.providers.openai_compat import OpenAICompatProvider
 
     _, impls = connections.build(connections.from_host('google'))
     # Chat too, which the catalogue always offered for this host and `build`
@@ -182,7 +182,7 @@ def test_google_serves_media_from_a_different_adapter_than_embeddings():
 def test_every_catalogued_media_host_actually_builds():
     """A preset that names an adapter with no implementation behind it is a
     connect button that fails after the key has been typed in."""
-    from openmirror.providers.catalog import HOSTS
+    from omote.providers.catalog import HOSTS
 
     for host in HOSTS:
         wanted = host.modalities & {Modality.IMAGE, Modality.VIDEO}
@@ -252,10 +252,10 @@ async def test_a_query_is_embedded_as_a_query(tmp_path):
     memory service is the only layer that knows which is happening."""
     import tempfile
 
-    from openmirror.memory.service import MemoryService
-    from openmirror.memory.store import MemoryStore
-    from openmirror.providers.base import ProviderInfo
-    from openmirror.providers.registry import ProviderRegistry, Route, RouteSet
+    from omote.memory.service import MemoryService
+    from omote.memory.store import MemoryStore
+    from omote.providers.base import ProviderInfo
+    from omote.providers.registry import ProviderRegistry, Route, RouteSet
 
     registry = ProviderRegistry()
     recorder = Recorder()
@@ -291,7 +291,7 @@ def test_capabilities_are_read_from_wherever_the_build_puts_them():
     """Builds disagree, and reading only one place is indistinguishable from
     the model declaring nothing — which `can_serve` treats as "assume it can",
     which is how an embedding model gets picked for chat."""
-    from openmirror.providers.ollama import _capabilities
+    from omote.providers.ollama import _capabilities
 
     assert _capabilities({'capabilities': ['embedding']}) == ['embedding']
     assert _capabilities({'details': {'capabilities': ['tools']}}) == ['tools']
@@ -307,7 +307,7 @@ async def test_a_model_the_listing_did_not_classify_is_asked_about(monkeypatch):
     """`/api/tags` officially carries no capability field at all. Where a build
     honours that, every model comes back unclassified and the fallback is the
     only thing standing between an embedding model and the chat route."""
-    from openmirror.providers.ollama import OllamaProvider
+    from omote.providers.ollama import OllamaProvider
 
     provider = OllamaProvider('http://example.invalid')
     asked: list[str] = []
@@ -379,7 +379,7 @@ async def _models_with(provider, fake_tags, real_models):
 async def test_asking_twice_only_costs_one_request(monkeypatch):
     """A picker opening is not a reason to re-ask about every model, and a
     server with no `/api/show` must not be asked forever."""
-    from openmirror.providers.ollama import OllamaProvider
+    from omote.providers.ollama import OllamaProvider
 
     provider = OllamaProvider('http://example.invalid')
     calls: list[str] = []
@@ -416,7 +416,7 @@ def test_seedance_is_reachable_without_being_typed_in():
         'Seedream is not offered on a fresh fal connection'
     )
 
-    from openmirror.providers.fal import KNOWN
+    from omote.providers.fal import KNOWN
 
     assert any('seedance' in ident for ident, _ in KNOWN['video'])
     assert any('seedream' in ident for ident, _ in KNOWN['image'])
@@ -459,7 +459,7 @@ def test_music_is_a_modality_somebody_actually_serves():
     ]
     assert serving, 'Modality.MUSIC exists and nothing serves it'
 
-    from openmirror.providers.connections import build, from_host
+    from omote.providers.connections import build, from_host
 
     for host_id in serving:
         _, impls = build(from_host(host_id, api_key='k'))

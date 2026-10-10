@@ -38,7 +38,7 @@ from pathlib import Path
 import pytest
 from aiohttp import web
 
-from openmirror.update import (
+from omote.update import (
     API,
     RELEASES_PER_PAGE,
     REPO,
@@ -55,11 +55,11 @@ from openmirror.update import (
 )
 
 ASSETS = [
-    Asset('openmirror_0.2.0_amd64.AppImage', 'u/appimage', 100),
-    Asset('openmirror_0.2.0_arm64.AppImage', 'u/appimage-arm', 150),
-    Asset('openmirror_0.2.0_x64-setup.exe', 'u/exe', 200),
-    Asset('openmirror_0.2.0_amd64.dmg', 'u/dmg', 300),
-    Asset('openmirror_0.2.0_aarch64.dmg', 'u/dmg-arm', 400),
+    Asset('omote_0.2.0_amd64.AppImage', 'u/appimage', 100),
+    Asset('omote_0.2.0_arm64.AppImage', 'u/appimage-arm', 150),
+    Asset('omote_0.2.0_x64-setup.exe', 'u/exe', 200),
+    Asset('omote_0.2.0_amd64.dmg', 'u/dmg', 300),
+    Asset('omote_0.2.0_aarch64.dmg', 'u/dmg-arm', 400),
     Asset('SHA256SUMS.txt', 'u/sums', 500),
 ]
 
@@ -151,10 +151,10 @@ def test_a_release_prefers_the_file_that_needs_no_package_manager():
     """An AppImage runs without root; a .deb does not. That is the whole of
     the preference order and it is a real difference for a person on a
     machine they do not administer."""
-    deb_only = [Asset('openmirror_0.2.0_amd64.deb', 'u/deb', 1)]
+    deb_only = [Asset('omote_0.2.0_amd64.deb', 'u/deb', 1)]
     assert pick_asset(deb_only, key='linux-x64').name.endswith('.deb')
-    both = [Asset('openmirror_0.2.0_amd64.deb', 'u/deb', 1),
-            Asset('openmirror_0.2.0_amd64.AppImage', 'u/ai', 2)]
+    both = [Asset('omote_0.2.0_amd64.deb', 'u/deb', 1),
+            Asset('omote_0.2.0_amd64.AppImage', 'u/ai', 2)]
     assert pick_asset(both, key='linux-x64').name.endswith('.AppImage')
 
 
@@ -170,7 +170,7 @@ def test_the_platform_name_is_what_tauri_calls_it():
 
 def raw(tag: str, **over):
     body = {
-        'tag_name': tag, 'name': f'openmirror {tag}', 'body': 'notes',
+        'tag_name': tag, 'name': f'omote {tag}', 'body': 'notes',
         'html_url': f'https://github.com/{REPO}/releases/tag/{tag}',
         'published_at': '2026-01-01T00:00:00Z', 'prerelease': False, 'assets': [],
     }
@@ -265,8 +265,8 @@ async def server():
 
 def asset_for(server: Server) -> Asset:
     return Asset(
-        'openmirror_0.2.0_amd64.AppImage',
-        f'http://127.0.0.1:{server.port}/d/openmirror_0.2.0_amd64.AppImage',
+        'omote_0.2.0_amd64.AppImage',
+        f'http://127.0.0.1:{server.port}/d/omote_0.2.0_amd64.AppImage',
         size=len(server.body),
     )
 
@@ -277,7 +277,7 @@ async def test_a_download_that_matches_its_checksum_is_staged(tmp_path: Path, se
     digest = hashlib.sha256(payload).hexdigest()
 
     held = Updates('0.1.0', tmp_path)
-    name = 'openmirror_0.2.0_amd64.AppImage'
+    name = 'omote_0.2.0_amd64.AppImage'
     got = await held.download(Release('v0.2.0'), asset_for(server), sums={name: digest})
 
     assert got['verified'] is True
@@ -295,7 +295,7 @@ async def test_a_download_that_does_not_match_is_refused_and_leaves_nothing(
     error page, or a mirror serving last week's build — and the file must not
     be left on disk looking like something to run."""
     server.body = b'the real thing'
-    name = 'openmirror_0.2.0_amd64.AppImage'
+    name = 'omote_0.2.0_amd64.AppImage'
 
     held = Updates('0.1.0', tmp_path)
     with pytest.raises(UpdateRefused) as caught:
@@ -347,7 +347,7 @@ async def test_an_asset_bigger_than_the_cap_is_refused_before_any_bytes(
 async def test_a_failed_download_leaves_no_partial_file(tmp_path: Path, server: Server):
     server.corrupt = True
     held = Updates('0.1.0', tmp_path)
-    name = 'openmirror_0.2.0_amd64.AppImage'
+    name = 'omote_0.2.0_amd64.AppImage'
     with pytest.raises(UpdateRefused, match='does not match'):
         await held.download(Release('v0.2.0'), asset_for(server), sums={name: 'a' * 64})
     assert await asyncio.to_thread(lambda: list(tmp_path.glob('*.part'))) == []
@@ -357,7 +357,7 @@ async def test_the_published_checksums_are_parsed_and_cached(tmp_path: Path, ser
     payload = b'the app'
     server.body = payload
     digest = hashlib.sha256(payload).hexdigest()
-    name = 'openmirror_0.2.0_amd64.AppImage'
+    name = 'omote_0.2.0_amd64.AppImage'
     server.sums = f'{digest}  {name}\n'
 
     release = Release('v0.2.0', assets=[Asset('SHA256SUMS.txt', f'http://127.0.0.1:{server.port}/SHA256SUMS.txt')])
@@ -414,7 +414,7 @@ async def test_the_executable_bit_is_set_after_the_checksum_and_not_before(
         pytest.skip('there is no execute bit to set on Windows')
 
     server.body = b'the real thing'
-    name = 'openmirror_0.2.0_amd64.AppImage'
+    name = 'omote_0.2.0_amd64.AppImage'
     held = Updates('0.1.0', tmp_path)
     with pytest.raises(UpdateRefused):
         await held.download(Release('v0.2.0'), asset_for(server), sums={name: 'f' * 64})
@@ -455,7 +455,7 @@ async def test_a_download_that_arrives_short_is_refused(tmp_path: Path):
     port = server.sockets[0].getsockname()[1]
     try:
         held = Updates('0.1.0', tmp_path)
-        short = Asset('openmirror_0.2.0_amd64.AppImage', f'http://127.0.0.1:{port}/x', size=len(payload))
+        short = Asset('omote_0.2.0_amd64.AppImage', f'http://127.0.0.1:{port}/x', size=len(payload))
         with pytest.raises(UpdateRefused):
             await held.download(Release('v0.2.0'), short, sums={})
     finally:
@@ -567,7 +567,7 @@ def test_a_draft_release_is_never_offered():
 
 
 def test_an_asset_name_is_reduced_to_its_last_segment():
-    from openmirror.update import _release_from
+    from omote.update import _release_from
 
     raw = {'tag_name': 'v0.2.0', 'assets': [{'name': '../../etc/passwd', 'browser_download_url': 'u'}]}
     assert _release_from(raw).assets[0].name == 'passwd'
@@ -588,17 +588,17 @@ def test_the_desktop_app_agrees_about_where_installer_will_wait():
 
     # Both names, in the same order as `config.py`: the explicit override, then
     # the data directory, then `updates` inside it.
-    assert 'OPENMIRROR_UPDATE_DIR' in rust, 'the Rust side does not know about the override'
-    assert 'OPENMIRROR_DATA_DIR' in rust, 'the Rust side does not know about the data directory'
-    assert rust.index('OPENMIRROR_UPDATE_DIR') < rust.index('OPENMIRROR_DATA_DIR'), (
+    assert 'OMOTE_UPDATE_DIR' in rust, 'the Rust side does not know about the override'
+    assert 'OMOTE_DATA_DIR' in rust, 'the Rust side does not know about the data directory'
+    assert rust.index('OMOTE_UPDATE_DIR') < rust.index('OMOTE_DATA_DIR'), (
         'the explicit update directory has to win, or the two disagree about where a file is'
     )
     assert '.join("updates")' in rust
 
-    # `~/.openmirror/data` is what `daemon.rs` points `OPENMIRROR_DATA_DIR` at
+    # `~/.omote/data` is what `daemon.rs` points `OMOTE_DATA_DIR` at
     # for a daemon the app starts, so the fallback has to be that and not the
     # daemon's own `./data`, which is relative to wherever it was launched from.
-    assert 'join(".openmirror")' in rust
+    assert 'join(".omote")' in rust
 
     # And the check the docstring promises is the check that was written.
     assert 'fn staged_under(' in rust, 'the containment check the docstring promises is not there'
@@ -609,7 +609,7 @@ def test_the_desktop_app_agrees_about_where_installer_will_wait():
 def test_the_staging_directory_is_outside_the_working_root():
     """A 90MB disk image inside a working root gets read, grepped and eventually
     committed. The comment in `config.py` says so; this is the assertion."""
-    from openmirror.config import config
+    from omote.config import config
 
     staging = config.update_staging
     assert staging.name == 'updates'
@@ -626,8 +626,8 @@ async def test_a_403_that_is_not_the_rate_limit_says_so(tmp_path: Path, server: 
     proxy — and "nothing is wrong with this install" is exactly the wrong thing
     to tell somebody in that situation.
     """
-    import openmirror.update as update_mod
-    from openmirror.config import config
+    import omote.update as update_mod
+    from omote.config import config
 
     monkeypatch.setattr(update_mod, 'API', f'http://127.0.0.1:{server.port}/d')
     monkeypatch.setattr(config, 'local_only', False)
@@ -651,7 +651,7 @@ def test_a_github_token_is_used_when_there_is_one(monkeypatch):
     updater read neither name — so an install with `gh auth login` set up was
     still sharing a budget with everybody else behind the same NAT.
     """
-    from openmirror.update import github_token
+    from omote.update import github_token
 
     monkeypatch.delenv('GITHUB_TOKEN', raising=False)
     monkeypatch.delenv('GH_TOKEN', raising=False)
@@ -670,7 +670,7 @@ def test_a_github_token_is_used_when_there_is_one(monkeypatch):
 def test_nothing_in_the_updater_runs_what_it_downloads():
     """Asserted rather than trusted. A downloader that grows an `exec` two
     releases from now should have to delete a line of this test to do it."""
-    source = (Path(__file__).resolve().parents[1] / 'openmirror' / 'update.py').read_text()
+    source = (Path(__file__).resolve().parents[1] / 'omote' / 'update.py').read_text()
     for dangerous in ('subprocess', 'os.system', 'os.exec', 'Popen', 'shutil.rmtree', 'eval(', 'exec('):
         assert dangerous not in source, dangerous
 
@@ -679,16 +679,16 @@ def test_the_repository_is_not_configurable():
     """A setting that points the updater somewhere else is a setting that
     ships code from somewhere else, and there is no version of that which is
     a feature rather than a vulnerability."""
-    assert REPO == 'notquiteog/openmirror'
+    assert REPO == 'notquiteog/Omote'
     assert f'repos/{REPO}' in API
-    source = (Path(__file__).resolve().parents[1] / 'openmirror' / 'config.py').read_text()
+    source = (Path(__file__).resolve().parents[1] / 'omote' / 'config.py').read_text()
     assert 'UPDATE_REPO' not in source and 'UPDATE_URL' not in source
 
 
 async def test_local_only_stops_the_check_entirely(tmp_path: Path, monkeypatch):
     """A version check is a request to a third party, and somebody who asked
     for no remote traffic did not ask for that."""
-    from openmirror.config import config
+    from omote.config import config
 
     monkeypatch.setattr(config, 'local_only', True)
     monkeypatch.setattr(config, 'update_check_enabled', True)
@@ -700,7 +700,7 @@ async def test_local_only_stops_the_check_entirely(tmp_path: Path, monkeypatch):
 
 
 async def test_a_switched_off_check_does_not_go_out(tmp_path: Path, monkeypatch):
-    from openmirror.config import config
+    from omote.config import config
 
     monkeypatch.setattr(config, 'local_only', False)
     monkeypatch.setattr(config, 'update_check_enabled', False)
@@ -728,8 +728,8 @@ def test_a_staged_file_hashes_to_the_same_thing_twice(tmp_path: Path):
 async def test_a_repository_with_no_releases_is_a_state_and_not_an_error(tmp_path, monkeypatch):
     """A project with no tags is doing exactly what it should. Reporting it
     in the place errors go is how a first run looks like a fault."""
-    from openmirror.config import config
-    from openmirror.update import NoReleasesYet
+    from omote.config import config
+    from omote.update import NoReleasesYet
 
     monkeypatch.setattr(config, 'local_only', False)
     monkeypatch.setattr(config, 'update_check_enabled', True)
@@ -750,7 +750,7 @@ async def test_a_repository_with_no_releases_is_a_state_and_not_an_error(tmp_pat
 async def test_a_rate_limit_is_named_as_a_rate_limit(tmp_path, monkeypatch):
     """The one GitHub failure a person will actually hit, and the one where
     "forbidden" tells them nothing about what to do."""
-    from openmirror.config import config
+    from omote.config import config
 
     monkeypatch.setattr(config, 'local_only', False)
     monkeypatch.setattr(config, 'update_check_enabled', True)
@@ -772,7 +772,7 @@ def test_the_api_url_is_built_once():
     """A bug that reported the truth by accident.
 
     The releases path was appended both to the constant and at the call site,
-    so the request went to `.../openmirror/releases/releases` and GitHub
+    so the request went to `.../omote/releases/releases` and GitHub
     answered 404. A 404 from this call is reported as "no releases published
     yet" — which is what it said for the whole of a project that had none,
     and which is why nothing looked wrong until the first tag.
@@ -780,7 +780,7 @@ def test_the_api_url_is_built_once():
     Every test here mocks the network, which is the point of this one: a test
     that cannot see the URL cannot catch a URL that is wrong.
     """
-    from openmirror.update import API, REPO
+    from omote.update import API, REPO
 
     assert API == f'https://api.github.com/repos/{REPO}', 'the API root already names a path'
     built = API + '/releases?per_page=10'
@@ -794,7 +794,7 @@ async def test_the_check_asks_for_the_url_it_thinks_it_does(tmp_path, monkeypatc
     Skipped rather than stubbed where there is no network, because the whole
     bug was that a stub could not see it.
     """
-    from openmirror.config import config
+    from omote.config import config
 
     monkeypatch.setattr(config, 'local_only', False)
     monkeypatch.setattr(config, 'update_check_enabled', True)
@@ -806,11 +806,11 @@ async def test_the_check_asks_for_the_url_it_thinks_it_does(tmp_path, monkeypatc
         seen.append(url)
         raise NoReleasesYet(url)
 
-    from openmirror.update import NoReleasesYet
+    from omote.update import NoReleasesYet
 
     held._fetch = watch
     await held.check(force=True)
-    assert seen == ['https://api.github.com/repos/notquiteog/openmirror/releases?per_page=100']
+    assert seen == ['https://api.github.com/repos/notquiteog/Omote/releases?per_page=100']
 
 
 def test_the_release_list_is_a_hundred_deep():
@@ -832,15 +832,15 @@ def test_the_version_comes_from_the_package_and_not_a_literal():
     could pass every check and still ship a daemon that reports the old number
     to the updater, which is a daemon that never offers itself an update.
 
-    Read out of `openmirror/_version.py` rather than `pyproject.toml`, because a
+    Read out of `omote/_version.py` rather than `pyproject.toml`, because a
     module of the package is the only form that survives being frozen into a
     PyInstaller bundle. See that file for the failure this prevents.
     """
     import tomllib
     from pathlib import Path
 
-    from openmirror._version import __version__
-    from openmirror.routers.updates import VERSION, version
+    from omote._version import __version__
+    from omote.routers.updates import VERSION, version
 
     assert VERSION == __version__, (
         f'the updater reports {VERSION}, the package says {__version__}'
@@ -854,7 +854,7 @@ def test_the_version_comes_from_the_package_and_not_a_literal():
         f'pyproject says {declared}, the package says {__version__}'
     )
 
-    source = (Path(__file__).resolve().parents[1] / 'openmirror' / 'routers' / 'updates.py').read_text()
+    source = (Path(__file__).resolve().parents[1] / 'omote' / 'routers' / 'updates.py').read_text()
     assert "VERSION = '0" not in source, 'the version is a literal again'
 
 
@@ -877,9 +877,9 @@ def test_a_frozen_daemon_knows_its_own_version():
 
     root = Path(__file__).resolve().parents[1]
     probe = (
-        'import sys, openmirror._version as v;'
+        'import sys, omote._version as v;'
         'print(v.__version__);'
-        'print(sorted(m for m in sys.modules if m.startswith("openmirror.")))'
+        'print(sorted(m for m in sys.modules if m.startswith("omote.")))'
     )
     done = subprocess.run(
         [sys.executable, '-S', '-c', probe],
@@ -892,6 +892,6 @@ def test_a_frozen_daemon_knows_its_own_version():
     reported, modules = done.stdout.strip().splitlines()
     assert reported and reported != '0.0.0', 'a frozen daemon reported 0.0.0 and offered downgrades'
     assert parse(reported) is not None, 'the version has to parse or every comparison refuses to act'
-    assert [m for m in eval(modules) if m != 'openmirror._version'] == [], (
+    assert [m for m in eval(modules) if m != 'omote._version'] == [], (
         f'the version module dragged in {modules}'
     )

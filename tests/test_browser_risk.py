@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from openmirror.agent.tools.browser import classify_click, classify_field
-from openmirror.protocol.agent import Risk
+from omote.agent.tools.browser import classify_click, classify_field
+from omote.protocol.agent import Risk
 
 
 def el(**kw):

@@ -1,6 +1,6 @@
 /* The transcript: a daemon event, rendered.
  *
- * A port of the half of `openmirror/static/app.js` that draws the conversation,
+ * A port of the half of `omote/static/app.js` that draws the conversation,
  * with one presentation decision changed and everything else kept. The change
  * is size. A browser tab is 1200px wide and a side panel is 300, and the
  * browser client can afford a card per tool call with its output inside it; a
@@ -279,7 +279,7 @@ export function policyNotices(before, event) {
 /**
  * What one event says, as lines.
  *
- * The whole union in `openmirror/protocol/agent.py`, plus the three the
+ * The whole union in `omote/protocol/agent.py`, plus the three the
  * daemon sends that are not in it (`text.flush` is the browser client's own
  * batching hint, `turn.queued` is what a message sent during a turn comes back
  * as, and `pong` is a keepalive). The default branch is the last line of the

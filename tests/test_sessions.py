@@ -25,7 +25,7 @@ import json
 
 import pytest
 
-from openmirror.providers.base import (
+from omote.providers.base import (
     ImageBlock,
     Message,
     TextBlock,
@@ -33,7 +33,7 @@ from openmirror.providers.base import (
     ToolResultBlock,
     ToolUseBlock,
 )
-from openmirror.sessions import SessionStore, Stored, TranscriptError, decode_block, encode_block, to_markdown
+from omote.sessions import SessionStore, Stored, TranscriptError, decode_block, encode_block, to_markdown
 
 
 @pytest.fixture
@@ -229,9 +229,9 @@ async def test_a_session_writes_its_transcript_and_reads_it_back(tmp_path):
     Built twice with the same id, which is what a restart is: the first
     writes, the second — with no live state shared at all — reads.
     """
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.providers.base import StreamDone
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.providers.base import StreamDone
     from tests.test_agent import ScriptedProvider
 
     store = SessionStore(tmp_path / 'sessions')
@@ -262,9 +262,9 @@ async def test_a_session_with_no_store_simply_does_not_persist(tmp_path):
     """The opt-out. A caller that wants no transcript at all — a test, a
     throwaway session — passes no store and gets none, rather than writing
     files into a temporary directory nobody asked for."""
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.providers.base import StreamDone
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.providers.base import StreamDone
     from tests.test_agent import ScriptedProvider
 
     class Nothing:
@@ -285,9 +285,9 @@ async def test_a_session_with_no_store_simply_does_not_persist(tmp_path):
 async def test_a_broken_store_does_not_stop_a_session_opening(tmp_path):
     """Losing a transcript is bad. Failing to open a session because of one is
     worse, and the whole feature is optional."""
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.providers.base import StreamDone
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.providers.base import StreamDone
     from tests.test_agent import ScriptedProvider
 
     class Broken:
@@ -357,9 +357,9 @@ async def test_the_write_does_not_happen_on_the_event_loop(tmp_path):
     """89ms of script, once per turn, for work nobody is waiting for."""
     import threading
 
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.providers.base import StreamDone
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.providers.base import StreamDone
     from tests.test_agent import ScriptedProvider
 
     where: list[str] = []
@@ -415,7 +415,7 @@ async def test_a_fork_is_a_conversation_from_a_point(tmp_path):
     """The situation it is for: you asked for the wrong thing, the agent is
     halfway down a path you no longer want, and `/clear` throws away the very
     context that told you what to change your mind about."""
-    from openmirror.agent.manager import SessionManager
+    from omote.agent.manager import SessionManager
 
     store = SessionStore(tmp_path / 's')
     original = Stored(id='parent01', title='Refactor', root=str(tmp_path), model='gpt-4o')
@@ -440,7 +440,7 @@ async def test_a_fork_is_a_conversation_from_a_point(tmp_path):
 async def test_a_fork_with_no_point_is_a_copy(tmp_path):
     """`at: 0` means everything, which is a copy under a new name. It is a
     legitimate thing to want and it is not a mistake."""
-    from openmirror.agent.manager import SessionManager
+    from omote.agent.manager import SessionManager
 
     store = SessionStore(tmp_path / 's')
     source = Stored(id='parent01', title='Whole thing', root=str(tmp_path), model='x')
@@ -456,7 +456,7 @@ async def test_a_fork_with_no_point_is_a_copy(tmp_path):
 
 
 async def test_forking_something_that_is_not_there_is_none(tmp_path):
-    from openmirror.agent.manager import SessionManager
+    from omote.agent.manager import SessionManager
 
     manager = SessionManager()
     manager._store = SessionStore(tmp_path / 's')
@@ -467,7 +467,7 @@ async def test_a_fork_shares_the_files_and_not_a_copy_of_them(tmp_path):
     """A fork is a different conversation. For a different *tree* there is a
     worktree, and pretending a fork is one would be the wrong tool offered
     confidently."""
-    from openmirror.agent.manager import SessionManager
+    from omote.agent.manager import SessionManager
 
     store = SessionStore(tmp_path / 's')
     (tmp_path / 'a.py').write_text('shared\n')

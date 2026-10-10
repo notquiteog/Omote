@@ -17,7 +17,7 @@ desktop/src-tauri/target/
 desktop/src-tauri/binaries/
 desktop/sidecar/build/
 
-# The default data directory (OPENMIRROR_DATA_DIR). Holds the memory database,
+# The default data directory (OMOTE_DATA_DIR). Holds the memory database,
 # rewind checkpoints, generated media and the saved browser choice — one
 # person's data, none of it the project's. It was not listed here until an
 # install actually ran from the repo root and left it untracked in `git

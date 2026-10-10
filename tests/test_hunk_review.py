@@ -37,8 +37,8 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent.checkpoint import CheckpointStore
-from openmirror.agent.hunks import CONTEXT, lines_of, rebuild, split, unified
+from omote.agent.checkpoint import CheckpointStore
+from omote.agent.hunks import CONTEXT, lines_of, rebuild, split, unified
 
 # --- the engine --------------------------------------------------------------
 

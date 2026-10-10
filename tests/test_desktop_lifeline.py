@@ -29,7 +29,7 @@ def _free_port() -> int:
 def _answers(port: int) -> bool:
     try:
         with urllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=2) as r:
-            return json.loads(r.read()).get('service') == 'openmirror'
+            return json.loads(r.read()).get('service') == 'omote'
     except (OSError, ValueError):
         return False
 
@@ -37,15 +37,15 @@ def _answers(port: int) -> bool:
 def _start(tmp_path: Path, port: int, *, exit_with_stdin: bool) -> subprocess.Popen:
     env = {
         **os.environ,
-        'OPENMIRROR_PORT': str(port),
-        'OPENMIRROR_DATA_DIR': str(tmp_path / 'data'),
+        'OMOTE_PORT': str(port),
+        'OMOTE_DATA_DIR': str(tmp_path / 'data'),
         # Not the checkout's own .env, which may configure anything at all.
-        'OPENMIRROR_ENV': str(tmp_path / 'absent.env'),
-        'OPENMIRROR_EXIT_WITH_STDIN': '1' if exit_with_stdin else '0',
+        'OMOTE_ENV': str(tmp_path / 'absent.env'),
+        'OMOTE_EXIT_WITH_STDIN': '1' if exit_with_stdin else '0',
     }
     log = (tmp_path / 'daemon.log').open('wb')
     return subprocess.Popen(
-        [sys.executable, '-m', 'openmirror.main'],
+        [sys.executable, '-m', 'omote.main'],
         cwd=tmp_path,
         env=env,
         stdin=subprocess.PIPE,

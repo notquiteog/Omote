@@ -1,6 +1,6 @@
 """The sign-in gate: a 401 has to become a box someone can type into.
 
-The daemon answers 401 to everything when `OPENMIRROR_TOKEN` is set, and before
+The daemon answers 401 to everything when `OMOTE_TOKEN` is set, and before
 this the page simply showed empty lists. A failed fetch is treated as "the
 daemon has gone" and the response discarded, so a locked install looked
 identical to a crashed one — every session list empty, no error, nothing to
@@ -20,8 +20,8 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DOM = (ROOT / 'openmirror' / 'static' / 'dom.js').read_text()
-STYLE = (ROOT / 'openmirror' / 'static' / 'style.css').read_text()
+DOM = (ROOT / 'omote' / 'static' / 'dom.js').read_text()
+STYLE = (ROOT / 'omote' / 'static' / 'style.css').read_text()
 
 
 def test_a_401_is_treated_as_a_locked_door_and_not_a_dead_daemon():

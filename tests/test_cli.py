@@ -2,10 +2,10 @@
 
 Two things are asserted here that nothing else in the suite can be.
 
-**Bare `openmirror` still starts the daemon.** Not as a convenience: the
-desktop app's frozen sidecar does `from openmirror.main import main; main()`,
+**Bare `omote` still starts the daemon.** Not as a convenience: the
+desktop app's frozen sidecar does `from omote.main import main; main()`,
 and `daemon.rs` spawns the binary with an empty argv as well as
-`python3 -m openmirror.main`. Both were written against a command that took no
+`python3 -m omote.main`. Both were written against a command that took no
 arguments, and a CLI that broke that would not fail a test — it would fail the
 desktop app on somebody's machine with no window ever appearing.
 
@@ -34,10 +34,10 @@ from pathlib import Path
 
 import pytest
 
-from openmirror import cli
-from openmirror.agent.session import REPEAT_STOP
-from openmirror.providers.base import StreamDone, StreamText, StreamToolUse
-from openmirror.sessions import SessionStore, Stored
+from omote import cli
+from omote.agent.session import REPEAT_STOP
+from omote.providers.base import StreamDone, StreamText, StreamToolUse
+from omote.sessions import SessionStore, Stored
 from tests.test_agent import ScriptedProvider
 
 SCRIPTED_MODEL = 'scripted'
@@ -53,7 +53,7 @@ class TTY(io.StringIO):
 
     `StringIO.isatty()` is False, which is right for the tests that pipe
     something in and wrong for "nobody piped anything in": a terminal must
-    never be read, or `openmirror run -p …` would sit there until somebody
+    never be read, or `omote run -p …` would sit there until somebody
     pressed Ctrl-D.
     """
 
@@ -90,7 +90,7 @@ def served(monkeypatch):
     """
     import uvicorn
 
-    from openmirror.config import config
+    from omote.config import config
 
     started: list[object] = []
 
@@ -117,13 +117,13 @@ def hermetic(tmp_path, monkeypatch):
     The install's own `.env` switches on the desktop tools, the browser, memory
     and MCP, and a session built with those on goes looking for an X server, a
     Chromium and a mailbox. Every one of them is switched off here rather than
-    depended on being off. The data paths are redirected because `openmirror`
+    depended on being off. The data paths are redirected because `omote`
     reads `.env` at import, and a test suite that writes transcripts into
     `data/` is a test suite that eventually deletes somebody's work.
     """
-    from openmirror.agent import runtime
-    from openmirror.agent.manager import manager
-    from openmirror.config import config
+    from omote.agent import runtime
+    from omote.agent.manager import manager
+    from omote.config import config
 
     data = tmp_path / 'data'
     for name, value in (
@@ -224,24 +224,24 @@ def conversation(store: SessionStore, session_id: str, root: Path, *, title: str
 
 
 def test_no_arguments_still_starts_the_daemon(served, monkeypatch):
-    """`from openmirror.main import main; main()` is what the desktop app runs.
+    """`from omote.main import main; main()` is what the desktop app runs.
 
     No arguments at all, and no way for that to be anything but the server.
     """
-    from openmirror.main import main as daemon_main
+    from omote.main import main as daemon_main
 
-    monkeypatch.setattr(sys, 'argv', ['openmirror'])
+    monkeypatch.setattr(sys, 'argv', ['omote'])
     with pytest.raises(SystemExit) as left:
         daemon_main()
 
     assert left.value.code == 0
-    assert [c.app for c in served] == ['openmirror.main:app']
+    assert [c.app for c in served] == ['omote.main:app']
 
 
 def test_the_serve_subcommand_reaches_the_same_server(served, monkeypatch):
-    monkeypatch.setattr(sys, 'argv', ['openmirror', 'serve'])
+    monkeypatch.setattr(sys, 'argv', ['omote', 'serve'])
     assert cli.main() == cli.OK
-    assert [c.app for c in served] == ['openmirror.main:app']
+    assert [c.app for c in served] == ['omote.main:app']
 
 
 def test_serve_flags_become_the_bind(served):
@@ -250,7 +250,7 @@ def test_serve_flags_become_the_bind(served):
 
 
 def test_a_leading_flag_is_the_server_rather_than_a_command(served):
-    """`openmirror --port 9000` reads as the server with a flag.
+    """`omote --port 9000` reads as the server with a flag.
 
     Which is the reason only a *word* is treated as a subcommand: a flag left
     over from the command that had no arguments at all must not become a usage
@@ -293,10 +293,10 @@ def test_version_is_one_number_from_one_place(capsys):
     first = capsys.readouterr().out.strip()
     assert cli.main(['version']) == cli.OK
     assert capsys.readouterr().out.strip() == first
-    assert first == f'openmirror {cli.version()}'
+    assert first == f'omote {cli.version()}'
     # The same function the daemon's update check asks, rather than a literal
     # that can be a version behind the one in pyproject.toml.
-    from openmirror.routers.updates import version as daemon_version
+    from omote.routers.updates import version as daemon_version
 
     assert cli.version() == daemon_version()
 
@@ -338,7 +338,7 @@ def test_the_prompt_is_the_flag_when_there_is_one(monkeypatch):
 
 
 def test_no_flag_means_the_prompt_is_stdin(monkeypatch):
-    """`git diff | openmirror run` is the case that makes this worth having."""
+    """`git diff | omote run` is the case that makes this worth having."""
     monkeypatch.setattr(sys, 'stdin', io.StringIO('diff --git a/x b/x'))
     assert cli._prompt_text(cli._run_parser().parse_args([])) == 'diff --git a/x b/x'
 
@@ -793,7 +793,7 @@ def test_sessions_with_no_action_is_a_usage_error(capsys):
 
 
 def test_search_says_so_when_the_module_is_not_there(hermetic, capsys):
-    """`openmirror.history` is somebody else's file, and may not exist yet.
+    """`omote.history` is somebody else's file, and may not exist yet.
 
     Whether it does or not, this command has to say something useful and exit
     with a number rather than raising an ImportError at somebody in a pipeline.
@@ -801,10 +801,10 @@ def test_search_says_so_when_the_module_is_not_there(hermetic, capsys):
     code = cli.main(['sessions', 'search', 'retry'])
     err = capsys.readouterr().err
     try:
-        import openmirror.history  # noqa: F401
+        import omote.history  # noqa: F401
     except ImportError:
         assert code == cli.FAILED
-        assert 'openmirror.history' in err
+        assert 'omote.history' in err
     else:
         assert code in (cli.OK, cli.FAILED)
 
@@ -816,8 +816,8 @@ def test_search_says_so_when_the_module_is_not_there(hermetic, capsys):
 
 def fake_registry(entries: dict) -> object:
     """A registry with chat providers in it and no network anywhere near it."""
-    from openmirror.providers.base import Modality, ProviderInfo
-    from openmirror.providers.registry import ProviderRegistry
+    from omote.providers.base import Modality, ProviderInfo
+    from omote.providers.registry import ProviderRegistry
 
     live = ProviderRegistry()
     for provider_id, impl in entries.items():
@@ -831,7 +831,7 @@ def use(monkeypatch, live) -> None:
         return None
 
     monkeypatch.setattr(cli, '_bootstrap', bootstrap)
-    monkeypatch.setattr('openmirror.providers.registry.registry', live)
+    monkeypatch.setattr('omote.providers.registry.registry', live)
 
 
 def test_models_lists_what_a_provider_offers(hermetic, monkeypatch, capsys):
@@ -883,5 +883,5 @@ def test_doctor_never_raises(hermetic, monkeypatch, capsys):
     monkeypatch.setattr(cli, '_bootstrap', broken)
     assert cli.main(['doctor']) == cli.OK
     out = capsys.readouterr().out
-    assert 'openmirror' in out and 'python' in out
+    assert 'omote' in out and 'python' in out
     assert 'the registry is on fire' in out

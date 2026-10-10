@@ -29,11 +29,11 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-STATIC = ROOT / 'openmirror' / 'static'
+STATIC = ROOT / 'omote' / 'static'
 COMMIT = (STATIC / 'commit.js').read_text()
 APP = (STATIC / 'app.js').read_text()
 INDEX = (STATIC / 'index.html').read_text()
-GIT_ROUTER = (ROOT / 'openmirror' / 'routers' / 'git.py').read_text()
+GIT_ROUTER = (ROOT / 'omote' / 'routers' / 'git.py').read_text()
 
 
 def node() -> str:

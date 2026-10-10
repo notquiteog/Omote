@@ -246,7 +246,7 @@ class FakeTimers {
 /**
  * A `Host` with everything on the outside faked, and a record of everything
  * that crossed it. `env` defaults to an empty object on purpose: a developer's
- * own `OPENMIRROR_TOKEN` must not be able to make a test pass or fail.
+ * own `OMOTE_TOKEN` must not be able to make a test pass or fail.
  */
 function harness(overrides) {
   const given = overrides || {};
@@ -327,7 +327,7 @@ function protocolFrameTypes() {
 test('the settings win over the environment', () => {
   const { host } = harness({
     settings: { host: 'daemon.local', port: 9000, token: 'from-settings' },
-    env: { OPENMIRROR_HOST: 'env-host', OPENMIRROR_PORT: '1', OPENMIRROR_TOKEN: 'from-env' },
+    env: { OMOTE_HOST: 'env-host', OMOTE_PORT: '1', OMOTE_TOKEN: 'from-env' },
   });
   assert.equal(host.host, 'daemon.local');
   assert.equal(host.port, 9000);
@@ -337,7 +337,7 @@ test('the settings win over the environment', () => {
 test('the environment is the fallback when a setting is unset or empty', () => {
   const { host } = harness({
     settings: { host: '', port: undefined, token: '' },
-    env: { OPENMIRROR_HOST: 'env-host', OPENMIRROR_PORT: '9100', OPENMIRROR_TOKEN: 'from-env' },
+    env: { OMOTE_HOST: 'env-host', OMOTE_PORT: '9100', OMOTE_TOKEN: 'from-env' },
   });
   assert.equal(host.host, 'env-host');
   assert.equal(host.port, 9100);
@@ -390,7 +390,7 @@ test('the token goes in the HTTP headers and in the upgrade, and nowhere else', 
   const post = world.fetchImpl.calls[0];
 
   assert.equal(post.headers.Authorization, `Bearer ${TOKEN}`);
-  assert.equal(post.headers['X-Openmirror-Token'], TOKEN);
+  assert.equal(post.headers['X-Omote-Token'], TOKEN);
   assert.equal(post.headers['Content-Type'], 'application/json');
 
   const upgrade = new URL(world.sockets[0].url);
@@ -402,7 +402,7 @@ test('the token goes in the HTTP headers and in the upgrade, and nowhere else', 
 test('a daemon with no token gets no auth header and no token parameter', async () => {
   const world = await connected({ settings: { token: '' } });
   assert.equal(world.fetchImpl.calls[0].headers.Authorization, undefined);
-  assert.equal(world.fetchImpl.calls[0].headers['X-Openmirror-Token'], undefined);
+  assert.equal(world.fetchImpl.calls[0].headers['X-Omote-Token'], undefined);
   assert.equal(new URL(world.sockets[0].url).searchParams.has('token'), false);
 });
 
@@ -971,7 +971,7 @@ test('a daemon that is not running says so, and says what to do', async () => {
   assert.equal(failed.length, 1);
   assert.match(failed[0].message, /http:\/\/127\.0\.0\.1:8477 is not answering/);
   // Actionable: the panel can show this verbatim, and the person can act on it.
-  assert.match(failed[0].message, /openmirror serve/);
+  assert.match(failed[0].message, /omote serve/);
 });
 
 /** A `fetch` that sends the response headers and then stalls on the body. A
@@ -1043,7 +1043,7 @@ test('a wrong token on the REST surface is a status, not a line in the transcrip
   await assert.rejects(world.host.open(), /that is not the token/);
   const failed = lastFrame(world, 'status');
   assert.equal(failed.state, 'failed');
-  assert.match(failed.message, /openmirror\.token/);
+  assert.match(failed.message, /omote\.token/);
 });
 
 test('a query with no conversation behind it says so instead of asking', async () => {

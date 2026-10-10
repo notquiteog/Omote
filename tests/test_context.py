@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pytest
 
-from openmirror.agent.windows import WINDOWS, context_window, window_fraction
+from omote.agent.windows import WINDOWS, context_window, window_fraction
 
 # --- the table ----------------------------------------------------------------
 
@@ -124,9 +124,9 @@ async def test_the_report_prefers_what_the_model_counted_over_the_estimate(tmp_p
     """`exact` is the difference between "the model told us" and "we guessed",
     and the interface needs to know which so it can stop drawing a precise
     number over a guess."""
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.providers.base import Message, StreamDone, TextBlock
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.providers.base import Message, StreamDone, TextBlock
     from tests.test_agent import ScriptedProvider
 
     with tmp_path as root:
@@ -153,9 +153,9 @@ async def test_the_report_carries_no_money(tmp_path):
     """A dollar figure is out of date the moment a provider changes a price or
     a provider adds a markup, and somebody reads it as a bill. Tokens are the
     two numbers that do not rot."""
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.providers.base import StreamDone
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.providers.base import StreamDone
     from tests.test_agent import ScriptedProvider
 
     with tmp_path as root:
@@ -170,9 +170,9 @@ async def test_the_report_carries_no_money(tmp_path):
 async def test_the_route_reports_the_fraction_alongside_the_numbers(tmp_path):
     from starlette.testclient import TestClient
 
-    from openmirror.agent.manager import manager
-    from openmirror.main import app
-    from openmirror.providers.base import StreamDone
+    from omote.agent.manager import manager
+    from omote.main import app
+    from omote.providers.base import StreamDone
     from tests.test_agent import ScriptedProvider
 
     with tmp_path as root:

@@ -1,14 +1,14 @@
 # Extending it
 
-Two of the mechanisms here are MCP pointing in opposite directions: openmirror
-using everybody else's tools, and everybody else's clients using openmirror.
+Two of the mechanisms here are MCP pointing in opposite directions: Omote
+using everybody else's tools, and everybody else's clients using omote.
 Three more are files — skills, agent definitions and language-server settings
 — each in the shape other clients already write, so what you have made for one
 of them works here unchanged. And one thing undoes what the agent does.
 
 ## Using MCP servers
 
-openmirror is an MCP client, so any MCP server becomes tools the agent can use.
+Omote is an MCP client, so any MCP server becomes tools the agent can use.
 Servers are read from a `.mcp.json` in the shape the rest of the ecosystem
 already uses, which means a file written for another client works here
 unchanged:
@@ -93,11 +93,11 @@ an agent with four working tool servers and one broken one is far more useful
 than one that refused to start — and all of them are reaped when the daemon
 stops.
 
-## openmirror as an MCP server
+## Omote as an MCP server
 
 The other direction: your editor, a desktop assistant or another agent using
 *this* twin — its memory, its provider routing, its search backend. Without it,
-the memory openmirror has been accumulating is reachable only from openmirror's own
+the memory Omote has been accumulating is reachable only from Omote's own
 UI.
 
 Two transports. On stdio, for a client that would rather spawn it:
@@ -105,7 +105,7 @@ Two transports. On stdio, for a client that would rather spawn it:
 ```json
 {
   "mcpServers": {
-    "openmirror": { "command": "openmirror-mcp" }
+    "omote": { "command": "omote-mcp" }
   }
 }
 ```
@@ -113,9 +113,9 @@ Two transports. On stdio, for a client that would rather spawn it:
 Or over HTTP, from the daemon that is already running:
 
 ```
-OPENMIRROR_MCP_SERVE=true
-OPENMIRROR_MCP_SERVE_TOKEN=a-long-random-string
-OPENMIRROR_MCP_SERVE_SCOPE=read
+OMOTE_MCP_SERVE=true
+OMOTE_MCP_SERVE_TOKEN=a-long-random-string
+OMOTE_MCP_SERVE_SCOPE=read
 ```
 
 which serves `POST /mcp` (streamable HTTP) and `GET /mcp/sse` + `POST
@@ -136,7 +136,7 @@ An unrecognised scope is `read`, and says so in the log. A typo in a config
 file must not be a way to widen what is exposed.
 
 **Nothing that acts on the machine is exposed at any scope.** No shell, no
-files, no desktop, no browser driving. Those are the tools openmirror guards with
+files, no desktop, no browser driving. Those are the tools Omote guards with
 an approval prompt in front of a human, and an MCP call has no human in front
 of it — exposing them here would route around the one control that matters. The
 approval policy is not reimplemented on the server side; the dangerous tools
@@ -145,15 +145,15 @@ are simply not there, and a test asserts it.
 ### The token is not optional on a network interface
 
 This endpoint can hand out a person's memory, so on any bind that is not
-loopback the router refuses to mount without `OPENMIRROR_MCP_SERVE_TOKEN`. That
+loopback the router refuses to mount without `OMOTE_MCP_SERVE_TOKEN`. That
 is stricter than the rest of the server, which warns and carries on. The
 asymmetry is deliberate: an open agent endpoint is a machine somebody else can
 use, and an open twin endpoint is a person somebody else can read.
 
-Resources it offers: `openmirror://capabilities` (what this install can do, and
-what it deliberately does not expose), `openmirror://providers`,
-`openmirror://memory/recent`, and the templates `openmirror://memory/search/{query}`
-and `openmirror://media/{id}`.
+Resources it offers: `omote://capabilities` (what this install can do, and
+what it deliberately does not expose), `omote://providers`,
+`omote://memory/recent`, and the templates `omote://memory/search/{query}`
+and `omote://media/{id}`.
 
 ## Skills
 
@@ -161,7 +161,7 @@ A skill is a folder with a `SKILL.md` in it, and whatever else the job needs
 beside it:
 
 ```
-.openmirror/skills/release/
+.omote/skills/release/
   SKILL.md
   checklist.md
 ```
@@ -187,9 +187,9 @@ They are looked for in these places, and a later one wins a name:
 
 | where | whose |
 |---|---|
-| `openmirror/skills/` | shipped: `init` and `review` |
-| `~/.claude/skills/`, `~/.openmirror/skills/` | yours, in every project |
-| `<root>/.claude/skills/`, `<root>/.openmirror/skills/` | the project's |
+| `omote/skills/` | shipped: `init` and `review` |
+| `~/.claude/skills/`, `~/.omote/skills/` | yours, in every project |
+| `<root>/.claude/skills/`, `<root>/.omote/skills/` | the project's |
 
 A flat `commands/<name>.md` beside any of those is a skill too — the older
 shape of the same idea. `/name` in the composer runs one, with whatever follows
@@ -214,7 +214,7 @@ are built in:
 | `general` | everything the session can, less what no subagent gets |
 | `research` | the web tools, plus reading files. Only offered where the web tools are. |
 
-More are markdown files, one agent to a file, in `.openmirror/agents/` or
+More are markdown files, one agent to a file, in `.omote/agents/` or
 `.claude/agents/` in the project, or the same under your home directory, the
 most local winning a name:
 
@@ -261,7 +261,7 @@ configuration, the first of these found on PATH is used for its language:
 | Go | `gopls` |
 | C, C++ | `clangd` |
 
-A `.lsp.json` — `OPENMIRROR_LSP_CONFIG`, or the directory the daemon starts in,
+A `.lsp.json` — `OMOTE_LSP_CONFIG`, or the directory the daemon starts in,
 like `.mcp.json` — adds servers or switches them off:
 
 ```json

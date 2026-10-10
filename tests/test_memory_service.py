@@ -9,10 +9,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from openmirror.memory.service import MemoryService, _candidate_facts
-from openmirror.memory.store import MemoryStore
-from openmirror.providers.base import Modality, ProviderInfo
-from openmirror.providers.registry import ProviderRegistry
+from omote.memory.service import MemoryService, _candidate_facts
+from omote.memory.store import MemoryStore
+from omote.providers.base import Modality, ProviderInfo
+from omote.providers.registry import ProviderRegistry
 
 
 class FakeEmbedder:
@@ -191,9 +191,9 @@ async def test_a_remembered_fact_reaches_the_system_prompt():
     database, not a memory."""
     import tempfile as _tempfile
 
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
-    from openmirror.providers.base import StreamDone, StreamText
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.providers.base import StreamDone, StreamText
     from tests.test_agent import ScriptedProvider
 
     svc, _, tmp = build()
@@ -225,8 +225,8 @@ async def test_no_memory_tools_when_it_is_switched_off():
     wastes a step every turn."""
     import tempfile as _tempfile
 
-    from openmirror.agent.approval import Mode
-    from openmirror.agent.runtime import build_session
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
     from tests.test_agent import ScriptedProvider
 
     svc, _, tmp = build()
@@ -249,7 +249,7 @@ async def test_the_embedder_fingerprint_includes_the_requested_width():
     Same model name, incomparable vectors — so the name alone is not an
     identity, and recording only the name would miss the change entirely.
     """
-    from openmirror.memory.service import _fingerprint
+    from omote.memory.service import _fingerprint
 
     assert _fingerprint('text-embedding-3-large', None) == 'text-embedding-3-large'
     assert _fingerprint('text-embedding-3-large', 512) == 'text-embedding-3-large@512'
@@ -357,7 +357,7 @@ async def test_no_embedding_provider_means_the_store_is_left_alone():
 
     `sync_embedder` runs at start-up, before anyone has necessarily configured
     a provider, and a wipe triggered by a missing configuration would destroy
-    the index of someone who was only halfway through setting openmirror up.
+    the index of someone who was only halfway through setting omote up.
     """
     svc, _embedder, tmp = build()
     try:

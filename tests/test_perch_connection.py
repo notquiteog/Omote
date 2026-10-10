@@ -23,10 +23,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from openmirror.providers import catalog, connections
-from openmirror.providers import perch as perch_mod
-from openmirror.providers.connections import Connection, ConnectionStore
-from openmirror.providers.registry import ProviderRegistry
+from omote.providers import catalog, connections
+from omote.providers import perch as perch_mod
+from omote.providers.connections import Connection, ConnectionStore
+from omote.providers.registry import ProviderRegistry
 
 GOOD = 'perch_' + 'g' * 43
 
@@ -83,8 +83,8 @@ def fake_perch(monkeypatch):
 @pytest.fixture
 def api(tmp_path, monkeypatch, fake_perch):
     """The providers router with its own registry and its own connections file."""
-    from openmirror.config import config
-    from openmirror.routers import providers as providers_router
+    from omote.config import config
+    from omote.routers import providers as providers_router
 
     live = ProviderRegistry()
     monkeypatch.setattr(providers_router, 'registry', live)
@@ -223,7 +223,7 @@ def test_removing_perch_removes_every_one_of_its_services(api):
 def test_removing_a_saved_perch_puts_the_environments_back(api, monkeypatch):
     """A saved Perch replaces the environment's, since both register the same
     ids. Removing it must not leave an install with PERCH_HOST set and no Perch."""
-    from openmirror.config import config
+    from omote.config import config
 
     client, live, _ = api
     monkeypatch.setattr(config, 'perch_host', '127.0.0.1')
@@ -283,8 +283,8 @@ def test_building_perch_gives_every_service_it_could_offer():
 def test_a_refused_key_is_a_no_provider_error():
     """So every existing handler — the agent route, both sockets — shows it as a
     message instead of learning a new type."""
-    from openmirror.providers.base import NoProviderError, ProviderRefused
-    from openmirror.providers.registry import NoProviderError as from_registry
+    from omote.providers.base import NoProviderError, ProviderRefused
+    from omote.providers.registry import NoProviderError as from_registry
 
     assert issubclass(ProviderRefused, NoProviderError)
     assert from_registry is NoProviderError
@@ -332,8 +332,8 @@ def test_a_comfyui_connection_is_tested_against_the_server(api, tmp_path):
 @pytest.mark.asyncio
 async def test_the_agent_says_the_key_was_refused_not_that_there_are_no_models(fake_perch):
     """What a person starting a session saw before: "reports no models"."""
-    from openmirror.providers.base import ProviderRefused
-    from openmirror.providers.ollama import OllamaProvider
+    from omote.providers.base import ProviderRefused
+    from omote.providers.ollama import OllamaProvider
 
     port = perch_mod.DEFAULT_PORTS['chat']
     with pytest.raises(ProviderRefused) as caught:
@@ -349,8 +349,8 @@ async def test_the_agent_says_the_key_was_refused_not_that_there_are_no_models(f
 async def test_a1111_says_the_key_was_refused(fake_perch):
     """The fifth adapter with the same bug, reached through a shared helper that
     turned every failure — a refused key included — into None."""
-    from openmirror.providers.a1111 import A1111Provider
-    from openmirror.providers.base import ProviderRefused
+    from omote.providers.a1111 import A1111Provider
+    from omote.providers.base import ProviderRefused
 
     server = ThreadingHTTPServer(('127.0.0.1', 0), _handler('image'))
     threading.Thread(target=server.serve_forever, daemon=True).start()

@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-STATIC = Path(__file__).resolve().parents[1] / 'openmirror' / 'static'
+STATIC = Path(__file__).resolve().parents[1] / 'omote' / 'static'
 FILES = (STATIC / 'files.js').read_text()
 APP = (STATIC / 'app.js').read_text()
 
@@ -66,7 +66,7 @@ def run(script: str, *args: str) -> dict:
 def test_finding_a_file_is_ranked_and_bounded(tmp_path):
     """Ranked so the answer is at the top, because the list shows the first
     screenful and nobody scrolls a suggestion list."""
-    from openmirror.agent.files import find
+    from omote.agent.files import find
 
     (tmp_path / 'src').mkdir()
     (tmp_path / 'src' / 'app.js').write_text('x')
@@ -84,7 +84,7 @@ def test_finding_a_file_is_ranked_and_bounded(tmp_path):
 
 
 def test_an_exact_name_beats_a_prefix(tmp_path):
-    from openmirror.agent.files import find
+    from omote.agent.files import find
 
     (tmp_path / 'app.js').write_text('x')
     (tmp_path / 'application.js').write_text('x')
@@ -94,7 +94,7 @@ def test_an_exact_name_beats_a_prefix(tmp_path):
 def test_the_walk_skips_what_the_search_tools_skip(tmp_path):
     """`.git` and `node_modules` are not files anybody wants to mention, and
     walking them is how a suggestion list takes two seconds to appear."""
-    from openmirror.agent.files import find
+    from omote.agent.files import find
 
     for name in ('.git', 'node_modules', '__pycache__'):
         (tmp_path / name).mkdir()
@@ -104,7 +104,7 @@ def test_the_walk_skips_what_the_search_tools_skip(tmp_path):
 
 
 def test_dotfiles_are_not_offered(tmp_path):
-    from openmirror.agent.files import find
+    from omote.agent.files import find
 
     (tmp_path / '.env').write_text('SECRET=1')
     (tmp_path / 'ok.py').write_text('x')
@@ -114,7 +114,7 @@ def test_dotfiles_are_not_offered(tmp_path):
 def test_a_big_file_is_not_offered(tmp_path):
     """The point of a mention is that somebody can ask about the file, and a
     ninety-megabyte one is not a conversation."""
-    from openmirror.agent.files import MAX_BYTES, find
+    from omote.agent.files import MAX_BYTES, find
 
     (tmp_path / 'huge.bin').write_bytes(b'x' * (MAX_BYTES + 1))
     (tmp_path / 'small.py').write_text('x')
@@ -122,7 +122,7 @@ def test_a_big_file_is_not_offered(tmp_path):
 
 
 def test_finding_nothing_is_empty_and_not_an_error(tmp_path):
-    from openmirror.agent.files import find
+    from omote.agent.files import find
 
     assert find(tmp_path, 'nothing-like-this') == []
     assert find(tmp_path) == []
@@ -131,7 +131,7 @@ def test_finding_nothing_is_empty_and_not_an_error(tmp_path):
 def test_an_excerpt_cannot_leave_the_root(tmp_path):
     """Same check as the file tools, for the same reason: this one is reachable
     from a browser."""
-    from openmirror.agent.files import excerpt
+    from omote.agent.files import excerpt
 
     (tmp_path / 'ok.py').write_text('one\ntwo\n')
     assert 'one' in excerpt(tmp_path, 'ok.py')
@@ -140,7 +140,7 @@ def test_an_excerpt_cannot_leave_the_root(tmp_path):
 
 def test_a_binary_file_has_no_excerpt(tmp_path):
     """Not by guessing at content — by the read failing, which is the answer."""
-    from openmirror.agent.files import excerpt
+    from omote.agent.files import excerpt
 
     (tmp_path / 'blob.dat').write_bytes(b'\xff\xfe\x00\x01binary')
     assert excerpt(tmp_path, 'blob.dat') == ''

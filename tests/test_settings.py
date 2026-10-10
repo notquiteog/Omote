@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.settings import (
+from omote.settings import (
     KNOWN,
     PROJECT_CAN_NARROW,
     Settings,
@@ -57,23 +57,23 @@ def project(tmp_path):
 
 
 def test_a_project_file_is_read(project):
-    write(project, '.openmirror/settings.json', {'compact_at': 50_000})
+    write(project, '.omote/settings.json', {'compact_at': 50_000})
     assert load(project, environ={}).values['compact_at'] == 50_000
 
 
 def test_all_three_names_are_accepted(project):
     """A person arriving from Claude Code or from openCode has written the one
     they know, and being told to rename a file is how a feature goes unused."""
-    for name in ('.openmirror/settings.json', '.openmirror.json', '.claude/settings.json'):
+    for name in ('.omote/settings.json', '.omote.json', '.claude/settings.json'):
         assert name in paths(project) or True
-    for name in ('.openmirror/settings.json', '.openmirror.json', '.claude/settings.json'):
+    for name in ('.omote/settings.json', '.omote.json', '.claude/settings.json'):
         write(project, name, {})
         assert paths(project), name
 
 
 def test_a_dash_is_accepted_where_an_underscore_is_expected(project):
     """Both spellings work, because people copy settings between tools."""
-    write(project, '.openmirror/settings.json', {'approval-mode': 'plan', 'local-only': True})
+    write(project, '.omote/settings.json', {'approval-mode': 'plan', 'local-only': True})
     values = load(project, environ={}).values
     assert values['approval_mode'] == 'plan'
     assert values['local_only'] is True
@@ -82,16 +82,16 @@ def test_a_dash_is_accepted_where_an_underscore_is_expected(project):
 def test_an_unknown_key_is_reported_and_not_applied(project):
     """A typo is otherwise invisible, and somebody who set `approval-mode`
     and got `approval_mode` would have a machine that quietly ignored them."""
-    write(project, '.openmirror/settings.json', {'nope': 1, 'compact_at': 100})
+    write(project, '.omote/settings.json', {'nope': 1, 'compact_at': 100})
     found = load(project, environ={})
     assert found.values == {'compact_at': 100}
     assert [key for _, key in found.unknown] == ['nope']
 
 
 def test_a_broken_file_is_reported_and_does_not_stop_the_others(project):
-    (project / '.openmirror').mkdir(parents=True)
-    (project / '.openmirror' / 'settings.json').write_text('{ not json')
-    write(project, '.openmirror.json', {'compact_at': 42})
+    (project / '.omote').mkdir(parents=True)
+    (project / '.omote' / 'settings.json').write_text('{ not json')
+    write(project, '.omote.json', {'compact_at': 42})
     found = load(project, environ={})
     assert found.values['compact_at'] == 42
     assert found.unknown, 'and the broken one is said'
@@ -138,12 +138,12 @@ def test_a_setting_with_no_opinion_yet_is_not_a_widening(project):
 
 def test_a_project_asking_to_widen_is_refused_loudly(project):
     """Visible, because silent is indistinguishable from not being read."""
-    write(project, '.openmirror/settings.json', {
+    write(project, '.omote/settings.json', {
         'approval_mode': 'unrestricted', 'allow_purchases': True, 'local_only': False,
     })
     found = load(project, environ={
-        'OPENMIRROR_APPROVAL_MODE': 'trusted',
-        'OPENMIRROR_ALLOW_PURCHASES': 'true',
+        'OMOTE_APPROVAL_MODE': 'trusted',
+        'OMOTE_ALLOW_PURCHASES': 'true',
     })
     keys = {key for _, key, _ in found.refused}
     assert 'approval_mode' in keys
@@ -154,13 +154,13 @@ def test_a_project_asking_to_widen_is_refused_loudly(project):
 
 
 def test_a_project_may_still_make_itself_tighter(project):
-    write(project, '.openmirror/settings.json', {
+    write(project, '.omote/settings.json', {
         'approval_mode': 'read_only', 'allow_purchases': False, 'desktop_enabled': False,
     })
     found = load(project, environ={
-        'OPENMIRROR_APPROVAL_MODE': 'unrestricted',
-        'OPENMIRROR_ALLOW_PURCHASES': 'true',
-        'OPENMIRROR_DESKTOP_ENABLED': 'true',
+        'OMOTE_APPROVAL_MODE': 'unrestricted',
+        'OMOTE_ALLOW_PURCHASES': 'true',
+        'OMOTE_DESKTOP_ENABLED': 'true',
     })
     assert found.values['approval_mode'] == 'read_only'
     assert found.values['allow_purchases'] is False
@@ -183,23 +183,23 @@ def test_everything_a_project_may_narrow_is_a_boolean_or_the_ladder(project):
 
 
 def test_a_project_overrides_a_persons_file(project, tmp_path, monkeypatch):
-    import openmirror.settings as settings_mod
+    import omote.settings as settings_mod
 
     monkeypatch.setattr(settings_mod, 'PERSONAL', tmp_path / 'personal.json')
     (tmp_path / 'personal.json').write_text(json.dumps({'compact_at': 90_000, 'log_level': 'DEBUG'}))
-    write(project, '.openmirror/settings.json', {'compact_at': 10_000})
+    write(project, '.omote/settings.json', {'compact_at': 10_000})
     values = load(project, environ={}).values
     assert values['compact_at'] == 10_000, 'the project is more specific'
     assert values['log_level'] == 'DEBUG', 'and the person is not overwritten'
 
 
 def test_the_environment_beats_every_file_for_a_plain_setting(project, tmp_path, monkeypatch):
-    import openmirror.settings as settings_mod
+    import omote.settings as settings_mod
 
     monkeypatch.setattr(settings_mod, 'PERSONAL', tmp_path / 'personal.json')
     (tmp_path / 'personal.json').write_text(json.dumps({'compact_at': 90_000}))
-    write(project, '.openmirror/settings.json', {'compact_at': 10_000})
-    assert load(project, environ={'OPENMIRROR_COMPACT_AT': '1'}).values['compact_at'] == 1
+    write(project, '.omote/settings.json', {'compact_at': 10_000})
+    assert load(project, environ={'OMOTE_COMPACT_AT': '1'}).values['compact_at'] == 1
 
 
 def test_and_but_a_project_may_still_narrow_it_against_the_environment(project):
@@ -211,11 +211,11 @@ def test_and_but_a_project_may_still_narrow_it_against_the_environment(project):
     environment's `unrestricted` overwrote the project's `read_only` on the
     way past, which is the exact hole the rule exists to close one layer up.
     """
-    write(project, '.openmirror/settings.json', {
+    write(project, '.omote/settings.json', {
         'approval_mode': 'read_only', 'allow_purchases': False,
     })
     found = load(project, environ={
-        'OPENMIRROR_APPROVAL_MODE': 'unrestricted', 'OPENMIRROR_ALLOW_PURCHASES': 'true',
+        'OMOTE_APPROVAL_MODE': 'unrestricted', 'OMOTE_ALLOW_PURCHASES': 'true',
     })
     assert found.values['approval_mode'] == 'read_only'
     assert found.values['allow_purchases'] is False
@@ -226,23 +226,23 @@ def test_a_list_replaces_rather_than_unions(project):
     """A union would mean a project could not take a tool *away*, which is the
     one thing narrowing is for. The second file wins, because
     `PROJECT_NAMES` is read in order and later is more specific."""
-    write(project, '.openmirror/settings.json', {'toolset': ['files', 'git']})
-    write(project, '.openmirror.json', {'toolset': ['files']})
+    write(project, '.omote/settings.json', {'toolset': ['files', 'git']})
+    write(project, '.omote.json', {'toolset': ['files']})
     assert load(project, environ={}).values['toolset'] == ['files']
 
 
 def test_objects_merge_one_level_deep(project):
     """Deep enough for what anybody writes, and not deeper. `PROJECT_NAMES` is
-    read in order, so `.openmirror/settings.json` is the base and
-    `.openmirror.json` fills it in."""
-    write(project, '.openmirror/settings.json', {'provider': {'openai': {'base': 'a'}}})
-    write(project, '.openmirror.json', {'provider': {'openai': {'model': 'b'}}})
+    read in order, so `.omote/settings.json` is the base and
+    `.omote.json` fills it in."""
+    write(project, '.omote/settings.json', {'provider': {'openai': {'base': 'a'}}})
+    write(project, '.omote.json', {'provider': {'openai': {'model': 'b'}}})
     whole = load(project, environ={}).values['provider']
     assert whole['openai'] == {'base': 'a', 'model': 'b'}, whole
 
 
 def test_a_string_from_the_environment_becomes_the_type_the_field_is(project):
-    found = load(project, environ={'OPENMIRROR_UNCONFINED': 'yes', 'OPENMIRROR_COMPACT_AT': '1000'})
+    found = load(project, environ={'OMOTE_UNCONFINED': 'yes', 'OMOTE_COMPACT_AT': '1000'})
     assert found.values['unconfined'] is True
     assert found.values['compact_at'] == 1000
 
@@ -251,7 +251,7 @@ def test_a_string_from_the_environment_becomes_the_type_the_field_is(project):
 
 
 def test_values_land_on_the_config(project):
-    from openmirror.config import Config
+    from omote.config import Config
 
     cfg = Config()
     apply(Settings(values={'compact_at': 1234}), cfg)
@@ -261,7 +261,7 @@ def test_values_land_on_the_config(project):
 
 def test_a_path_setting_written_as_a_string_becomes_a_path(project):
 
-    from openmirror.config import Config
+    from omote.config import Config
 
     cfg = Config()
     apply(Settings(values={'data_dir': '/tmp/wherever', 'unconfined': 'yes'}), cfg)
@@ -272,10 +272,10 @@ def test_a_path_setting_written_as_a_string_becomes_a_path(project):
 def test_a_project_gets_a_copy_and_not_the_shared_config(project):
     """The whole reason it is per-root: the daemon serves many projects at
     once, and one project's file must not change another's session."""
-    from openmirror.config import Config
+    from omote.config import Config
 
     shared = Config(compact_at=111)
-    write(project, '.openmirror/settings.json', {'compact_at': 222})
+    write(project, '.omote/settings.json', {'compact_at': 222})
     one = for_root(project, shared, environ={})
     other = for_root(project.parent, shared, environ={})
     assert one is not shared and other is not shared
@@ -285,10 +285,10 @@ def test_a_project_gets_a_copy_and_not_the_shared_config(project):
 
 
 def test_a_callers_own_overrides_survive_a_projects_file(project):
-    from openmirror.config import Config
+    from omote.config import Config
 
     base = Config(compact_at=7)
-    write(project, '.openmirror/settings.json', {'compact_at': 999})
+    write(project, '.omote/settings.json', {'compact_at': 999})
     assert for_root(project, base, environ={}).compact_at == 999, "the project's file wins"
 
     empty = project.parent / 'nowhere'
@@ -302,10 +302,10 @@ def test_adding_a_second_provider_does_not_remove_the_first(project):
     shallow merge means adding the second one silently *removes* the first,
     along with its key. Found by a test that expected a two-level merge and
     was right to."""
-    write(project, '.openmirror/settings.json', {
+    write(project, '.omote/settings.json', {
         'provider': {'openai': {'base_url': 'https://one', 'key': 'k1'}},
     })
-    write(project, '.openmirror.json', {
+    write(project, '.omote.json', {
         'provider': {'perch': {'base_url': 'https://two', 'key': 'k2'}},
     })
     providers = load(project, environ={}).values['provider']
@@ -317,13 +317,13 @@ def test_a_bare_one_is_the_number_one_wherever_the_field_is_a_number(project):
     """"1" is both true and the number one, and guessing wrong sets
     `compact_at` to True — which is also 1, so it looks like it worked and is a
     thousand times too small a context window."""
-    found = load(project, environ={'OPENMIRROR_COMPACT_AT': '1', 'OPENMIRROR_PORT': '8600'})
+    found = load(project, environ={'OMOTE_COMPACT_AT': '1', 'OMOTE_PORT': '8600'})
     assert found.values['compact_at'] == 1
     assert found.values['port'] == 8600
 
 
 def test_a_yes_is_a_boolean_wherever_the_field_is_a_boolean(project):
-    found = load(project, environ={'OPENMIRROR_UNCONFINED': 'yes', 'OPENMIRROR_LOCAL_ONLY': 'off'})
+    found = load(project, environ={'OMOTE_UNCONFINED': 'yes', 'OMOTE_LOCAL_ONLY': 'off'})
     assert found.values['unconfined'] is True
     assert found.values['local_only'] is False
 
@@ -338,7 +338,7 @@ def test_an_allowed_directory_is_reachable_and_a_random_one_is_not(tmp_path):
     library next door either turns the whole thing off or does without. A
     flag that opens everything is not a thing anybody leaves on.
     """
-    from openmirror.agent.tools.base import PathEscape, ToolContext, resolve_in_root
+    from omote.agent.tools.base import PathEscape, ToolContext, resolve_in_root
 
     project = tmp_path / 'project'
     shared = tmp_path / 'shared'
@@ -365,7 +365,7 @@ def test_an_allowed_directory_is_reachable_and_a_random_one_is_not(tmp_path):
 def test_an_allowed_directory_does_not_allow_everything_under_the_sky(tmp_path):
     """A parent is not a grant: allowing `/data/shared` must not make
     `/data/anything-else` reachable, and must not survive a `..`."""
-    from openmirror.agent.tools.base import PathEscape, ToolContext, resolve_in_root
+    from omote.agent.tools.base import PathEscape, ToolContext, resolve_in_root
 
     project = tmp_path / 'project'
     allowed = tmp_path / 'shared'
@@ -388,30 +388,30 @@ def test_an_allowed_directory_does_not_allow_everything_under_the_sky(tmp_path):
 
 
 def test_the_allowlist_is_read_from_the_environment_on_a_path_separator(tmp_path):
-    """`OPENMIRROR_EXTRA_DIRS` is a list, and a list is separated by the
+    """`OMOTE_EXTRA_DIRS` is a list, and a list is separated by the
     platform's separator rather than by a comma — a directory may contain a
     comma, and nobody's home does but a macOS one might."""
     import os
 
-    from openmirror.config import Config
+    from omote.config import Config
 
     one, two = tmp_path / 'one', tmp_path / 'two'
     one.mkdir()
     two.mkdir()
-    os.environ['OPENMIRROR_EXTRA_DIRS'] = os.pathsep.join([str(one), str(two)])
+    os.environ['OMOTE_EXTRA_DIRS'] = os.pathsep.join([str(one), str(two)])
     try:
         assert Config().extra_dirs == [str(one), str(two)]
     finally:
-        os.environ.pop('OPENMIRROR_EXTRA_DIRS', None)
+        os.environ.pop('OMOTE_EXTRA_DIRS', None)
     assert Config().extra_dirs == []
 
 
 def test_a_settings_file_may_add_a_directory_but_not_lose_the_ones_there(tmp_path):
     """Lists replace, and a project file is the most specific thing there is —
     so a project can legitimately declare the shared directories it needs."""
-    from openmirror.config import Config
+    from omote.config import Config
 
-    write(tmp_path, '.openmirror/settings.json', {'extra_dirs': ['/srv/shared']})
+    write(tmp_path, '.omote/settings.json', {'extra_dirs': ['/srv/shared']})
     assert for_root(tmp_path, Config(extra_dirs=['/home/me/work']), environ={}).extra_dirs == ['/srv/shared']
 
 
@@ -426,7 +426,7 @@ def test_every_setting_is_reachable_from_a_file():
     """
     import dataclasses
 
-    from openmirror.config import Config
+    from omote.config import Config
 
     fields = {f.name for f in dataclasses.fields(Config)}
     missing = fields - KNOWN

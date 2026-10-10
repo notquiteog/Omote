@@ -36,7 +36,7 @@ be strictly weaker than your own configuration. It is.
 | `PostToolUse` | after a tool ran | no — advisory |
 | `Stop` | when a turn ends | no — advisory |
 
-Which are which is one list in `openmirror/agent/hooks.py`, and
+Which are which is one list in `omote/agent/hooks.py`, and
 `test_every_event_the_docs_say_can_refuse_actually_can` reads this table and
 compares. It is here because `UserPromptSubmit` was listed as refusable here
 and implemented only for `PreToolUse`, so a hook that stopped a turn was
@@ -47,7 +47,7 @@ complaining about a failed edit is worth hearing about; reporting work that
 happened as work that did not would be a worse lie than the extra noise.
 
 An event name this build does not know is ignored rather than refused, so a
-hooks file written for a later openmirror still does the parts this one
+hooks file written for a later Omote still does the parts this one
 understands.
 
 ## Writing one
@@ -91,8 +91,8 @@ The command gets the call as JSON on stdin:
  "summary": "rm -rf build/", "risk": "execute", "session_id": "...", "cwd": "..."}
 ```
 
-and these in the environment: `OPENMIRROR_HOOK_EVENT`, `OPENMIRROR_TOOL`,
-`OPENMIRROR_SESSION`.
+and these in the environment: `OMOTE_HOOK_EVENT`, `OMOTE_TOOL`,
+`OMOTE_SESSION`.
 
 **Write the reason to stderr.** That is what a person reads in the transcript
 and what the model is told. Stdout is for output you want passed along.
@@ -101,8 +101,8 @@ and what the model is told. Stdout is for output you want passed along.
 
 | file | trusted | runs |
 |---|---|---|
-| `~/.openmirror/hooks.json` | yes | as written |
-| `hooks.json` or `.openmirror/hooks.json` in the project | **no** | only after you agree |
+| `~/.omote/hooks.json` | yes | as written |
+| `hooks.json` or `.omote/hooks.json` in the project | **no** | only after you agree |
 
 A project's are read, listed in the Hooks panel, and *not run* until the first
 time one would fire — at which point a strip appears above the transcript
@@ -110,13 +110,13 @@ with the exact command and two buttons. The answer is remembered for the
 session, **per command**: a project cannot get a new hook added tomorrow and
 inherit the answer you gave today for a different one.
 
-Set `OPENMIRROR_HOOKS_ALLOW_PROJECT=1` to skip the question. It is off by
+Set `OMOTE_HOOKS_ALLOW_PROJECT=1` to skip the question. It is off by
 default, and the reason is that a hooks file is code you did not write.
 
 ## What a hook cannot do
 
 * **Allow anything.** A refusal from the policy is final.
-* **Hang the turn.** `OPENMIRROR_HOOKS_TIMEOUT` seconds, default 10, and the
+* **Hang the turn.** `OMOTE_HOOKS_TIMEOUT` seconds, default 10, and the
   whole process *group* is killed rather than the shell — a hook's children
   outlive the shell, and abandoning the `await` leaves them running into the
   next turn.
@@ -138,6 +138,6 @@ behalf of something that is not going to happen.
 
 | setting | default | does |
 |---|---|---|
-| `OPENMIRROR_HOOKS` | `true` | hooks are read at all |
-| `OPENMIRROR_HOOKS_ALLOW_PROJECT` | `false` | project hooks run without asking |
-| `OPENMIRROR_HOOKS_TIMEOUT` | `10` | seconds for one hook |
+| `OMOTE_HOOKS` | `true` | hooks are read at all |
+| `OMOTE_HOOKS_ALLOW_PROJECT` | `false` | project hooks run without asking |
+| `OMOTE_HOOKS_TIMEOUT` | `10` | seconds for one hook |

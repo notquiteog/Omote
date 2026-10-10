@@ -21,9 +21,9 @@ from __future__ import annotations
 
 import pytest
 
-from openmirror.agent.tools.base import ToolContext
-from openmirror.agent.tools.hr import HrTool
-from openmirror.hr.store import MIN_FOR_A_BAND, Ledger, StoreError, span_days
+from omote.agent.tools.base import ToolContext
+from omote.agent.tools.hr import HrTool
+from omote.hr.store import MIN_FOR_A_BAND, Ledger, StoreError, span_days
 
 
 @pytest.fixture
@@ -288,8 +288,8 @@ def test_the_tool_never_approves_or_denies_on_its_own(ledger, tmp_path):
     somebody is entitled to and a tool that made it out of a handful of
     records would be doing it confidently and wrongly.
     """
-    from openmirror.agent.tools.hr import ACTIONS, RISK
-    from openmirror.protocol.agent import Risk
+    from omote.agent.tools.hr import ACTIONS, RISK
+    from omote.protocol.agent import Risk
 
     assert 'approve' not in ACTIONS and 'decide_yes' not in ACTIONS
     assert set(ACTIONS) == set(RISK), 'an action with no grade, or a grade with no action'
@@ -312,7 +312,7 @@ def test_nothing_leaves_the_machine(ledger):
     from pathlib import Path
 
     source = (
-        Path(__file__).resolve().parents[1] / 'openmirror' / 'hr' / 'store.py'
+        Path(__file__).resolve().parents[1] / 'omote' / 'hr' / 'store.py'
     ).read_text()
 
     # Imports and URLs, not the *word* "requests" — which is how the first

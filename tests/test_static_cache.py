@@ -17,7 +17,7 @@ from __future__ import annotations
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
-from openmirror.main import STATIC, Revalidated
+from omote.main import STATIC, Revalidated
 
 
 def _client() -> TestClient:

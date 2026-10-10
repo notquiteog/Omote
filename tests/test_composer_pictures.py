@@ -36,13 +36,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-STATIC = Path(__file__).resolve().parents[1] / 'openmirror' / 'static'
+STATIC = Path(__file__).resolve().parents[1] / 'omote' / 'static'
 ATTACH = (STATIC / 'attachments.js').read_text()
 HISTORY = (STATIC / 'history.js').read_text()
 APP = (STATIC / 'app.js').read_text()
 HTML = (STATIC / 'index.html').read_text()
 SESSION = (
-    Path(__file__).resolve().parents[1] / 'openmirror' / 'agent' / 'session.py'
+    Path(__file__).resolve().parents[1] / 'omote' / 'agent' / 'session.py'
 ).read_text()
 
 

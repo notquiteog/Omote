@@ -35,7 +35,7 @@ small index in front of them.
 
 A session is named after the folder until its first message arrives, and then
 after that message — because a list of ten conversations all called
-`openmirror` is not a list. A title a person set, or one derived from an
+`omote` is not a list. A title a person set, or one derived from an
 earlier message, is never overwritten.
 
 **What is stored, and what deliberately is not.** The messages, the title, the
@@ -58,7 +58,7 @@ one that says where it went.
 
 ## Worktrees
 
-`OPENMIRROR_WORKTREES=1` and `Worktree` in the sidebar. A second checkout of
+`OMOTE_WORKTREES=1` and `Worktree` in the sidebar. A second checkout of
 the repository, on its own branch, that a session works in.
 
 This is separate, not safe. A worktree shares the repository's history, its
@@ -78,8 +78,8 @@ containing a whole second copy of the project.
 
 ## Settings
 
-`.openmirror/settings.json`, `.openmirror.json` and `.claude/settings.json`,
-plus `~/.openmirror/settings.json`, plus whatever `OPENMIRROR_CONFIG` names.
+`.omote/settings.json`, `.omote.json` and `.claude/settings.json`,
+plus `~/.omote/settings.json`, plus whatever `OMOTE_CONFIG` names.
 Dashes and underscores both work, because people copy settings between tools.
 
 Merged, never replaced — later files add to earlier ones, so a project can add
@@ -103,7 +103,7 @@ settings file is a repository you opened; letting it raise its own safety
 settings would be the same hole the hooks have, one layer up.
 
 It bites in a specific way worth knowing: the environment normally beats every
-file, and here it does not. `OPENMIRROR_APPROVAL_MODE=unrestricted` alongside
+file, and here it does not. `OMOTE_APPROVAL_MODE=unrestricted` alongside
 a project's `read_only` gives you `read_only`, because a project lowering
 something is a ceiling nothing raises.
 

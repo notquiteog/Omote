@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent import worktree as wt
+from omote.agent import worktree as wt
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def test_the_reason_is_a_sentence_and_not_a_boolean(tmp_path, repo):
 
 def test_a_worktree_is_a_second_checkout_on_its_own_branch(repo):
     made = wt.create(repo, label='try something')
-    assert made.branch.startswith('openmirror/')
+    assert made.branch.startswith('omote/')
     assert Path(made.path).is_dir()
     assert (Path(made.path) / 'f.txt').is_file(), 'it starts from the same commit'
     assert made.head, 'and knows where it is'
@@ -87,7 +87,7 @@ def test_a_worktree_does_not_appear_inside_the_working_tree(repo):
 
 def test_an_explicit_branch_is_kept_but_namespaced(repo):
     made = wt.create(repo, branch='fix-the-thing')
-    assert made.branch == 'openmirror/fix-the-thing'
+    assert made.branch == 'omote/fix-the-thing'
 
 
 def test_a_branch_name_cannot_become_a_command(repo):
@@ -187,16 +187,16 @@ async def test_worktrees_are_off_unless_the_operator_says(repo, monkeypatch):
     allowed. A branch nobody asked for is a branch somebody has to clean up."""
     from starlette.testclient import TestClient
 
-    from openmirror.agent.manager import manager
-    from openmirror.config import config
-    from openmirror.main import app
+    from omote.agent.manager import manager
+    from omote.config import config
+    from omote.main import app
 
     session = await manager.create(root=str(repo), provider=object(), model='x', mode='ask')
     client = TestClient(app)
     monkeypatch.setattr(config, 'worktrees_enabled', False)
     got = client.post(f'/api/sessions/{session.id}/worktree', json={'label': 'nope'})
     assert got.status_code == 409
-    assert 'OPENMIRROR_WORKTREES' in got.json()['detail']
+    assert 'OMOTE_WORKTREES' in got.json()['detail']
     # Nothing was made.
     assert {w.branch for w in wt.list_worktrees(repo)} == {'main'}
     await manager.close(session.id)
@@ -205,8 +205,8 @@ async def test_worktrees_are_off_unless_the_operator_says(repo, monkeypatch):
 async def test_the_list_route_answers_with_a_reason_when_it_cannot(tmp_path, monkeypatch):
     from starlette.testclient import TestClient
 
-    from openmirror.agent.manager import manager
-    from openmirror.main import app
+    from omote.agent.manager import manager
+    from omote.main import app
 
     plain = tmp_path / 'plain'
     plain.mkdir()
@@ -224,7 +224,7 @@ async def test_the_list_route_answers_with_a_reason_when_it_cannot(tmp_path, mon
 def test_the_feature_is_off_by_default():
     """A branch somebody did not ask for is a branch somebody has to clean
     up, so it is a switch and the switch is off."""
-    from openmirror.config import Config
+    from omote.config import Config
 
     assert Config().worktrees_enabled is False
 

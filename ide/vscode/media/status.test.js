@@ -6,7 +6,7 @@
  * Three of the four things here exist because of a way the obvious version is
  * wrong, and all three are decisions rather than formatting:
  *
- *   - `windowFraction` follows `openmirror/agent/windows.py`: the compaction
+ *   - `windowFraction` follows `omote/agent/windows.py`: the compaction
  *     limit wins over the model's window, and there is no fraction at all when
  *     there is no denominator. A bar at 40% on a model that will refuse the
  *     request is worse than no bar, because somebody decides whether to keep
@@ -54,10 +54,10 @@ test('linkView: four states, and two of them are not the same thing', () => {
   assert.equal(closed.title, 'retrying in 4s (attempt 3)');
 
   // Terminal. The host's own message is the fix, so it is shown verbatim.
-  const failed = linkView({ state: 'failed', message: 'Start it with `openmirror serve`.' });
+  const failed = linkView({ state: 'failed', message: 'Start it with `omote serve`.' });
   assert.equal(failed.cls, 'failed');
   assert.equal(failed.fatal, true);
-  assert.equal(failed.title, 'Start it with `openmirror serve`.');
+  assert.equal(failed.title, 'Start it with `omote serve`.');
 
   // And the state the panel opens in, before the host has said anything.
   const connecting = linkView({ state: 'connecting', message: 'attaching' });
@@ -132,13 +132,13 @@ test('contextView: the frame the host sends, and the event the turn carries', ()
 
 test('sessionRow: the title, and enough about it to choose between two', () => {
   const now = 1700000000;
-  const stored = { id: 's1', title: 'the parser', root: '/work/openmirror', updated: now - 7200, turns: 3 };
+  const stored = { id: 's1', title: 'the parser', root: '/work/omote', updated: now - 7200, turns: 3 };
   const row = sessionRow(stored, now);
   assert.equal(row.id, 's1');
   assert.equal(row.title, 'the parser');
-  assert.equal(row.where, 'openmirror');
+  assert.equal(row.where, 'omote');
   assert.equal(row.when, '2h');
-  assert.equal(row.detail, '3 turns  -  2h  -  openmirror');
+  assert.equal(row.detail, '3 turns  -  2h  -  omote');
   // The label is what a screen reader gets, and it says the same thing the row
   // shows rather than repeating the id.
   assert.equal(row.label, 'the parser, 2h ago');
@@ -156,16 +156,16 @@ test('sessionRow: the title, and enough about it to choose between two', () => {
 test('emptyState: a daemon that is not running gets the command that starts it', () => {
   const away = 'http://127.0.0.1:8477 is not answering';
   const down = emptyState({ state: 'failed', message: away }, { root: '/work/app' });
-  assert.match(down.ask, /openmirror is not running for app/);
-  assert.match(down.sub, /openmirror serve/);
+  assert.match(down.ask, /Omote is not running for app/);
+  assert.match(down.sub, /omote serve/);
   // The host's own message is shown rather than paraphrased: it already names
   // the fix, and a second wording of the same fix is a second thing to be wrong.
   assert.equal(down.reason, away);
   // A token the daemon will not accept is the other way to be down, and it says
   // so in the same shape.
   const wrong = emptyState({ state: 'failed', message: 'that is not the token' }, {});
-  assert.equal(wrong.ask, 'openmirror is not running.');
-  assert.match(wrong.sub, /openmirror serve/);
+  assert.equal(wrong.ask, 'Omote is not running.');
+  assert.match(wrong.sub, /omote serve/);
 
   // Connecting is not down, and an empty box under a spinner is a box that says
   // nothing about whether anything is wrong.
@@ -178,7 +178,7 @@ test('emptyState: a daemon that is not running gets the command that starts it',
   assert.match(none.ask, /No conversation yet/);
 
   // The ordinary empty session, naming the folder the agent is pointed at.
-  const ready = emptyState({ state: 'open' }, { session: true, root: '/work/openmirror', model: 'claude-sonnet-4' });
-  assert.equal(ready.ask, 'What should we do in openmirror?');
+  const ready = emptyState({ state: 'open' }, { session: true, root: '/work/omote', model: 'claude-sonnet-4' });
+  assert.equal(ready.ask, 'What should we do in omote?');
   assert.equal(ready.sub, 'claude-sonnet-4');
 });

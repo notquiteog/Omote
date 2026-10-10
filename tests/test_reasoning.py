@@ -1,4 +1,4 @@
-"""What openmirror asks the Messages API for, and the three ways that shape moved.
+"""What omote asks the Messages API for, and the three ways that shape moved.
 
 None of these rules is visible in a response body, which is why they are tested
 directly rather than left to a live call to exercise:
@@ -17,8 +17,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from openmirror.providers.anthropic import _TRANSLATED_EXTRAS, reasoning_params
-from openmirror.providers.base import ChatRequest
+from omote.providers.anthropic import _TRANSLATED_EXTRAS, reasoning_params
+from omote.providers.base import ChatRequest
 
 CURRENT = 'claude-opus-5'
 OLD = 'claude-3-5-sonnet-20241022'
@@ -113,7 +113,7 @@ def test_the_adapter_never_writes_a_disabled_thinking_type():
     # Both files: the per-family rules moved into `reasoning.py`, and a guard
     # that went on scanning only the adapter would have kept passing while the
     # thing it guards against was written one file over.
-    root = Path(__file__).resolve().parents[1] / 'openmirror' / 'providers'
+    root = Path(__file__).resolve().parents[1] / 'omote' / 'providers'
     literals: list[str] = []
     for name in ('anthropic.py', 'reasoning.py'):
         src = root / name

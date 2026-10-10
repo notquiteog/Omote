@@ -10,7 +10,7 @@
  * of the project uses. Drift between this renderer and the browser one is
  * invisible until somebody trusts the wrong one.
  *
- * The second is coverage of the union in `openmirror/protocol/agent.py`. Every
+ * The second is coverage of the union in `omote/protocol/agent.py`. Every
  * `type` the daemon can send is read out of that file and fed to `eventLines`,
  * and the assertion is that none of them comes back as an unknown event. When
  * somebody adds `tool.interrupted` to the daemon, this test fails and says so,
@@ -34,7 +34,7 @@ import {
 } from './events.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const AGENT = path.join(here, '..', '..', '..', 'openmirror', 'protocol', 'agent.py');
+const AGENT = path.join(here, '..', '..', '..', 'omote', 'protocol', 'agent.py');
 
 /** Every `type: Literal['...']` the daemon's *server -> client* models declare. */
 function daemonEventTypes() {

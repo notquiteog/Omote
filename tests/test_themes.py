@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-STATIC = Path(__file__).resolve().parents[1] / 'openmirror' / 'static'
+STATIC = Path(__file__).resolve().parents[1] / 'omote' / 'static'
 THEMES_CSS = (STATIC / 'themes.css').read_text()
 THEME_JS = (STATIC / 'theme.js').read_text()
 INDEX = (STATIC / 'index.html').read_text()
@@ -143,7 +143,7 @@ def test_the_early_script_is_in_the_head_and_before_the_body():
     the question was asked.
     """
     head = INDEX[: INDEX.index('</head>')]
-    at = head.index('openmirror.theme')
+    at = head.index('omote.theme')
     assert at > head.index('<head'), 'the script is outside the head'
     window = head[at:at + 400]
     assert 'dataset.theme' in window, 'and does not set the attribute'
@@ -168,7 +168,7 @@ def test_the_stylesheet_is_actually_loaded():
 def test_high_contrast_is_not_a_colour_theme():
     """The person who needs it needs it *on top of* whichever colour they
     chose, so it is a switch and not another dot in the row."""
-    assert 'openmirror.contrast' in THEME_JS
+    assert 'omote.contrast' in THEME_JS
     assert 'id="theme-contrast"' in INDEX
     assert "dataset.contrast" in THEME_JS
     # And the CSS that acts on it exists.

@@ -21,16 +21,16 @@ import shutil
 
 import pytest
 
-from openmirror.agent.approval import ApprovalPolicy, Decision, Mode, Rule, _fingerprint
-from openmirror.agent.browser import BrowserConfig, BrowserSession
-from openmirror.agent.tools.base import ToolContext
-from openmirror.agent.tools.browser import (
+from omote.agent.approval import ApprovalPolicy, Decision, Mode, Rule, _fingerprint
+from omote.agent.browser import BrowserConfig, BrowserSession
+from omote.agent.tools.base import ToolContext
+from omote.agent.tools.browser import (
     BrowserNavigateTool,
     BrowserReadTool,
     BrowserTypeTool,
     classify_field,
 )
-from openmirror.protocol.agent import Risk, ToolCall
+from omote.protocol.agent import Risk, ToolCall
 from tests.fixtures.hotels import HotelSite
 
 SECRET = 'hunter2-do-not-print-me'
@@ -236,7 +236,7 @@ async def test_a_typed_secret_is_not_echoed_anywhere(tmp_path):
     except ImportError:
         pytest.skip('playwright is not installed')
 
-    from openmirror.agent.stage import VirtualStage
+    from omote.agent.stage import VirtualStage
 
     stage = VirtualStage(1024, 768)
     browser = BrowserSession(

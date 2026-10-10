@@ -8,7 +8,7 @@ asserted directly.
 
 from __future__ import annotations
 
-from openmirror.providers import reasoning as R
+from omote.providers import reasoning as R
 
 OPENAI = 'https://api.openai.com/v1'
 OPENROUTER = 'https://openrouter.ai/api/v1'
@@ -40,7 +40,7 @@ def test_the_host_is_read_off_the_address():
 
 
 def test_none_is_no_opinion_and_is_not_off():
-    # None leaves every host at its default — what openmirror did before a
+    # None leaves every host at its default — what omote did before a
     # level existed. `off` overrides it downwards. Collapsing them would switch
     # reasoning off for every session that never chose.
     assert R.openai_compat_reasoning(None, 'gpt-5.6', OPENAI) == {}

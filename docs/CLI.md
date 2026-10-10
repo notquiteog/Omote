@@ -1,6 +1,6 @@
 # The command line
 
-`openmirror` used to take no arguments at all: the command started the daemon
+`omote` used to take no arguments at all: the command started the daemon
 and that was the entire interface. Everything else — a conversation, a model,
 a stored transcript — was reachable only through a browser tab, which is a
 strange shape for something whose whole point is being driven by code.
@@ -9,8 +9,8 @@ Two things were added, and they are deliberately different from each other:
 
 | | |
 |---|---|
-| **`openmirror run`** | the agent, headless. No browser, no terminal UI, one prompt start to finish. |
-| **`openmirror chat`** | a terminal *client* for a running daemon. Streaming, approvals, `/commands`, `@` mentions, pasted images. |
+| **`omote run`** | the agent, headless. No browser, no terminal UI, one prompt start to finish. |
+| **`omote chat`** | a terminal *client* for a running daemon. Streaming, approvals, `/commands`, `@` mentions, pasted images. |
 
 The difference matters. `run` starts its own agent and owns the whole
 conversation. `chat` starts nothing: it speaks the same HTTP and WebSocket API
@@ -22,17 +22,17 @@ browser already is the one people use for anything long.
 ## The daemon still comes first
 
 ```bash
-openmirror            # with no arguments, starts the daemon
-openmirror serve      # the same thing, said out loud
+omote            # with no arguments, starts the daemon
+omote serve      # the same thing, said out loud
 ```
 
-**Bare `openmirror` will always start the daemon.** Two callers inside this
+**Bare `omote` will always start the daemon.** Two callers inside this
 repository depend on exactly that and pass no arguments — the desktop app's
 frozen sidecar, which imports `main` and calls it, and `daemon.rs`, which
 spawns the binary with an empty argv. Anything else was made of that shape a
 promise nobody was told about.
 
-A leading dash is not a word, so `openmirror --port 9000` is the server with a
+A leading dash is not a word, so `omote --port 9000` is the server with a
 flag. A word that is not one of the commands below is a mistake, and a mistake
 is the usage on stderr and exit 2 — argparse's convention, which every other
 tool on the machine already follows, and which scripts already know how to
@@ -50,12 +50,12 @@ These are fixed and documented because scripts read them.
 | `3` | the port was already taken |
 | `130` | interrupted |
 
-## `openmirror run` — one prompt, no browser
+## `omote run` — one prompt, no browser
 
 ```bash
-openmirror run -p "explain what this repo does"
-git diff | openmirror run -p "review this diff for security problems"
-openmirror run -p "write the migration" --model anthropic --mode auto_edit
+omote run -p "explain what this repo does"
+git diff | omote run -p "review this diff for security problems"
+omote run -p "write the migration" --model anthropic --mode auto_edit
 ```
 
 `-`, or no flag at all, means the prompt is on stdin, and whatever is there is
@@ -98,13 +98,13 @@ there is a run that never finishes.
 
 `--yes` is the other answer, and it says on stderr what it agreed to.
 
-## `openmirror chat` — a terminal client
+## `omote chat` — a terminal client
 
 ```bash
-openmirror chat                     # attach to a daemon on 127.0.0.1:8477
-openmirror chat -c                  # the most recent conversation in this folder
-openmirror chat -m gpt-5 --mode plan
-openmirror run -p … --json | openmirror chat   # still a client, still needs a daemon
+omote chat                     # attach to a daemon on 127.0.0.1:8477
+omote chat -c                  # the most recent conversation in this folder
+omote chat -m gpt-5 --mode plan
+omote run -p … --json | omote chat   # still a client, still needs a daemon
 ```
 
 It needs a daemon, and says so plainly if there is not one rather than starting
@@ -128,17 +128,17 @@ With a non-interactive stdin it reads the prompt from it, runs one turn, prints
 the answer and exits — so it is scriptable, and `--prompt` does the same thing
 without the pipe.
 
-## `openmirror sessions` — the conversations on disk
+## `omote sessions` — the conversations on disk
 
 ```bash
-openmirror sessions list
-openmirror sessions list --root ~/work/api --json
-openmirror sessions show 4f2a…
-openmirror sessions search "retry loop"        # every conversation, not just this one
-openmirror sessions export 4f2a… --format md --output notes.md
-openmirror sessions fork 4f2a… --at 12
-openmirror sessions prune --older-than 30
-openmirror sessions delete 4f2a…
+omote sessions list
+omote sessions list --root ~/work/api --json
+omote sessions show 4f2a…
+omote sessions search "retry loop"        # every conversation, not just this one
+omote sessions export 4f2a… --format md --output notes.md
+omote sessions fork 4f2a… --at 12
+omote sessions prune --older-than 30
+omote sessions delete 4f2a…
 ```
 
 `search` reads the stored transcripts, not the live session list, so it finds a
@@ -153,12 +153,12 @@ honest version of "share this conversation" for a tool that runs on your own
 machine and has nowhere to publish: a file you can then do whatever you like
 with.
 
-## `openmirror models` and `openmirror doctor`
+## `omote models` and `omote doctor`
 
 ```bash
-openmirror models                   # every provider that can chat, and what it offers
-openmirror models --provider ollama
-openmirror doctor                   # what is configured, what is missing, what it would pick
+omote models                   # every provider that can chat, and what it offers
+omote models --provider ollama
+omote doctor                   # what is configured, what is missing, what it would pick
 ```
 
 `doctor` never fails. Its job is to answer "why is nothing happening" without
@@ -166,7 +166,7 @@ you having to read a log file.
 
 ## Commands in the conversation
 
-Typed into the composer, in the browser or in `openmirror chat`. They are about
+Typed into the composer, in the browser or in `omote chat`. They are about
 the conversation rather than part of it, and they are shaped like turns so a
 client renders them as one.
 

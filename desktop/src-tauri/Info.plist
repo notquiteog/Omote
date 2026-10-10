@@ -9,6 +9,6 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>openmirror listens when you talk to it in Talk and Live.</string>
+  <string>omote listens when you talk to it in Talk and Live.</string>
 </dict>
 </plist>

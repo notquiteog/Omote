@@ -26,9 +26,9 @@ from __future__ import annotations
 
 import asyncio
 
-from openmirror.agent.approval import Mode
-from openmirror.agent.runtime import build_session
-from openmirror.providers.base import StreamDone, StreamText
+from omote.agent.approval import Mode
+from omote.agent.runtime import build_session
+from omote.providers.base import StreamDone, StreamText
 from tests.test_agent import ScriptedProvider, drain
 
 

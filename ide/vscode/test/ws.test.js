@@ -682,7 +682,7 @@ test('a multi-byte character split across two chunks reassembles', function () {
 test('a good handshake opens and the request is well formed', async function (t) {
   await withServer(function () {}, async function (ctx) {
     const ws = new WebSocketClient(ctx.url, {
-      headers: { Authorization: 'Bearer secret', 'X-Openmirror-Token': 'secret' },
+      headers: { Authorization: 'Bearer secret', 'X-Omote-Token': 'secret' },
     });
     const seen = watch(ws);
     t.after(function () { ws.close(); });
@@ -698,7 +698,7 @@ test('a good handshake opens and the request is well formed', async function (t)
     const key = header(request, 'sec-websocket-key');
     assert.equal(Buffer.from(key, 'base64').length, 16);
     assert.equal(header(request, 'authorization'), 'Bearer secret');
-    assert.equal(header(request, 'x-openmirror-token'), 'secret');
+    assert.equal(header(request, 'x-omote-token'), 'secret');
 
     conn.socket.write(acceptReply(request));
     await once(ws, 'open');
@@ -861,7 +861,7 @@ test('a 403 is reported as the token problem it is', async function (t) {
     const [err] = await once(ws, 'error');
     assert.equal(err.code, 'EAUTH');
     assert.match(err.message, /HTTP 403 Forbidden/);
-    assert.match(err.message, /openmirror\.token or OPENMIRROR_TOKEN/);
+    assert.match(err.message, /omote\.token or OMOTE_TOKEN/);
   });
 });
 
@@ -1283,7 +1283,7 @@ test('an error with nobody listening is logged rather than thrown', async functi
   }
   assert.equal(closed, 1006);
   assert.equal(written.length, 1);
-  assert.match(written[0], /openmirror: websocket: .*is not answering/);
+  assert.match(written[0], /omote: websocket: .*is not answering/);
 });
 
 test('a bad URL is refused at the constructor', function () {
@@ -1457,7 +1457,7 @@ test('a self signed certificate is refused, because validation stays on', async 
   let tls;
   let key;
   let cert;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'openmirror-ws-tls-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omote-ws-tls-'));
   try {
     child.execFileSync('openssl', [
       'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',

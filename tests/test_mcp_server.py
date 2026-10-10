@@ -1,8 +1,8 @@
-"""openmirror as an MCP server, tested over all three transports.
+"""omote as an MCP server, tested over all three transports.
 
 The client tests in `test_mcp.py` spend a subprocess to avoid mocking the
 protocol. These do the same in the other direction: a real child process for
-stdio, a real socket and a real uvicorn for HTTP and SSE, and openmirror's own
+stdio, a real socket and a real uvicorn for HTTP and SSE, and omote's own
 client as the thing on the other end. That pairing is the point — the two
 halves of this package are tested against each other, so a protocol mistake
 cannot be mutually agreed upon.
@@ -30,11 +30,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from openmirror.mcp.client import HTTPServer, SSEServer, StdioServer
-from openmirror.mcp.server import OpenmirrorMCP, _match_uri
-from openmirror.routers import mcp as mcp_router
+from omote.mcp.client import HTTPServer, SSEServer, StdioServer
+from omote.mcp.server import OmoteMCP, _match_uri
+from omote.routers import mcp as mcp_router
 
-STDIO_SERVER = Path(__file__).parent / 'fixtures' / 'openmirror_mcp_stdio.py'
+STDIO_SERVER = Path(__file__).parent / 'fixtures' / 'omote_mcp_stdio.py'
 
 
 # -- fakes, standing in for this install's services ---------------------------
@@ -130,13 +130,13 @@ class FakeMedia:
         }
 
 
-def server(**kw) -> OpenmirrorMCP:
+def server(**kw) -> OmoteMCP:
     base = dict(memory=FakeMemory(), web=False, user_id='tester')
     base.update(kw)
-    return OpenmirrorMCP(**base)
+    return OmoteMCP(**base)
 
 
-async def ask(live: OpenmirrorMCP, method: str, params: dict | None = None, msg_id: int = 1):
+async def ask(live: OmoteMCP, method: str, params: dict | None = None, msg_id: int = 1):
     reply = await live.handle({'jsonrpc': '2.0', 'id': msg_id, 'method': method, 'params': params or {}})
     assert reply is not None, f'{method} answered nothing'
     return reply
@@ -149,7 +149,7 @@ async def ask(live: OpenmirrorMCP, method: str, params: dict | None = None, msg_
 async def test_initialize_declares_what_it_has():
     reply = await ask(server(), 'initialize', {'protocolVersion': '2025-06-18'})
     result = reply['result']
-    assert result['serverInfo']['name'] == 'openmirror'
+    assert result['serverInfo']['name'] == 'omote'
     assert set(result['capabilities']) == {'tools', 'resources', 'prompts'}
     # The instructions tell a client to recall before answering. A twin whose
     # client guesses about the person is worse than no twin.
@@ -194,7 +194,7 @@ async def test_read_scope_cannot_write():
     # and a client told which scope it needs can ask its operator instead.
     assert reply['error']['code'] == -32601
     assert "'write' scope" in reply['error']['message']
-    assert 'OPENMIRROR_MCP_SERVE_SCOPE' in reply['error']['message']
+    assert 'OMOTE_MCP_SERVE_SCOPE' in reply['error']['message']
 
 
 @pytest.mark.asyncio
@@ -221,7 +221,7 @@ async def test_only_the_widest_scope_can_spend_money():
     reply = await ask(live, 'tools/call', {'name': 'generate_image', 'arguments': {'prompt': 'a cat'}})
     assert media.calls == ['a cat']
     # The bytes are not inlined; the resource URI is how a client gets them.
-    assert 'openmirror://media/med1' in reply['result']['content'][0]['text']
+    assert 'omote://media/med1' in reply['result']['content'][0]['text']
 
 
 @pytest.mark.asyncio
@@ -250,7 +250,7 @@ async def test_nothing_that_touches_the_machine_is_exposed_at_any_scope():
 async def test_an_install_without_a_capability_does_not_offer_it():
     """Not offered and failing — absent. A model shown a tool this install
     cannot back spends a turn finding that out."""
-    live = OpenmirrorMCP(scope='all', memory=None, media=None, web=False)
+    live = OmoteMCP(scope='all', memory=None, media=None, web=False)
     names = {t['name'] for t in (await ask(live, 'tools/list'))['result']['tools']}
     assert names == set()
 
@@ -286,9 +286,9 @@ async def test_remember_is_honest_when_the_user_has_not_opted_in():
 async def test_capabilities_is_readable_and_says_what_is_absent():
     live = server(scope='read')
     listed = (await ask(live, 'resources/list'))['result']['resources']
-    assert 'openmirror://capabilities' in {r['uri'] for r in listed}
+    assert 'omote://capabilities' in {r['uri'] for r in listed}
 
-    reply = await ask(live, 'resources/read', {'uri': 'openmirror://capabilities'})
+    reply = await ask(live, 'resources/read', {'uri': 'omote://capabilities'})
     body = json.loads(reply['result']['contents'][0]['text'])
     assert body['server']['scope'] == 'read'
     assert body['tools'] == ['recall']
@@ -300,19 +300,19 @@ async def test_a_template_is_listed_separately_and_can_be_read():
     live = server()
     templates = (await ask(live, 'resources/templates/list'))['result']['resourceTemplates']
     uris = {t['uriTemplate'] for t in templates}
-    assert 'openmirror://memory/search/{query}' in uris
+    assert 'omote://memory/search/{query}' in uris
     # Templates are not in the concrete list: a client reading one verbatim gets
     # a document called `{query}`.
     listed = {r['uri'] for r in (await ask(live, 'resources/list'))['result']['resources']}
-    assert 'openmirror://memory/search/{query}' not in listed
+    assert 'omote://memory/search/{query}' not in listed
 
-    reply = await ask(live, 'resources/read', {'uri': 'openmirror://memory/search/coffee'})
+    reply = await ask(live, 'resources/read', {'uri': 'omote://memory/search/coffee'})
     assert 'coffee black' in reply['result']['contents'][0]['text']
 
 
 @pytest.mark.asyncio
 async def test_reading_something_that_is_not_a_resource_is_refused():
-    reply = await ask(server(), 'resources/read', {'uri': 'openmirror://nope'})
+    reply = await ask(server(), 'resources/read', {'uri': 'omote://nope'})
     assert reply['error']['code'] == -32602
 
 
@@ -323,25 +323,25 @@ async def test_generated_media_comes_back_as_bytes(tmp_path):
     media = FakeMedia(store=FakeMediaStore({'med1': (FakeMediaRecord(), png)}))
     live = server(scope='all', media=media)
 
-    reply = await ask(live, 'resources/read', {'uri': 'openmirror://media/med1'})
+    reply = await ask(live, 'resources/read', {'uri': 'omote://media/med1'})
     content = reply['result']['contents'][0]
     assert content['mimeType'] == 'image/png'
     assert base64.b64decode(content['blob']) == b'\x89PNG'
 
-    missing = await ask(live, 'resources/read', {'uri': 'openmirror://media/nope'})
+    missing = await ask(live, 'resources/read', {'uri': 'omote://media/nope'})
     assert missing['error']['code'] == -32602
 
 
 def test_a_uri_template_matches_one_segment_and_never_a_path():
-    """`{id}` is a segment, not a path. Without that, `openmirror://media/{id}`
-    matches `openmirror://media/../../etc/passwd`, and the only thing between
+    """`{id}` is a segment, not a path. Without that, `omote://media/{id}`
+    matches `omote://media/../../etc/passwd`, and the only thing between
     that and a file read is whatever the reader happens to do with it."""
-    assert _match_uri('openmirror://media/{id}', 'openmirror://media/abc') == {'id': 'abc'}
-    assert _match_uri('openmirror://media/{id}', 'openmirror://media/a/b') is None
-    assert _match_uri('openmirror://media/{id}', 'openmirror://media/../secrets') is None
-    assert _match_uri('openmirror://media/{id}', 'openmirror://media/') is None
-    assert _match_uri('openmirror://capabilities', 'openmirror://capabilities') == {}
-    assert _match_uri('openmirror://capabilities', 'openmirror://capabilities/x') is None
+    assert _match_uri('omote://media/{id}', 'omote://media/abc') == {'id': 'abc'}
+    assert _match_uri('omote://media/{id}', 'omote://media/a/b') is None
+    assert _match_uri('omote://media/{id}', 'omote://media/../secrets') is None
+    assert _match_uri('omote://media/{id}', 'omote://media/') is None
+    assert _match_uri('omote://capabilities', 'omote://capabilities') == {}
+    assert _match_uri('omote://capabilities', 'omote://capabilities/x') is None
     assert _match_uri('a://{x}/tail', 'a://one/tail') == {'x': 'one'}
     assert _match_uri('a://{x}/tail', 'a://one/other') is None
 
@@ -367,25 +367,25 @@ async def test_prompts_are_offered_and_require_their_arguments():
     assert 'question' in missing['error']['message']
 
 
-# -- the stdio transport, against openmirror's own client ----------------------
+# -- the stdio transport, against omote's own client ----------------------
 
 
 @pytest.mark.asyncio
 async def test_a_real_client_can_drive_a_real_stdio_server():
     """Both halves of this package, talking to each other over a pipe."""
-    client = StdioServer('openmirror', sys.executable, [str(STDIO_SERVER)])
+    client = StdioServer('omote', sys.executable, [str(STDIO_SERVER)])
     try:
         await client.start()
-        assert client.server_info['name'] == 'openmirror'
+        assert client.server_info['name'] == 'omote'
         assert {t.name for t in client.tools} == {'recall', 'remember'}
-        assert 'openmirror://capabilities' in {r.uri for r in client.resources if not r.template}
+        assert 'omote://capabilities' in {r.uri for r in client.resources if not r.template}
         assert {p.name for p in client.prompts} == {'ask_the_twin', 'research_brief'}
 
         result = await client.call('recall', {'query': 'coffee'})
         assert not result.is_error
         assert 'coffee black' in result.text
 
-        read = await client.read_resource('openmirror://memory/recent')
+        read = await client.read_resource('omote://memory/recent')
         assert 'coffee black' in read.text
 
         prompt = await client.get_prompt('research_brief', {'topic': 'tbilisi hotels'})
@@ -398,7 +398,7 @@ async def test_a_real_client_can_drive_a_real_stdio_server():
 async def test_nothing_but_protocol_goes_to_stdout():
     """A stray print corrupts the stream, and the client's only complaint is
     that the JSON was invalid — a miserable thing to debug."""
-    client = StdioServer('openmirror', sys.executable, [str(STDIO_SERVER)])
+    client = StdioServer('omote', sys.executable, [str(STDIO_SERVER)])
     try:
         await client.start()
         # Ten calls, each of which logs on the server side. If any of that had
@@ -413,7 +413,7 @@ async def test_nothing_but_protocol_goes_to_stdout():
 # -- the HTTP transports -----------------------------------------------------
 
 
-def http_app(live: OpenmirrorMCP) -> FastAPI:
+def http_app(live: OmoteMCP) -> FastAPI:
     app = FastAPI()
     app.include_router(mcp_router.router)
     mcp_router.server = live
@@ -459,7 +459,7 @@ def test_posting_jsonrpc_over_http_works():
 
 
 def test_a_token_is_required_when_one_is_configured(monkeypatch):
-    from openmirror.config import config
+    from omote.config import config
 
     monkeypatch.setattr(config, 'mcp_serve_token', 'sekrit')
     with TestClient(http_app(server())) as client:
@@ -503,7 +503,7 @@ def _free_port() -> int:
 
 @pytest.fixture
 def live_http():
-    """openmirror's MCP server on a real port, in a thread.
+    """omote's MCP server on a real port, in a thread.
 
     A TestClient exercises the routes; only a socket exercises the client's
     transport. This is the one that would catch a header the client sends and
@@ -536,18 +536,18 @@ def live_http():
 @pytest.mark.asyncio
 async def test_the_streamable_http_client_drives_the_real_server(live_http):
     url, _ = live_http
-    client = HTTPServer('openmirror', f'{url}/mcp')
+    client = HTTPServer('omote', f'{url}/mcp')
     try:
         await client.start()
         assert client.transport == 'http'
-        assert client.server_info['name'] == 'openmirror'
+        assert client.server_info['name'] == 'omote'
         assert {t.name for t in client.tools} == {'recall', 'remember'}
 
         result = await client.call('recall', {'query': 'coffee'})
         assert 'coffee black' in result.text
 
-        read = await client.read_resource('openmirror://capabilities')
-        assert json.loads(read.text)['server']['name'] == 'openmirror'
+        read = await client.read_resource('omote://capabilities')
+        assert json.loads(read.text)['server']['name'] == 'omote'
 
         prompt = await client.get_prompt('ask_the_twin', {'question': 'what do they drink'})
         assert 'what do they drink' in prompt
@@ -558,7 +558,7 @@ async def test_the_streamable_http_client_drives_the_real_server(live_http):
 @pytest.mark.asyncio
 async def test_the_sse_client_drives_the_real_server(live_http):
     url, _ = live_http
-    client = SSEServer('openmirror', f'{url}/mcp/sse')
+    client = SSEServer('omote', f'{url}/mcp/sse')
     try:
         await client.start()
         assert client.transport == 'sse'
@@ -574,7 +574,7 @@ async def test_a_streamable_client_pointed_at_the_sse_path_is_told_so(live_http)
     """The two transports are a URL apart and the mistake is common, so the
     error has to name the fix — "HTTP 405" does not."""
     url, _ = live_http
-    client = HTTPServer('openmirror', f'{url}/mcp/sse')
+    client = HTTPServer('omote', f'{url}/mcp/sse')
     with pytest.raises(Exception) as caught:
         await client.start()
     assert '405' in str(caught.value) or 'Method Not Allowed' in str(caught.value)

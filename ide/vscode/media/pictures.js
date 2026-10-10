@@ -1,6 +1,6 @@
 /* Pictures, pasted or dropped into the composer.
  *
- * A port of `openmirror/static/attachments.js`, unchanged in substance, because
+ * A port of `omote/static/attachments.js`, unchanged in substance, because
  * a screenshot of an error is the single most valuable thing you can hand a
  * coding agent and the capability is worth having in the panel for the same
  * reason it is worth having in the browser.

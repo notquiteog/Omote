@@ -51,10 +51,10 @@ rather than about a setting is worse than no account.
 **From the environment**, for an install managed by a file:
 
 ```bash
-OPENMIRROR_MAIL_ADDRESS=you@example.com
-OPENMIRROR_MAIL_PASSWORD=an-app-password
-OPENMIRROR_MAIL_IMAP_HOST=imap.example.com
-OPENMIRROR_MAIL_SMTP_HOST=smtp.example.com
+OMOTE_MAIL_ADDRESS=you@example.com
+OMOTE_MAIL_PASSWORD=an-app-password
+OMOTE_MAIL_IMAP_HOST=imap.example.com
+OMOTE_MAIL_SMTP_HOST=smtp.example.com
 ```
 
 The password is *referenced* by variable name in the store, never copied

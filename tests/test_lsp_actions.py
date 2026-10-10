@@ -30,8 +30,8 @@ from pathlib import Path
 
 import pytest
 
-from openmirror.agent.approval import Mode
-from openmirror.agent.lsp import (
+from omote.agent.approval import Mode
+from omote.agent.lsp import (
     LspError,
     LspPool,
     ServerSpec,
@@ -40,11 +40,11 @@ from openmirror.agent.lsp import (
     apply_text_edits,
     parse_workspace_edit,
 )
-from openmirror.agent.runtime import build_session
-from openmirror.agent.tools.base import ToolContext, ToolError
-from openmirror.agent.tools.lsp import LspTool
-from openmirror.protocol.agent import Risk, ToolCompleted
-from openmirror.providers.base import StreamDone, StreamText, StreamToolUse
+from omote.agent.runtime import build_session
+from omote.agent.tools.base import ToolContext, ToolError
+from omote.agent.tools.lsp import LspTool
+from omote.protocol.agent import Risk, ToolCompleted
+from omote.providers.base import StreamDone, StreamText, StreamToolUse
 from tests.test_agent import ScriptedProvider, turn
 
 FAKE = Path(__file__).parent / 'fixtures' / 'lsp_server.py'
@@ -347,7 +347,7 @@ async def test_a_server_does_not_get_a_side_door_through_apply_edit(tool, tmp_pa
 
 def apply_edit_answer() -> dict:
     """What this client answers the server's own workspace/applyEdit with."""
-    from openmirror.agent.lsp import LanguageServer
+    from omote.agent.lsp import LanguageServer
 
     return LanguageServer(fake(), Path('.'))._answer('workspace/applyEdit', {'edit': {}})
 

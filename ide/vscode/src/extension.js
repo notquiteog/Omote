@@ -29,9 +29,9 @@
  *    `webview.postMessage`. This file holds the token only inside a `Host`.
  *
  * 4. Nothing is started on anybody's behalf. The extension is a client, in the
- *    same sense `openmirror/tui.py` is: it starts no daemon, spawns no agent,
+ *    same sense `omote/tui.py` is: it starts no daemon, spawns no agent,
  *    and keeps no state that outlives the panel. There is a command that runs
- *    `openmirror serve` in a terminal, and it exists because the alternative --
+ *    `omote serve` in a terminal, and it exists because the alternative --
  *    a panel that cannot tell you how to start the thing it is a client of --
  *    leaves you reading a log file.
  */
@@ -45,7 +45,7 @@ const { resolveDaemon, DEFAULT_HOST, DEFAULT_PORT } = require('./host');
 
 /** The panel's view type. Fixed, because `retainContextWhenHidden` and any
  *  future `registerWebviewViewProvider` both key off it. */
-const VIEW_TYPE = 'openmirror.panel';
+const VIEW_TYPE = 'omote.panel';
 
 /** The webview's own files. `panel.html` is the one that is required, and it
  *  links its own stylesheet and script; these two are the fallback for a page
@@ -56,7 +56,7 @@ const MEDIA_PAGE = 'panel.html';
 const MEDIA_SCRIPT = 'panel.js';
 const MEDIA_STYLE = 'panel.css';
 
-const SETTINGS_SECTION = 'openmirror';
+const SETTINGS_SECTION = 'omote';
 
 /** Changing one of these means the open panel is talking to the wrong daemon. */
 const LINK_SETTINGS = ['host', 'port', 'token'];
@@ -66,7 +66,7 @@ const LINK_SETTINGS = ['host', 'port', 'token'];
  *  exists cannot be re-created by editing a setting. */
 const CONVERSATION_SETTINGS = ['model', 'provider', 'mode', 'effort', 'root'];
 
-/** The six modes `openmirror/agent/approval.py` defines, with the same one-line
+/** The six modes `omote/agent/approval.py` defines, with the same one-line
  *  descriptions its own docstring gives, so the picker reads the way the modes
  *  are documented rather than inventing new prose for them. */
 const MODES = [
@@ -78,13 +78,13 @@ const MODES = [
   { mode: 'unrestricted', detail: 'nothing is asked' },
 ];
 
-/** `openmirror chat`'s levels, from the `/think` row in docs/CLI.md. */
+/** `omote chat`'s levels, from the `/think` row in docs/CLI.md. */
 const EFFORT_LEVELS = ['off', 'low', 'medium', 'high', 'xhigh', 'max', 'default'];
 
 /** What the "start the daemon" command runs. A command a person can read in a
  *  terminal rather than a spawn of a resolved binary: it should be obvious what
  *  this button did. */
-const START_COMMAND = 'openmirror serve';
+const START_COMMAND = 'omote serve';
 
 /** One probe a second for this many, and then stop. A bounded wait rather than a
  *  poller that lives as long as the panel: somebody who pressed the button and
@@ -126,7 +126,7 @@ function log(message) {
   if (!output) {
     return;
   }
-  output.appendLine(`openmirror: ${String(message === undefined ? '' : message)}`);
+  output.appendLine(`omote: ${String(message === undefined ? '' : message)}`);
 }
 
 /**
@@ -150,7 +150,7 @@ function fail(where, error) {
   }
   const vsc = vscode();
   if (vsc.window && typeof vsc.window.showErrorMessage === 'function') {
-    vsc.window.showErrorMessage(`openmirror: ${detail}`);
+    vsc.window.showErrorMessage(`omote: ${detail}`);
   }
 }
 
@@ -260,7 +260,7 @@ function noteHook(frame) {
 
 /** Open a conversation when the panel does not have one.
  *
- *  This is what opening the panel does, and it is what `openmirror chat` does
+ *  This is what opening the panel does, and it is what `omote chat` does
  *  too: the client asks the daemon for a session rather than inventing one. A
  *  daemon that is not there has already said so through `Host`, so the
  *  rejection here is only logged -- the panel has been told once already. */
@@ -377,11 +377,11 @@ function missingPage(webview) {
     '<head>',
     '<meta charset="utf-8">',
     `<meta http-equiv="Content-Security-Policy" content="${policy(webview)}">`,
-    '<title>openmirror</title>',
+    '<title>Omote</title>',
     '</head>',
     '<body>',
-    `<p>openmirror: media/${MEDIA_PAGE} is missing from this install, so the panel has nothing to render.</p>`,
-    '<p>The exact error is in the Output panel, under "openmirror".</p>',
+    `<p>omote: media/${MEDIA_PAGE} is missing from this install, so the panel has nothing to render.</p>`,
+    '<p>The exact error is in the Output panel, under "Omote".</p>',
     '</body>',
     '</html>',
     '',
@@ -446,7 +446,7 @@ function openPanel(resource) {
     return Promise.resolve(panel);
   }
 
-  panel = vsc.window.createWebviewPanel(VIEW_TYPE, 'openmirror', {
+  panel = vsc.window.createWebviewPanel(VIEW_TYPE, 'Omote', {
     viewColumn: vsc.ViewColumn.Beside,
     preserveFocus: true,
   }, {
@@ -588,7 +588,7 @@ async function setModel() {
   const current = host && host.info ? String(host.info.model || '') : '';
   const answer = await ask({
     prompt: 'Which model? A provider name such as anthropic, or whatever your provider expects.',
-    placeHolder: 'openmirror models lists what this daemon can reach',
+    placeHolder: 'omote models lists what this daemon can reach',
     value: current,
   });
   if (!answer || !answer.trim()) {
@@ -663,7 +663,7 @@ function startLine() {
 }
 
 /**
- * Open a terminal and run `openmirror serve` in it.
+ * Open a terminal and run `omote serve` in it.
  *
  * Offered, never done automatically, and it will stay that way: a process
  * started behind somebody's back is the behaviour this project refuses in the
@@ -673,7 +673,7 @@ function startLine() {
  */
 function startDaemon() {
   const line = startLine();
-  const terminal = vscode().window.createTerminal({ name: 'openmirror serve' });
+  const terminal = vscode().window.createTerminal({ name: 'omote serve' });
   terminal.show();
   terminal.sendText(line);
   log(`started a terminal running: ${line}`);
@@ -750,19 +750,19 @@ function showOutput() {
  * manifest with no handler is a command somebody presses and nothing happens.
  */
 const COMMANDS = {
-  'openmirror.openPanel': (resource) => openPanel(resource),
-  'openmirror.newConversation': () => newConversation(),
-  'openmirror.resumeConversation': () => resumeConversation(),
-  'openmirror.forkConversation': () => forkConversation(),
-  'openmirror.showContextReport': () => showContextReport(),
-  'openmirror.setApprovalMode': () => setApprovalMode(),
-  'openmirror.setThinkingLevel': () => setThinkingLevel(),
-  'openmirror.setModel': () => setModel(),
-  'openmirror.stopTurn': () => stopTurn(),
-  'openmirror.agreeHook': () => decideHook(true),
-  'openmirror.refuseHook': () => decideHook(false),
-  'openmirror.startDaemon': () => startDaemon(),
-  'openmirror.showOutput': () => showOutput(),
+  'omote.openPanel': (resource) => openPanel(resource),
+  'omote.newConversation': () => newConversation(),
+  'omote.resumeConversation': () => resumeConversation(),
+  'omote.forkConversation': () => forkConversation(),
+  'omote.showContextReport': () => showContextReport(),
+  'omote.setApprovalMode': () => setApprovalMode(),
+  'omote.setThinkingLevel': () => setThinkingLevel(),
+  'omote.setModel': () => setModel(),
+  'omote.stopTurn': () => stopTurn(),
+  'omote.agreeHook': () => decideHook(true),
+  'omote.refuseHook': () => decideHook(false),
+  'omote.startDaemon': () => startDaemon(),
+  'omote.showOutput': () => showOutput(),
 };
 
 // -- lifecycle ---------------------------------------------------------------
@@ -786,7 +786,7 @@ function activate(extensionContext, injected, injectedDeps) {
   // there is one timer seam rather than one here and one there.
   clock = deps.timers || { setTimeout, clearTimeout };
 
-  output = api.window.createOutputChannel('openmirror');
+  output = api.window.createOutputChannel('Omote');
   context.subscriptions.push(output);
 
   for (const [id, run] of Object.entries(COMMANDS)) {

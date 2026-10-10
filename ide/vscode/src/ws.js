@@ -24,7 +24,7 @@
  *
  * What it deliberately does not do:
  *
- *   - Reconnect. `openmirror/tui.py` owns that loop and it has to: `since` is
+ *   - Reconnect. `omote/tui.py` owns that loop and it has to: `since` is
  *     the last event sequence number seen and the daemon replays the gap from
  *     it, so exactly one object has to own that number or a dropped socket
  *     costs events. A reconnect here would be a second owner of it.
@@ -89,7 +89,7 @@ const TOO_BIG = 1009;
 // Inbound it is a bound rather than a hope: a server can declare a 2^63 byte
 // length in four bytes, and believing it would be an allocation, not a read.
 // Outbound, the same number has to clear the worst legitimate frame the panel
-// can produce. The daemon caps an upload at 32MB (openmirror/routers/media.py
+// can produce. The daemon caps an upload at 32MB (omote/routers/media.py
 // MAX_UPLOAD) and the agent socket carries it base64 inside a `turn.submit`,
 // which is 4/3 of that, so anything under about 44MB would kill a real paste.
 const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
@@ -778,7 +778,7 @@ class WebSocketClient extends EventEmitter {
     if (code === 401 || code === 403) {
       return this._fail(new WebSocketError(
         this.url + ' refused the connection: HTTP ' + code + ' ' + phrase
-        + ' -- this daemon wants a token; set openmirror.token or OPENMIRROR_TOKEN',
+        + ' -- this daemon wants a token; set omote.token or OMOTE_TOKEN',
         'EAUTH'), null);
     }
     let detail = '';
@@ -836,7 +836,7 @@ class WebSocketClient extends EventEmitter {
     try {
       this.emit(event, a, b);
     } catch (err) {
-      console.error('openmirror: websocket: a ' + event + ' handler threw: ' + (err && err.message));
+      console.error('omote: websocket: a ' + event + ' handler threw: ' + (err && err.message));
     }
   }
 
@@ -955,7 +955,7 @@ class WebSocketClient extends EventEmitter {
       // async socket handler is an uncaught exception in the extension host.
       // A failure with nobody listening is still a failure and is still
       // logged rather than swallowed.
-      else console.error('openmirror: websocket: ' + err.message);
+      else console.error('omote: websocket: ' + err.message);
     }
     let graceful = false;
     if (closeCode && this.readyState === OPEN) {

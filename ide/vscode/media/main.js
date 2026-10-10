@@ -3,7 +3,7 @@
  * This is the entry `ide/vscode/src/extension.js` points the webview at:
  * `media/panel.html`, which loads this file. Everything below is wiring; the
  * decisions live in the modules beside it, and the reasoning lives in
- * `PROTOCOL.md` and in `openmirror/static/`, which is the renderer this one
+ * `PROTOCOL.md` and in `omote/static/`, which is the renderer this one
  * follows.
  *
  * The shape of the whole thing is one relay. The extension host holds the

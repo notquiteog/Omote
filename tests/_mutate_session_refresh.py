@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-APP = ROOT / 'openmirror' / 'static' / 'app.js'
+APP = ROOT / 'omote' / 'static' / 'app.js'
 
 # (name, old, new) — each `old` must appear exactly once.
 MUTATIONS = [
@@ -172,13 +172,13 @@ def main() -> int:
             continue
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)
-            # The tests read `openmirror/static/app.js` relative to the tree root,
+            # The tests read `omote/static/app.js` relative to the tree root,
             # so the copy has to be a whole tree.
-            (work / 'openmirror' / 'static').mkdir(parents=True)
+            (work / 'omote' / 'static').mkdir(parents=True)
             (work / 'tests').mkdir(parents=True)
-            shutil.copy(APP, work / 'openmirror' / 'static' / 'app.js')
+            shutil.copy(APP, work / 'omote' / 'static' / 'app.js')
             shutil.copy(ROOT / 'tests' / 'test_session_refresh.py', work / 'tests')
-            (work / 'openmirror' / 'static' / 'app.js').write_text(source.replace(old, new, 1))
+            (work / 'omote' / 'static' / 'app.js').write_text(source.replace(old, new, 1))
 
             proc = subprocess.run(
                 [str(ROOT / '.venv' / 'bin' / 'python'), '-m', 'pytest',

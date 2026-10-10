@@ -1,18 +1,18 @@
 # The desktop app
 
 A native window and a tray icon around the interface the daemon serves — with
-the daemon inside. Installing the app is installing openmirror: a release
+the daemon inside. Installing the app is installing Omote: a release
 carries its own daemon, frozen with PyInstaller, so there is no Python to set
 up and no terminal to keep open.
 
-It contains no application logic. Everything openmirror does lives in the
+It contains no application logic. Everything Omote does lives in the
 daemon, and the app exists for what a browser tab cannot do: live in the
 tray, survive being closed, tell you when the agent is waiting on you, and
 keep the daemon running for exactly as long as the app is.
 
 ## Getting it
 
-From the [releases](https://github.com/notquiteog/openmirror/releases): an
+From the [releases](https://github.com/notquiteog/Omote/releases): an
 `.exe` or `.msi` for Windows, a `.dmg` for Apple Silicon or Intel Macs, and a
 `.deb`, `.rpm` or `.AppImage` for Linux. Neither the Windows nor the macOS
 build is signed yet, so each warns once before it will open; the release notes
@@ -24,34 +24,34 @@ The window opens at once, on a page of its own that says what is happening,
 and moves to the interface as soon as there is one to show.
 
 - **A daemon that is already running is used, not replaced.** The app looks
-  on `OPENMIRROR_PORT` — from the environment, then `~/.openmirror/.env`, then
-  8477, the order the daemon itself reads them in. If openmirror answers there,
+  on `OMOTE_PORT` — from the environment, then `~/.omote/.env`, then
+  8477, the order the daemon itself reads them in. If Omote answers there,
   the app attaches, and leaves that daemon running when it quits: killing one
   somebody else started would take their sessions with it.
 - **If something else holds the port,** the page says so, rather than showing
   someone else's server in the window.
 - **If nothing is there, it starts one:** the daemon it shipped with, or — in a
-  build without one — `openmirror` from your PATH, then `python3 -m
-  openmirror.main` (`OPENMIRROR_PYTHON` names the interpreter).
+  build without one — `omote` from your PATH, then `python3 -m
+  omote.main` (`OMOTE_PYTHON` names the interpreter).
 
 A daemon the app starts:
 
 - runs in your home directory, as it would from a new terminal, so that is its
-  default workspace too — set `OPENMIRROR_WORKSPACE` to narrow it;
-- keeps its data in `~/.openmirror/data`, reads `~/.openmirror/.env`, and logs
-  to `~/.openmirror/logs/daemon.log`, with the previous run's kept beside it;
+  default workspace too — set `OMOTE_WORKSPACE` to narrow it;
+- keeps its data in `~/.omote/data`, reads `~/.omote/.env`, and logs
+  to `~/.omote/logs/daemon.log`, with the previous run's kept beside it;
 - on macOS, gets the PATH your login shell would give it. An app opened from
   the Dock gets only the system directories, and every command the agent ran
   would be missing Homebrew, `~/.local/bin` and the rest;
 - **stops with the app, however the app stops.** It is started with a pipe on
-  stdin that the app holds and never writes to (`OPENMIRROR_EXIT_WITH_STDIN`),
+  stdin that the app holds and never writes to (`OMOTE_EXIT_WITH_STDIN`),
   and it shuts itself down when that closes — which the operating system does
   on a quit, a crash and a kill alike. There is no orphaned daemon left holding
   the port for the next launch to mistake for somebody else's.
 
 If the daemon fails to start, or stops later, the window goes back to its own
 page with the end of the log and a **Try again** button. The app's own notes
-are in `~/.openmirror/logs/desktop.log`, and the tray has **Open the logs
+are in `~/.omote/logs/desktop.log`, and the tray has **Open the logs
 folder**.
 
 ## The window
@@ -67,7 +67,7 @@ folder**.
   that overwrites nothing, with a notification saying where.
 - **A notification when the agent is waiting on you** — an approval, or a
   question — and you are looking at something else. The daemon's page asks for
-  it (`openmirror/static/native.js`), and it is the only thing that page is
+  it (`omote/static/native.js`), and it is the only thing that page is
   allowed to ask the app for.
 - **The microphone,** for Talk and Live. macOS asks you once and Windows'
   WebView2 asks with its own prompt. On Linux WebKitGTK refuses any request
@@ -76,7 +76,7 @@ folder**.
 
 ## Transparency
 
-`OPENMIRROR_TRANSPARENT=1` makes the window transparent so the interface's own glass
+`OMOTE_TRANSPARENT=1` makes the window transparent so the interface's own glass
 blurs the real desktop behind it, rather than a background it painted itself.
 
 It is **off by default because it is compositor-dependent**. On COSMIC/Wayland
@@ -98,7 +98,7 @@ sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
 To work on the app itself, `cargo run` in `src-tauri` is enough: with no
-frozen daemon beside it, it starts the `openmirror` you already have.
+frozen daemon beside it, it starts the `omote` you already have.
 
 A build with the daemon inside is two steps — freeze the daemon with the
 extras a release carries, then bundle:

@@ -3,7 +3,7 @@
 /**
  * Tests for the pure half of `media/dom.js`: the number formatters.
  *
- * These are ported from `openmirror/tui.py` and `openmirror/static/dom.js`
+ * These are ported from `omote/tui.py` and `omote/static/dom.js`
  * rather than written fresh, and that is exactly why they are tested here: two
  * clients of one protocol that disagree about how long something took, or
  * whether 950 tokens is "950" or "1.0k", is the kind of drift nobody notices

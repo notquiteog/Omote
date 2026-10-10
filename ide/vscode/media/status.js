@@ -22,7 +22,7 @@
 import { $, basename, button, clear, el, flat, human, say, when } from './dom.js';
 
 /* 75% is a bar somebody should act on, 92% is one they should act on now. The
- * same two thresholds as `openmirror/static/context.js`, because a meter that
+ * same two thresholds as `omote/static/context.js`, because a meter that
  * turns amber in one client and not in the other is a meter that cannot be
  * trusted from either. */
 export const WARN_PERCENT = 75;
@@ -153,8 +153,8 @@ export function emptyState(frame, info) {
   const what = info && info.root ? basename(info.root) : '';
   if (view.fatal) {
     return {
-      ask: what ? `openmirror is not running for ${what}.` : 'openmirror is not running.',
-      sub: 'Start it with `openmirror serve`, then Try again.',
+      ask: what ? `Omote is not running for ${what}.` : 'Omote is not running.',
+      sub: 'Start it with `omote serve`, then Try again.',
       reason: view.title,
       retry: true,
     };
@@ -204,7 +204,7 @@ export function createStatus(ctx) {
    * is what all three of them qualify. Kept beside the box for that reason. */
   function paintInfo() {
     const info = state.info;
-    say($('#title'), info.title || 'openmirror');
+    say($('#title'), info.title || 'Omote');
     const root = $('#root-chip');
     if (info.root) {
       root.hidden = false;

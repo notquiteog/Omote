@@ -3,7 +3,7 @@
     python desktop/ci/version.py v0.2.0     # the tag being released
     python desktop/ci/version.py            # only that the files agree
 
-The daemon's version is in pyproject.toml and the app's in Cargo.toml — the
+The daemon's version is read through pyproject.toml's version source and the app's in Cargo.toml — the
 Tauri config deliberately has none, so it takes Cargo's. A tag that disagrees
 with either would publish installers whose About box and file names contradict
 the release they came from, so the release stops here instead. Prints the
@@ -12,6 +12,7 @@ version on success, for the workflow to name things with.
 
 from __future__ import annotations
 
+import ast
 import json
 import sys
 import tomllib
@@ -23,9 +24,23 @@ ROOT = Path(__file__).resolve().parents[2]
 def versions() -> dict[str, str]:
     pyproject = tomllib.loads((ROOT / 'pyproject.toml').read_text())
     cargo = tomllib.loads((ROOT / 'desktop/src-tauri/Cargo.toml').read_text())
+    package_version = pyproject['project'].get('version')
+    if package_version is None:
+        source = ROOT / pyproject['tool']['hatch']['version']['path']
+        # Read the dependency-free version without importing or installing the app.
+        for statement in ast.parse(source.read_text()).body:
+            if isinstance(statement, ast.Assign) and any(
+                isinstance(target, ast.Name) and target.id == '__version__'
+                for target in statement.targets
+            ):
+                package_version = ast.literal_eval(statement.value)
+                break
+        if not isinstance(package_version, str):
+            raise ValueError(f'{source} has no string __version__')
     found = {
-        'pyproject.toml': pyproject['project']['version'],
+        'pyproject.toml': package_version,
         'desktop/src-tauri/Cargo.toml': cargo['package']['version'],
+        'ide/vscode/package.json': json.loads((ROOT / 'ide/vscode/package.json').read_text())['version'],
     }
     conf = json.loads((ROOT / 'desktop/src-tauri/tauri.conf.json').read_text())
     if 'version' in conf:
