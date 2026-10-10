@@ -1,5 +1,7 @@
 # Omote
 
+<img src="omote/static/brand/omote-128.png" width="80" height="80" alt="Omote logo">
+
 The desktop workspace includes chat and coding tools, browser and computer control,
 background workers, image/video generation, and two voice pipelines. **Studio →
 Advanced · ComfyUI** opens your connected ComfyUI installation's full graph editor,

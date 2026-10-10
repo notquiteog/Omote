@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Omote</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/static/brand/omote-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/brand/omote-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/brand/omote-180.png">
 <link rel="stylesheet" href="/static/style.css">
 <link rel="stylesheet" href="/static/themes.css">
 <link rel="stylesheet" href="/static/workspace.css">
@@ -53,9 +56,7 @@
 <button type="button" id="sidebar-backdrop" aria-label="Close navigation" tabindex="-1" hidden></button>
 <aside id="sidebar" aria-label="Workspace navigation">
   <header id="brand">
-    <!-- The companion is the app icon. Clicking it opens the same picker the
-         perch does. -->
-    <div id="brand-pet"></div>
+    <img class="brand-logo" src="/static/brand/omote-64.png" width="36" height="36" alt="">
     <h1>Omote</h1>
     <button type="button" id="sidebar-close" class="icon mobile-nav-control" aria-label="Close navigation">×</button>
     <button id="new-session" class="icon" title="New session">
@@ -114,6 +115,7 @@
   </div>
 
   <footer id="foot">
+    <div class="companion-setting"><span>Companion</span><div id="brand-pet"></div></div>
     <button id="providers-toggle" class="sec-head" aria-expanded="false">
       <span>Providers</span><span class="chev">›</span>
     </button>

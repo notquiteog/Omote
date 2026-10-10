@@ -41,7 +41,7 @@ LOGS = Path.home() / '.omote' / 'logs'
 
 # The page, and a sample of what it loads. A missing module is a blank window
 # in a release that worked from a checkout.
-PAGE = ['/', '/static/app.js', '/static/native.js', '/static/style.css', '/static/companions/index.js',
+PAGE = ['/static/brand/omote-32.png', '/static/brand/omote-64.png', '/', '/static/app.js', '/static/native.js', '/static/style.css', '/static/companions/index.js',
         '/static/workspace.css', '/static/comfyui.js', '/static/memory.js',
         '/static/workbench.js', '/static/creative.js', '/static/creative.css', '/static/model-viewer.js',
         '/static/vendor/three/three.module.js', '/static/vendor/three/three.core.min.js',

@@ -5,9 +5,8 @@
  * a faint mark to turn it back on with.
  *
  * One creature, many perches. The same animal is on the perch above the
- * composer, in the sidebar, next to the send button, on an empty session, and
- * in the tab icon — all driven from one state, so it is never in two moods at
- * once. Every perch is registered here; broadcasting to them is the whole of
+ * composer, in the sidebar, next to the send button, and on an empty session —
+ * all driven from one state, so it is never in two moods at once. Every perch is registered here; broadcasting to them is the whole of
  * the plumbing.
  */
 
@@ -390,7 +389,6 @@ class Companion {
     // a thing, not a row of empty boxes.
     document.body.classList.toggle('companion-off', !this.def);
     for (const picker of this.pickers) this.dress(picker);
-    this.favicon();
     this.announce();
   }
 
@@ -403,26 +401,6 @@ class Companion {
       row.setAttribute('aria-current', String(row.dataset.id === this.id));
       row.setAttribute('aria-pressed', String(row.dataset.id === this.id));
     }
-  }
-
-  /* The tab icon is the creature too. It costs one canvas at selection time,
-     and it means an Omote tab in a row of twenty is findable by the animal on
-     it rather than by reading the titles. */
-  favicon() {
-    let link = document.querySelector('link[rel="icon"]');
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'icon';
-      document.head.appendChild(link);
-    }
-    if (!this.def) {
-      link.href = 'data:image/svg+xml,'
-        + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">'
-          + '<circle cx="8" cy="8" r="5" fill="none" stroke="%23888" stroke-width="1.5"/></svg>');
-      return;
-    }
-    const shot = portrait(this.def, 4);
-    if (shot) link.href = shot.toDataURL('image/png');
   }
 
   /* Everything below is what the client actually calls. Each is a no-op when

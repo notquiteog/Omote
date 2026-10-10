@@ -241,5 +241,6 @@
   "scripts": {
     "test": "node --test test/",
     "vscode:prepublish": "node --check src/extension.js && node --check src/host.js && node --check src/ws.js"
-  }
+  },
+  "icon": "media/omote.png"
 }

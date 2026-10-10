@@ -2416,7 +2416,7 @@ wireModes();
  * object, so the animal is never in two moods at once, and choosing a
  * different one — or none — changes every one of them together. */
 companion.mount($('#perch'), { place: 'above' });
-companion.mount($('#brand-pet'), { place: 'below', scale: 2 });
+companion.mount($('#brand-pet'), { place: 'above', scale: 1 });
 companion.attach($('#hero-pet'), { scale: 6 });
 companion.attach($('#buddy-pet'), { scale: 1 });
 companion.attach($('#voice-pet'), { scale: 1 });

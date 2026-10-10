@@ -2104,3 +2104,10 @@ button.ghost.danger:hover { border-color: var(--danger); }
 .mail-from { font-size: 13px; }
 .mail-folders { display: flex; flex-wrap: wrap; gap: 5px; }
 .mail-folders .unseen { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--edge)); }
+
+
+/* Stable product identity, independent of the user's animated companion. */
+.brand-logo { display: block; flex: none; object-fit: contain; }
+.companion-setting { display: flex; align-items: center; justify-content: space-between; padding: 4px 18px; min-height: 40px; gap: 12px; color: var(--dim); font-size: 13px; }
+.companion-setting #brand-pet .pet { min-width: 36px; min-height: 36px; display: grid; place-items: center; }
+.companion-setting #brand-pet.off .empty { opacity: .65; }

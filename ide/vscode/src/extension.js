@@ -459,6 +459,7 @@ function openPanel(resource) {
     retainContextWhenHidden: true,
   });
 
+  panel.iconPath = vsc.Uri.file(path.join(MEDIA_ROOT, 'omote.png'));
   const webview = panel.webview;
   // Before the HTML is assigned: the page starts posting the moment it loads.
   webview.onDidReceiveMessage((frame) => onFrame(frame), undefined, context.subscriptions);

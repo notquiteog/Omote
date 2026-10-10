@@ -363,11 +363,11 @@ def test_mobile_navigation_exposes_chat_studio_memory_and_settings(creative_work
     assert page.locator('main').evaluate('(node) => node.inert')
     expect(page.locator('#sidebar-close')).to_be_focused()
     # Tab stays in the navigation drawer; the workspace is explicitly inert.
-    page.locator('#brand-pet .pet').focus()
+    page.locator('#sidebar-close').focus()
     page.keyboard.press('Shift+Tab')
     expect(page.locator('#open-settings')).to_be_focused()
     page.keyboard.press('Tab')
-    expect(page.locator('#brand-pet .pet')).to_be_focused()
+    expect(page.locator('#sidebar-close')).to_be_focused()
     page.screenshot(animations='disabled', path='/tmp/omote-mobile-navigation.png')
     page.locator('[data-mode="studio"]').click()
     expect(page.locator('#pane-studio')).to_be_visible()

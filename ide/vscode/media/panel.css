@@ -1026,3 +1026,5 @@ dialog::backdrop {
     border: 1px solid ButtonText;
   }
 }
+
+.brand-logo { display: block; width: 28px; height: 28px; flex: none; object-fit: contain; }

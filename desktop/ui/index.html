@@ -1,6 +1,7 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Omote</title>
+<link rel="icon" type="image/png" href="omote.png">
 <!-- What the window shows until the daemon answers, and instead of it when it
      does not. The interface itself is served by the daemon, and the app moves
      the window there the moment it is up — so this page only ever shows
@@ -13,6 +14,7 @@
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #16161a;
          color: #e6e4e0; font: 14px/1.6 system-ui, sans-serif; }
   main { width: min(600px, 88vw); padding: 32px 0; }
+  .brand-logo { display: block; width: 80px; height: 80px; margin: 0 0 24px; }
   h1 { font-size: 20px; font-weight: 600; margin: 0 0 6px; }
   p { margin: 0 0 12px; color: #b8b2aa; }
   .muted { color: #8a847c; font-size: 13px; }
@@ -28,6 +30,7 @@
   @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
 </style>
 <main>
+  <img class="brand-logo" src="omote.png" width="80" height="80" alt="">
   <h1 id="title" class="dots">Starting Omote</h1>
   <p id="detail">Looking for the daemon.</p>
   <p id="slow" class="muted" hidden>The first start after installing takes longest: the daemon unpacks

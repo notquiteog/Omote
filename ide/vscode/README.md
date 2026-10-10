@@ -1,3 +1,5 @@
+<img src="media/omote.png" width="72" height="72" alt="Omote logo">
+
 # Omote for VS Code
 
 A panel for a running [Omote](https://github.com/notquiteog/Omote)

@@ -12,10 +12,8 @@
   it knows. There is nowhere for a request to go even if something managed to
   make one.
 
-  `img-src data:` is the only reason anything is allowed to be drawn from
-  anywhere at all, and it is for the two kinds of image the daemon and the
-  composer carry: a screenshot a tool returned, and a picture somebody pasted.
-  Both are data URLs and both are content, not code.
+  `img-src {{cspSource}} data:` permits the bundled Omote logo and inline
+  screenshots/attachments. It grants no external network image access.
 
   Two things must be substituted by `src/extension.js` before the webview is
   pointed at this file, and neither is optional:
@@ -38,7 +36,7 @@
   `innerHTML` in this directory.
 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none';
-  img-src data:;
+  img-src {{cspSource}} data:;
   style-src {{cspSource}} 'unsafe-inline';
   script-src 'nonce-{{nonce}}';
   connect-src 'none';
@@ -58,6 +56,7 @@
        daemon is answering is the first question anybody has, and a panel that
        is quietly not connected looks exactly like a panel with nothing to say. -->
   <header id="bar">
+    <img class="brand-logo" src="omote.png" width="28" height="28" alt="Omote">
     <span id="title" class="title">Omote</span>
     <span id="policy" class="meta"></span>
     <div class="spacer"></div>
