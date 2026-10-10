@@ -114,7 +114,8 @@ platform builds its own.
 
 ## Releasing
 
-Set the new version in `pyproject.toml` and `desktop/src-tauri/Cargo.toml` —
+Set the new version in `omote/_version.py`, `ide/vscode/package.json` and
+`desktop/src-tauri/Cargo.toml` —
 the Tauri config has none of its own, so it takes Cargo's — let a build update
 `Cargo.lock`, commit, and push a tag:
 
@@ -125,7 +126,7 @@ git push origin v0.2.0
 
 [`.github/workflows/release.yml`](../.github/workflows/release.yml) then:
 
-1. checks that the tag, `pyproject.toml` and `Cargo.toml` agree, and runs the
+1. checks that the tag, dynamic Python version, extension and `Cargo.toml` agree, and runs the
    tests;
 2. freezes the daemon and smoke-tests it, then builds the app, on Linux,
    Windows, and Apple Silicon and Intel macOS — each on its own runner, because

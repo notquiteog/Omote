@@ -3,6 +3,14 @@
 Versions follow the daemon's, because a panel that says 0.6.1 against a 0.6.0
 daemon is a support question nobody should have to ask.
 
+## 0.8.0
+
+- Omote naming and folded O identity across the extension, panel and tab icon.
+- Current daemon protocol and tool compatibility, including the creative library
+  and PhotoCraft results through ordinary agent tool cards.
+- The dedicated Studio, full ComfyUI editor, voice and 3D viewer remain in the
+  desktop/web workspace; the extension is the chat and coding client.
+
 ## 0.6.0
 
 First release of the VS Code extension.

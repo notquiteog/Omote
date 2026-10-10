@@ -443,4 +443,4 @@ jobs:
           case "$GITHUB_REF_NAME" in *-*) flags+=(--prerelease) ;; esac
           gh release create "$GITHUB_REF_NAME" out/* --verify-tag \
             --title "Omote ${{ needs.check.outputs.version }}" \
-            --notes "$(cat desktop/ci/release-notes.md)" --generate-notes "${flags[@]}"
+            --notes-file desktop/ci/release-notes.md --generate-notes "${flags[@]}"
