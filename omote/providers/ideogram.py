@@ -131,6 +131,6 @@ class IdeogramProvider(ImageProvider):
                   group='prompt', advanced=True,
                   help='Ideogram rewriting your prompt before generating. Turn it OFF when the '
                        'wording matters — including when the wording is what you want rendered.'),
-            Param('style_reference_images', 'Style reference', 'image', group='prompt', advanced=True,
+            Param('style_reference_images', 'Style reference', 'image', group='prompt', advanced=True, max_images=None,
                   help='Pictures to copy the look of, not the content.'),
         ]

@@ -55,6 +55,8 @@ TOOLSETS: dict[str, tuple[str, ...]] = {
     'hr': ('hr',),
     'finance': ('finance',),
     'trip': ('trip',),
+    'photocraft': ('photocraft',),
+    'creative': ('creative_library',),
     'todo': ('todo',),
     'agents': ('agent',),
     'skills': ('skill',),
@@ -67,7 +69,7 @@ TOOLSETS: dict[str, tuple[str, ...]] = {
     'system': ('system_info', 'package_search', 'package_install', 'package_remove',
                'display_info', 'display_hdr'),
     'media': ('media_params', 'generate_image', 'generate_video', 'generate_music',
-              'media_job', 'import_workflow', 'edit_media'),
+              'media_job', 'import_workflow', 'edit_media', 'photocraft', 'creative_library'),
     'memory': ('remember', 'recall'),
     # Working unattended. Its own group rather than part of `desktop` because
     # the tool is offered whether or not a screen is available — so the model
@@ -95,7 +97,12 @@ def resolve_toolset(names: list[str]) -> set[str] | None:
 
 
 def default_tools() -> list[Tool]:
+    from omote.agent.tools.photocraft import PhotoCraftTool
+    from omote.creative.tools import creative_tools
+
     return [
+        PhotoCraftTool(),
+        *creative_tools(),
         ReadTool(),
         ReadFilesTool(),
         WriteTool(),
@@ -507,6 +514,8 @@ def build_session(
             ('lsp', 'lsp'),
             ('git', 'git'),
             ('mail', 'mail'),
+            ('trip', 'trip'),
+            ('photocraft', 'photocraft'),
             ('calendar', 'calendar'),
             ('hr', 'hr'),
             ('finance', 'finance'),

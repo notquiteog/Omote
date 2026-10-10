@@ -36,12 +36,38 @@ must use a separate origin from Omote. Tor connections are not embedded because
 the browser frame cannot inherit the backend's Tor transport. Local-only mode refuses
 remote editor connections.
 
-Graphs and outputs made in the native editor belong to ComfyUI's storage. They do
-not automatically appear in Omote's media gallery. To use a graph with the
-simple form and gallery, export it in API format and **Import a workflow** in Generate.
-Normal workflow JSON belongs in the native editor; the simple importer explains this
-instead of storing an unusable template. ComfyUI editor actions run under ComfyUI's
-own controls, outside the chat agent's approval policy.
+The **Workflow workbench** beside the canvas adds local version history, project
+labels, an API node inspector, validation against the connected server's installed
+node schemas, and run history. **Run saved version** queues the exact saved API
+prompt. **Keep outputs** copies a finished run's images, videos, or supported 3D
+models into the creative library with provenance. Installing the optional
+[editor bridge](../integrations/comfyui/README.md) enables **Capture editor** and
+**Load in editor**, preserving native graph JSON, custom widgets and subgraphs.
+Without the bridge, import/export JSON and the native editor remain available.
+
+Graphs queued directly inside the native editor use ComfyUI's storage and controls;
+they are not automatically copied into Omote. To use an API graph with the simple
+form and gallery, choose **Import a workflow** in Generate. ComfyUI editor actions
+run under ComfyUI's own controls, outside the chat agent's approval policy.
+
+## Characters, assets, and companions
+
+**Studio → Characters & assets** stores reusable character profiles, ordered image
+references, appearance prompts, continuity notes and projects. **Use** prepares the
+profile in Generate; **Save & make reference sheet** prepares a reference-sheet
+prompt for review. The chosen model still determines consistency and supported
+reference inputs. Generated results have **Keep in library** in their preview.
+
+Import images, videos, or self-contained GLB, GLTF, OBJ and STL models. The 3D viewer
+has orbit/pan/zoom, fit, grid, wireframe, backgrounds and animation playback for
+supported clips. Asset details expose associations, tags, the original file,
+provenance and generation recipes. Export the library as a ZIP with a manifest
+and original files. See [Creative workspace](CREATIVE.md) for setup and storage.
+
+The companion picker has nine characters, including Maple the fox, Quill the owl,
+Inky the octopus and Orbit the drone. Each reacts to the agent's current activity
+with distinct behavior. Search and preview them in the picker; motion can be
+reduced independently of the system preference.
 
 ## Agent, code, browser, and desktop work
 
@@ -59,6 +85,10 @@ An application such as **Photoshop** must be installed and accessible on that
 desktop. The bundled `/photoshop` skill guides the agent through opening a document,
 editing with desktop tools, preserving layers, saving, and checking the export.
 It is a desktop-control workflow, not an Adobe cloud API or bundled Photoshop license.
+The dedicated **PhotoCraft** tool also inspects and edits layered graphics through
+its installed CLI, with verified separate outputs and image previews. General
+browser-based EMS, email and travel workflows use real pages and configured
+accounts. See [Personal and business work](BUSINESS.md) for setup and examples.
 Use the model's visible tool results to verify each task's outcome.
 
 ## Voice

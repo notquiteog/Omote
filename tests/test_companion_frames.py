@@ -47,6 +47,10 @@ let now = 1000;                 // not 0: `add` uses a zero lastPaint as "never 
 const pending = [];
 let rafCalls = 0;
 let maxQueued = 0;
+const timers = new Map();
+let timerId = 0;
+globalThis.setTimeout = (fn, ms) => { const id = ++timerId; timers.set(id, { fn, at: now + ms }); return id; };
+globalThis.clearTimeout = (id) => timers.delete(id);
 
 globalThis.performance = { now: () => now };
 globalThis.requestAnimationFrame = (fn) => { pending.push(fn); rafCalls++; return rafCalls; };
@@ -67,9 +71,10 @@ function target(extra) {
   }, extra);
 }
 
+const reducedMotion = target({ matches: false });
 globalThis.window = target({
   devicePixelRatio: 1,
-  matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+  matchMedia: () => reducedMotion,
 });
 
 function canvas() {
@@ -87,7 +92,7 @@ globalThis.document = target({ hidden: false, createElement: () => canvas() });
 /* Copied verbatim — the copy is the file, not an edit of it. */
 const copy = process.argv[2];
 writeFileSync(copy, readFileSync(process.argv[3], 'utf8'));
-const { Perch, driverState } = await import(pathToFileURL(copy).href);
+const { Perch, driverState, setMotionPreference } = await import(pathToFileURL(copy).href);
 
 const plan = JSON.parse(process.argv[4]);
 
@@ -119,6 +124,9 @@ function make(id, rate) {
 function advance(ms) {
   for (let i = 0; i < Math.round(ms / (1000 / 60)); i++) {
     now += 1000 / 60;
+    for (const [id, timer] of [...timers]) {
+      if (timer.at <= now) { timers.delete(id); timer.fn(); }
+    }
     maxQueued = Math.max(maxQueued, pending.length);
     for (const fn of pending.splice(0)) fn(now);
   }
@@ -133,11 +141,16 @@ function perform(action) {
   if (action.op === 'set') perch.set(action.arg);
   else if (action.op === 'flash') perch.flash(action.arg, action.ms);
   else if (action.op === 'destroy') perch.destroy();
+  else if (action.op === 'motion') setMotionPreference(action.arg);
+  else if (action.op === 'reduced') { reducedMotion.matches = action.arg; reducedMotion.fire('change'); }
   else if (action.op === 'hide') { document.hidden = true; document.fire('visibilitychange'); }
   else if (action.op === 'show') { document.hidden = false; document.fire('visibilitychange'); }
   else if (action.op === 'snapshot') {
     snaps[action.label] = {
       paints: made.map((p) => p.marks.length),
+      views: made.map((p) => p.view(now).state),
+      frozen: made.map((p) => p.frozen()),
+      timers: timers.size,
       live: driverState().live,
       running: driverState().running,
       /* When the observation was taken, on the engine's own clock. Snapshots
@@ -417,3 +430,72 @@ def test_the_slow_states_are_really_that_slow():
     assert slow, 'no state is slower than 1fps; the pacing test above is then vacuous'
     for name, rate in slow:
         assert rate > 0, f'{name} has an fps of {rate}, which would freeze the companion'
+
+
+def test_still_idle_has_no_animation_or_polling(driver):
+    out = driver([14], ms=3000, actions=[
+        {'op': 'motion', 'arg': 'still'},
+        {'op': 'snapshot', 'label': 'rest', 'at': 2500},
+    ])
+    assert paints(out) == 1
+    assert out['snaps']['rest']['timers'] == 0
+    assert not out['running']
+    assert out['live'] == 0
+
+
+def test_still_flash_returns_to_ambient_without_polling(driver):
+    out = driver([0.6], ms=1500, actions=[
+        {'op': 'motion', 'arg': 'still'},
+        {'op': 'flash', 'index': 0, 'arg': 'success', 'ms': 300, 'at': 300},
+        {'op': 'snapshot', 'label': 'flash', 'at': 400},
+        {'op': 'snapshot', 'label': 'rest', 'at': 800},
+    ])
+    assert out['snaps']['flash']['views'] == ['success']
+    assert out['snaps']['flash']['timers'] == 1
+    assert out['snaps']['rest']['views'] == ['idle']
+    assert out['snaps']['rest']['timers'] == 0
+    assert paints(out) == 3
+    assert not out['running']
+
+
+def test_still_long_running_job_changes_once_at_threshold(driver):
+    out = driver([0.6], ms=27000, actions=[
+        {'op': 'motion', 'arg': 'still'},
+        {'op': 'set', 'index': 0, 'arg': 'running'},
+        {'op': 'snapshot', 'label': 'working', 'at': 24000},
+        {'op': 'snapshot', 'label': 'slow', 'at': 26000},
+    ])
+    assert out['snaps']['working']['views'] == ['running']
+    assert out['snaps']['working']['timers'] == 1
+    assert out['snaps']['slow']['views'] == ['grinding']
+    assert out['snaps']['slow']['timers'] == 0
+    assert paints(out) == 3
+
+
+def test_motion_preference_can_follow_device_or_override_it(driver):
+    out = driver([14], ms=1300, actions=[
+        {'op': 'reduced', 'arg': True, 'at': 200},
+        {'op': 'snapshot', 'label': 'device', 'at': 400},
+        {'op': 'motion', 'arg': 'animated', 'at': 500},
+        {'op': 'snapshot', 'label': 'override', 'at': 800},
+        {'op': 'motion', 'arg': 'system', 'at': 900},
+        {'op': 'snapshot', 'label': 'system', 'at': 1200},
+    ])
+    assert out['snaps']['device']['frozen'] == [True]
+    assert out['snaps']['override']['frozen'] == [False]
+    assert out['snaps']['system']['frozen'] == [True]
+    assert paints(out, after=500, before=900) >= 4
+    assert out['snaps']['system']['timers'] == 0
+
+
+def test_destroying_still_perch_cancels_transition_and_preference_updates(driver):
+    out = driver([14], ms=1500, actions=[
+        {'op': 'motion', 'arg': 'still'},
+        {'op': 'flash', 'index': 0, 'arg': 'success', 'ms': 1000},
+        {'op': 'destroy', 'index': 0, 'at': 100},
+        {'op': 'motion', 'arg': 'animated', 'at': 300},
+        {'op': 'snapshot', 'label': 'gone', 'at': 1200},
+    ])
+    assert out['snaps']['gone']['timers'] == 0
+    assert out['snaps']['gone']['live'] == 0
+    assert paints(out, after=100) == 0

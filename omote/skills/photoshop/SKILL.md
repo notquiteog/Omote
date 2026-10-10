@@ -4,7 +4,9 @@ description: Edit images in an installed Adobe Photoshop using desktop control, 
 argument-hint: "[image path and requested edits]"
 ---
 
-Use this workflow when the user asks to work in Photoshop. Operate the installed
+Use this workflow when the user explicitly asks to work in Adobe Photoshop.
+For open-source PhotoCraft, load the `photocraft` skill and use its dedicated
+tool or authenticated MCP bridge. Do not substitute one application silently. Operate the installed
 application with the available desktop and shell tools. Do not claim a Photoshop
 integration or successful edit without observing it.
 

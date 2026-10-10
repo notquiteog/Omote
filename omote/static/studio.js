@@ -43,6 +43,64 @@ let schema = [];
 let known = { providers: [], models: [] };
 const values = new Map();
 
+// Character references follow the declared input names and multiplicity. Keep
+// manual edits when a connection refresh rebuilds the form.
+let characterRecipe = null;
+const manualReferenceInputs = new Set();
+const appliedReferences = new Map();
+let describeEpoch = 0;
+
+function imageLimit(param) {
+  return param.max_images === null ? Infinity : Math.max(1, Number(param.max_images) || 1);
+}
+
+function applyCharacterReferences() {
+  if (!characterRecipe) return;
+  const primary = schema.find((param) => param.kind === 'image'
+    && !/(mask|(?:^|_)(?:last|end|ending|tail)(?:_|$)|_tail$)/i.test(param.name));
+  const refs = characterRecipe.reference_media_ids || [];
+  // Remove only values placed by this helper, preserving manually edited fields.
+  for (const [name, applied] of appliedReferences) {
+    if (name !== primary?.name && !manualReferenceInputs.has(name) && values.get(name) === applied) {
+      values.delete(name); appliedReferences.delete(name);
+    }
+  }
+  if (primary) {
+    if (!manualReferenceInputs.has(primary.name)) {
+      const value = refs.slice(0, imageLimit(primary)).join(',');
+      values.set(primary.name, value); appliedReferences.set(primary.name, value);
+    } else {
+      // Moving a manual multi-image selection to a single-image model must
+      // still produce a blob, never an unsupported list.
+      const manual = String(values.get(primary.name) || '').split(',').filter(Boolean);
+      values.set(primary.name, manual.slice(0, imageLimit(primary)).join(','));
+    }
+  }
+  const selected = primary ? String(values.get(primary.name) || '').split(',').filter(Boolean).length : 0;
+  const note = $('#studio-character'); note.hidden = false;
+  note.textContent = `Using ${characterRecipe.character.name}. ${refs.length} reference image(s) prepared. `
+    + (primary ? `This model supports image inputs: ${selected} selected for ${primary.label || primary.name}. `
+      + (manualReferenceInputs.has(primary.name) ? 'Your manual reference changes are preserved.' : 'Check the inputs before generating.')
+      : 'This model has no character image input; references are kept for a compatible model.');
+}
+
+export async function applyCharacter(recipe, scene = '') {
+  // A reference sheet is an image even if Studio was previously making video
+  // or music. A normal character can still be used for a video scene.
+  if (kind === 'music' || (scene && kind !== 'image')) {
+    kind = 'image'; $('#studio-model').value = '';
+    for (const button of document.querySelectorAll('.studio-kind .seg')) button.classList.toggle('on', button.dataset.kind === kind);
+  }
+  for (const [name, applied] of appliedReferences) if (values.get(name) === applied) values.delete(name);
+  characterRecipe = recipe;
+  appliedReferences.clear(); manualReferenceInputs.clear();
+  $('#studio-prompt').value = [recipe.prompt, scene].filter(Boolean).join('\n\n');
+  values.set('negative_prompt', recipe.negative_prompt || '');
+  await describe();
+  $('#studio-prompt').focus();
+}
+
+
 /* The gallery, held here so the lightbox can step through it with the arrow
    keys without asking the server for a page it already has. */
 let shots = [];
@@ -229,7 +287,7 @@ function imageControl(param) {
   const picker = el('input');
   picker.type = 'file';
   picker.accept = 'image/png,image/jpeg,image/webp,image/gif';
-  picker.multiple = true;
+  picker.multiple = imageLimit(param) > 1;
   picker.hidden = true;
 
   const ids = () => String(values.get(param.name) || '').split(',').filter(Boolean);
@@ -249,7 +307,9 @@ function imageControl(param) {
       remove.title = 'Use a different picture';
       remove.onclick = (event) => {
         event.stopPropagation();
+        manualReferenceInputs.add(param.name);
         values.set(param.name, current.filter((other) => other !== id).join(','));
+        applyCharacterReferences();
         paint();
         markChanged();
       };
@@ -263,7 +323,9 @@ function imageControl(param) {
   }
 
   async function take(files) {
-    const accepted = [...files].filter((f) => f.type.startsWith('image/'));
+    const limit = imageLimit(param);
+    const accepted = [...files].filter((f) => f.type.startsWith('image/')).slice(0, limit);
+    if (files.length > limit) status(`This input accepts at most ${limit} image(s).`, 'bad');
     if (!accepted.length) return;
     drop.classList.add('busy');
     const added = [];
@@ -283,7 +345,9 @@ function imageControl(param) {
     }
     drop.classList.remove('busy');
     if (!added.length) return;
-    values.set(param.name, [...ids(), ...added].join(','));
+    manualReferenceInputs.add(param.name);
+    values.set(param.name, (limit === 1 ? added.slice(0, 1) : [...ids(), ...added].slice(0, limit)).join(','));
+    applyCharacterReferences();
     paint();
     markChanged();
   }
@@ -386,6 +450,7 @@ function render() {
 }
 
 async function describe() {
+  const revision = ++describeEpoch;
   status('asking what it can do…');
   const provider = $('#studio-provider').value;
   const model = $('#studio-model').value.trim();
@@ -394,6 +459,7 @@ async function describe() {
   if (model) params.set('model', model);
 
   const res = await api(`/api/media/describe?${params}`);
+  if (revision !== describeEpoch) return;
   if (!res) {
     status('the daemon is not reachable', 'bad');
     return;
@@ -408,6 +474,7 @@ async function describe() {
     // what was chosen cannot do it, that choice is dropped and it asks again.
     // It cannot loop: the second attempt asks with no provider at all.
     const list = await json(`/api/media/providers?kind=${kind}`);
+    if (revision !== describeEpoch) return;
     known.providers = (list && list.providers) || [];
     if (provider && !known.providers.some((p) => p.id === provider)) {
       paintProviders('');
@@ -419,11 +486,13 @@ async function describe() {
     schema = [];
     known.models = [];
     paintModels('');
+    applyCharacterReferences();
     render();
     return;
   }
 
   const info = await res.json();
+  if (revision !== describeEpoch) return;
   schema = info.params || [];
   known = { providers: info.providers || [], models: info.models || [] };
 
@@ -435,6 +504,7 @@ async function describe() {
   paintProviders(info.provider);
   paintModels(info.model);
   status(`${info.provider}${info.local ? ' · on this machine' : ''}`, info.local ? 'good' : '');
+  applyCharacterReferences();
   render();
 }
 
@@ -763,6 +833,8 @@ async function remove(item) {
  * settings by reading them off a caption is not it. */
 async function reuse(item) {
   closeShot();
+  characterRecipe = null; appliedReferences.clear(); manualReferenceInputs.clear();
+  $('#studio-character').hidden = true;
   if (item.kind !== kind) {
     kind = item.kind;
     for (const button of document.querySelectorAll('.studio-kind .seg')) {
@@ -808,6 +880,7 @@ function step(by) {
 }
 
 function paintShot() {
+  $('#shot-keep').textContent = 'Keep in library';
   const item = shots[shown];
   if (!item) return;
 
@@ -881,6 +954,14 @@ function wireLightbox() {
   $('#shot-close').onclick = () => closeShot();
   $('#shot-reuse').onclick = () => reuse(shots[shown]);
   $('#shot-download').onclick = () => download(shots[shown]);
+  $('#shot-keep').onclick = async () => {
+    const button = $('#shot-keep'); button.disabled = true;
+    try {
+      const { keepMedia } = await import('./creative.js');
+      await keepMedia(shots[shown]); button.textContent = 'Saved to library';
+    } catch (error) { status(error.message, 'bad'); button.textContent = 'Could not save — retry'; }
+    finally { button.disabled = false; }
+  };
   $('#shot-delete').onclick = () => remove(shots[shown]);
   $('#shot-copy').onclick = async () => {
     try {

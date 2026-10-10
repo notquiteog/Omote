@@ -59,6 +59,9 @@ log = logging.getLogger(__name__)
 # way, and refusing to talk to one over a version string helps nobody.
 PROTOCOL_VERSION = '2025-06-18'
 DEFAULT_TIMEOUT = 60.0
+# A PNG preview is one base64 JSON line. asyncio's 64 KiB default rejects
+# ordinary images and leaves callers waiting on a dead reader. Still bounded.
+MAX_STDIO_LINE_BYTES = 32 * 1024 * 1024
 # A server that has not answered `initialize` by now is not going to.
 STARTUP_TIMEOUT = 30.0
 
@@ -244,8 +247,8 @@ class MCPServer(abc.ABC):
     def _resolve(self, message: dict[str, Any]) -> None:
         """Hand one decoded JSON-RPC message to whoever is waiting for it."""
         msg_id = message.get('id')
-        if msg_id is None:
-            return  # a notification from the server; nothing wants it yet
+        if not isinstance(msg_id, (int, str)):
+            return  # a notification or malformed id; never a pending request
         future = self._pending.pop(msg_id, None)
         if future is None or future.done():
             return
@@ -255,6 +258,8 @@ class MCPServer(abc.ABC):
             future.set_result(message.get('result') or {})
 
     def _error(self, error: dict[str, Any]) -> MCPError:
+        if not isinstance(error, dict):
+            return MCPError(f'{self.name}: malformed server error')
         message = error.get('message', 'unknown error')
         if error.get('code') == METHOD_NOT_FOUND:
             return MCPUnsupported(f'{self.name}: {message}')
@@ -434,6 +439,7 @@ class StdioServer(MCPServer):
             stderr=asyncio.subprocess.PIPE,
             env={**os.environ, **self.env},
             cwd=self.cwd,
+            limit=MAX_STDIO_LINE_BYTES,
         )
         self._reader = asyncio.create_task(self._read_loop())
         # Servers use stderr for logging and some are chatty. Drained rather
@@ -449,20 +455,42 @@ class StdioServer(MCPServer):
 
         proc = self._proc
         self._proc = None
-        if proc is None or proc.returncode is not None:
+        if proc is None:
             return
 
-        # Closing stdin is the protocol's own way of saying goodbye; most
-        # servers exit on EOF. The kill is for the ones that do not.
-        with contextlib.suppress(Exception):
-            if proc.stdin and not proc.stdin.is_closing():
-                proc.stdin.close()
+        # A killed process may still have paused stdout buffers. Discard the
+        # remaining bounded chunks so pipe transports reach EOF, even if the
+        # return code is already known. Otherwise they outlive the event loop.
+        async def drain(stream):
+            if stream:
+                while await stream.read(64 * 1024):
+                    pass
+
+        drains = [asyncio.create_task(drain(stream)) for stream in (proc.stdout, proc.stderr)]
         try:
-            await asyncio.wait_for(proc.wait(), timeout=5)
-        except TimeoutError:
-            with contextlib.suppress(ProcessLookupError):
-                proc.kill()
-            await proc.wait()
+            # Closing stdin is the protocol's graceful shutdown signal.
+            with contextlib.suppress(Exception):
+                if proc.stdin and not proc.stdin.is_closing():
+                    proc.stdin.close()
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=5)
+            except TimeoutError:
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
+                await proc.wait()
+            try:
+                await asyncio.wait_for(asyncio.gather(*drains), timeout=2)
+            except TimeoutError:
+                # An unrelated descendant may have inherited a pipe. The owned
+                # child has exited; close our transports rather than hang here.
+                transport = getattr(proc, '_transport', None)
+                if transport is not None:
+                    transport.close()
+        finally:
+            for task in drains:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*drains, return_exceptions=True)
 
     @property
     def running(self) -> bool:
@@ -472,25 +500,31 @@ class StdioServer(MCPServer):
 
     async def _read_loop(self) -> None:
         assert self._proc and self._proc.stdout
-        while True:
-            line = await self._proc.stdout.readline()
-            if not line:
-                break
-            try:
-                message = json.loads(line)
-            except json.JSONDecodeError:
-                # Servers occasionally print a banner to stdout before the
-                # protocol starts. Skipped rather than fatal.
-                log.debug('mcp %s: non-JSON on stdout: %r', self.name, line[:120])
-                continue
-            self._resolve(message)
-
-        # The process died. Anything still waiting must be told, or it waits
-        # for ever on a pipe that will never answer.
-        self._abandon('server exited')
+        reason = 'server exited'
+        try:
+            while True:
+                line = await self._proc.stdout.readline()
+                if not line:
+                    break
+                try:
+                    message = json.loads(line)
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    # Some servers print a banner before their first message.
+                    log.debug('mcp %s: non-JSON on stdout: %r', self.name, line[:120])
+                    continue
+                if not isinstance(message, dict):
+                    continue
+                self._resolve(message)
+        except (ValueError, OSError) as exc:
+            reason = f'stdio response could not be read (maximum {MAX_STDIO_LINE_BYTES} bytes): {exc}'
+            # No further requests can be correlated after a framing error.
+            with contextlib.suppress(ProcessLookupError):
+                self._proc.kill()
+        finally:
+            self._abandon(reason)
 
     async def _send(self, payload: dict[str, Any]) -> None:
-        if not self._proc or not self._proc.stdin:
+        if not self._proc or not self._proc.stdin or (self._reader and self._reader.done()):
             raise MCPError(f'{self.name}: not running')
         self._proc.stdin.write(json.dumps(payload).encode() + b'\n')
         await self._proc.stdin.drain()
@@ -498,10 +532,10 @@ class StdioServer(MCPServer):
     async def _drain_stderr(self) -> None:
         assert self._proc and self._proc.stderr
         while True:
-            line = await self._proc.stderr.readline()
-            if not line:
+            chunk = await self._proc.stderr.read(4096)
+            if not chunk:
                 break
-            log.debug('mcp %s: %s', self.name, line.decode('utf-8', 'replace').rstrip())
+            log.debug('mcp %s: %s', self.name, chunk.decode('utf-8', 'replace').rstrip())
 
     async def _request(self, method: str, params: dict[str, Any]) -> Any:
         msg_id, future = self._claim_id()

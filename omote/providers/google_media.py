@@ -279,7 +279,7 @@ class GoogleMediaProvider(HostedMedia):
 
         # The conversational image model.
         return [p for p in common_image() if p.name not in ('seed', 'negative_prompt')] + [
-            Param('image', 'Images to work from', 'image', group='prompt',
+            Param('image', 'Images to work from', 'image', group='prompt', max_images=None,
                   help='Give it a picture and say what to change — "make the jacket red". Several can '
                        'be combined: two products and a request to put one in the other\'s scene. '
                        'This is the model to use for editing rather than for making something new.'),

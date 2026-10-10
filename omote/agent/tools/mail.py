@@ -178,7 +178,10 @@ class MailTool(Tool):
             if action == 'send':
                 return Assessment(
                     risk=risk,
-                    summary=_summary_for(args.get('to'), subject, body) + (f'   [{account}]' if account else ''),
+                    summary=_summary_for(args.get('to'), subject, body)
+                    + ''.join(f'   {kind}: ' + ', '.join(p.email for p in parse_addresses(args.get(kind)))
+                              for kind in ('cc', 'bcc') if args.get(kind))
+                    + (f'   [{account}]' if account else ''),
                 )
             return Assessment(risk=risk, summary=f'draft to {", ".join(p.email for p in people[:3])} "{subject}"')
 

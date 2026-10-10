@@ -100,6 +100,8 @@ const TOOL_STATES = {
   browser_screenshot: 'browsing',
   browser_hand_over: 'waiting',
   desktop_screenshot: 'desktop',
+  photocraft: 'desktop',
+  creative_library: 'writing',
   desktop_click: 'desktop',
   desktop_type: 'desktop',
   desktop_key: 'desktop',
@@ -279,6 +281,17 @@ const reduced = typeof window !== 'undefined' && window.matchMedia
    due. The loop itself stops when the set empties, so an idle page with no
    companion is not running a rAF at all. */
 const live = new Set();
+const mounted = new Set();
+let motionPreference = 'system';
+
+export function setMotionPreference(value) {
+  motionPreference = ['system', 'still', 'animated'].includes(value) ? value : 'system';
+  for (const perch of mounted) {
+    perch.nextDue = 0;
+    perch.pump();
+  }
+}
+
 let frame = null;
 
 function paintDue(now) {
@@ -357,7 +370,8 @@ export class Perch {
     this.lastPaint = 0;
     this.frozenTimer = null;
     this.resize();
-    this.onResize = () => this.resize();
+    this.onResize = () => { this.resize(); this.nextDue = 0; this.pump(); };
+    mounted.add(this);
     this.onWake = () => this.pump();
     window.addEventListener('resize', this.onResize);
     // A creature animating in a tab nobody is looking at is pure waste, and
@@ -372,6 +386,7 @@ export class Perch {
      able to stop being one. */
   destroy() {
     this.def = null;
+    mounted.delete(this);
     this.unpump();
     window.removeEventListener('resize', this.onResize);
     document.removeEventListener('visibilitychange', this.onWake);
@@ -381,7 +396,7 @@ export class Perch {
   /* Motion is decoration, and decoration that cannot be turned off is a
      problem for anyone who gets sick from it. */
   frozen() {
-    return Boolean(reduced && reduced.matches);
+    return motionPreference === 'still' || (motionPreference === 'system' && Boolean(reduced && reduced.matches));
   }
 
   resize() {
@@ -490,16 +505,20 @@ export class Perch {
       return;
     }
     if (still) {
-      // Held still, and the flash clock still has to run — so a timer, not a
-      // frame loop. Slow on purpose: the only thing it exists to notice is a
-      // flash ending.
-      this.freeze();
-      this.draw(performance.now());
-      if (this.frozenTimer === null) {
-        this.frozenTimer = setInterval(() => {
-          this.lastPaint = performance.now();
-          this.draw(performance.now());
-        }, 400);
+      // Paint information once. A static idle companion needs no polling;
+      // only a flash ending or a long-running job can change this picture.
+      this.unpump();
+      const now = performance.now();
+      this.draw(now);
+      const flashEnd = this.flashing && this.flashUntil > now ? this.flashUntil : Infinity;
+      const grindAt = WORKING.has(this.ambient) && now <= this.since + GRIND_AFTER * 1000
+        ? this.since + GRIND_AFTER * 1000 + 1 : Infinity;
+      const wakeAt = Math.min(flashEnd, grindAt);
+      if (Number.isFinite(wakeAt)) {
+        this.frozenTimer = setTimeout(() => {
+          this.frozenTimer = null;
+          this.pump();
+        }, Math.max(1, wakeAt - now));
       }
       return;
     }
@@ -510,7 +529,7 @@ export class Perch {
   unpump() {
     drop(this);
     if (this.frozenTimer !== null) {
-      clearInterval(this.frozenTimer);
+      clearTimeout(this.frozenTimer);
       this.frozenTimer = null;
     }
   }
@@ -521,7 +540,7 @@ export class Perch {
 
   thaw() {
     if (this.frozenTimer !== null) {
-      clearInterval(this.frozenTimer);
+      clearTimeout(this.frozenTimer);
       this.frozenTimer = null;
     }
   }

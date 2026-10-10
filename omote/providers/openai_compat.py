@@ -625,7 +625,7 @@ class OpenAICompatProvider(ChatProvider, EmbeddingProvider, STTProvider, TTSProv
                       help='For jpeg and webp only.'),
                 Param('moderation', 'Moderation', 'enum', default='auto', options=['auto', 'low'],
                       group='output', advanced=True),
-                Param('image', 'Images to work from', 'image', group='prompt',
+                Param('image', 'Images to work from', 'image', group='prompt', max_images=None,
                       help='Supplying one switches to editing. Several can be given at once and '
                            'gpt-image-1 composes them — a product and a room, and a prompt saying '
                            'to put one into the other.'),

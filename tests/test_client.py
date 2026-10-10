@@ -23,7 +23,8 @@ TOOLS = ROOT / 'omote' / 'agent' / 'tools'
 
 def _tool_names() -> set[str]:
     declared: set[str] = set()
-    for path in sorted(TOOLS.glob('*.py')):
+    sources = [*TOOLS.glob('*.py'), ROOT / 'omote' / 'creative' / 'tools.py']
+    for path in sorted(sources):
         declared |= set(re.findall(r"(?m)^    name = '(\w+)'", path.read_text()))
     assert len(declared) > 15, 'the tool scan found almost nothing — has the layout changed?'
     return declared

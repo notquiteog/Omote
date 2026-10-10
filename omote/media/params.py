@@ -53,6 +53,9 @@ class Param:
     # For grouping into sections: 'prompt', 'shape', 'sampling', 'quality',
     # 'motion', 'output'. A client that does not know a group shows it last.
     group: str = 'sampling'
+    # Image inputs default to one blob. None explicitly allows several, with
+    # the provider enforcing its own current limit; an integer is a known cap.
+    max_images: int | None = 1
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -67,6 +70,7 @@ class Param:
             'help': self.help,
             'advanced': self.advanced,
             'group': self.group,
+            **({'max_images': self.max_images} if self.kind == 'image' else {}),
         }
 
 

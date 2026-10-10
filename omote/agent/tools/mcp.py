@@ -71,6 +71,12 @@ class MCPToolAdapter(Tool):
                 summary=f'{self.spec.server}: {self.spec.name} — this looks like it handles a secret',
             )
 
+        if money is Risk.MESSAGE:
+            return Assessment(
+                risk=Risk.MESSAGE,
+                summary=f'{self.spec.server}: {self.spec.name} — sends or publishes a message',
+            )
+
         if annotations.get('destructiveHint'):
             risk = Risk.DESTRUCTIVE
             why = 'the server says this is destructive'

@@ -271,7 +271,8 @@ def test_every_tool_moves_the_companion():
     assert mapped, 'no tool states parsed'
 
     declared = set()
-    for path in sorted(TOOLS.glob('*.py')):
+    # Creative library lives with its store rather than the generic agent tools.
+    for path in [*sorted(TOOLS.glob('*.py')), ROOT / 'omote' / 'creative' / 'tools.py']:
         declared |= set(re.findall(r"(?m)^    name = '(\w+)'", path.read_text()))
     assert len(declared) > 15, 'the tool scan found almost nothing — has the layout changed?'
 
@@ -280,3 +281,161 @@ def test_every_tool_moves_the_companion():
 
     stale = set(mapped) - declared
     assert not stale, f'the companion reacts to tools that no longer exist: {sorted(stale)}'
+
+
+@pytest.fixture
+def companion_page():
+    """Load the actual companion module in Chromium without a daemon or provider."""
+    import functools
+    import http.server
+    import threading
+
+    browser_api = pytest.importorskip('playwright.sync_api')
+
+    class QuietHandler(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(
+        ('127.0.0.1', 0), functools.partial(QuietHandler, directory=str(COMPANIONS.parent)),
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with browser_api.sync_playwright() as engine:
+            try:
+                browser = engine.chromium.launch(headless=True)
+            except browser_api.Error as exc:
+                pytest.skip(f'Chromium is unavailable: {exc}')
+            page = browser.new_page(viewport={'width': 800, 'height': 800})
+            errors = []
+            page.on('pageerror', lambda error: errors.append(str(error)))
+            page.route('**/test-companion', lambda route: route.fulfill(content_type='text/html', body="""
+                <link rel="stylesheet" href="/style.css">
+                <div id="first"></div><div id="second"></div><button id="outside">Outside</button>
+                <script type="module">
+                import { companion, COMPANIONS } from '/companions/index.js';
+                import { driverState } from '/companions/engine.js';
+                window.companion = companion;
+                window.driverState = driverState;
+                window.creatures = COMPANIONS;
+                companion.mount(document.querySelector('#first'), {place: 'below', scale: 2});
+                companion.mount(document.querySelector('#second'), {place: 'below', scale: 2});
+                </script>
+            """))
+            page.goto(f'http://127.0.0.1:{server.server_port}/test-companion')
+            page.wait_for_function('window.companion && document.querySelector("#first .pet")')
+            yield page, browser_api.expect
+            assert not errors, errors
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_picker_keyboard_search_selection_and_preview(companion_page):
+    page, expect = companion_page
+    page.locator('#first .pet').click()
+    menu = page.locator('#first .companion-menu')
+    expect(menu).to_be_visible()
+    search = menu.get_by_role('searchbox')
+    expect(search).to_be_focused()
+    search.press('ArrowUp')
+    expect(menu.get_by_role('button', name='Nobody')).to_be_focused()
+    search.focus()
+    search.fill('maple')
+    expect(menu.locator('.row:visible')).to_have_count(1)
+    search.press('ArrowDown')
+    expect(menu.get_by_role('button', name='Maple')).to_be_focused()
+    menu.get_by_role('combobox', name='Preview a reaction').select_option('browsing')
+    expect(menu.locator('.companion-preview')).to_contain_text('compass')
+    menu.get_by_role('button', name='Maple').click()
+    expect(menu).to_be_hidden()
+    assert page.evaluate('localStorage.getItem("omote.companion")') == 'fox'
+    expect(page.locator('#second .pet')).to_have_attribute('aria-label', 'Companion: Maple. Choose another.')
+    expect(page.locator('#first .pet')).to_be_focused()
+    page.locator('#second .pet').click()
+    page.keyboard.press('Escape')
+    expect(page.locator('#second .companion-menu')).to_be_hidden()
+    expect(page.locator('#second .pet')).to_be_focused()
+    assert page.evaluate('window.driverState().live') == 2
+
+
+def test_picker_motion_preference_and_all_creature_reactions(companion_page):
+    page, expect = companion_page
+    page.locator('#first .pet').click()
+    menu = page.locator('#first .companion-menu')
+    menu.get_by_role('combobox', name='Companion motion').select_option('still')
+    assert page.evaluate('window.driverState().live') == 0
+    assert page.evaluate('localStorage.getItem("omote.companion.motion")') == 'still'
+    expect(page.locator('#second select[aria-label="Companion motion"]')).to_have_value('still')
+    # Every authored callback, palette and frame is exercised through the real renderer.
+    states = ['idle', 'typing', 'thinking', 'reading', 'writing', 'running', 'browsing',
+              'desktop', 'grinding', 'waiting', 'listening', 'speaking', 'success', 'error']
+    for creature in ['fox', 'owl', 'octopus', 'drone']:
+        page.evaluate('(id) => window.companion.preview(window.companion.pickers[0], window.creatures.find(c => c.id === id))', creature)
+        for state in states:
+            menu.get_by_role('combobox', name='Preview a reaction').select_option(state)
+    menu.get_by_role('combobox', name='Companion motion').select_option('animated')
+    assert page.evaluate('window.driverState().live') == 3
+    page.locator('#outside').focus()
+    expect(menu).to_be_hidden()
+    assert page.evaluate('window.driverState().live') == 2
+    # Recreating the module on reload restores the saved device preference.
+    page.reload()
+    page.wait_for_function('window.companion && document.querySelector("#first .pet")')
+    expect(page.locator('#first select[aria-label="Companion motion"]')).to_have_value('animated')
+
+
+def test_picker_fits_small_viewport_and_empty_search(companion_page):
+    page, expect = companion_page
+    page.set_viewport_size({'width': 320, 'height': 480})
+    page.locator('#first .pet').click()
+    menu = page.locator('#first .companion-menu')
+    box = menu.bounding_box()
+    assert box['x'] >= 0 and box['y'] >= 0
+    assert box['x'] + box['width'] <= 320
+    assert box['y'] + box['height'] <= 480
+    menu.get_by_role('searchbox').fill('no matching creature')
+    expect(menu.get_by_text('No companions match this search.')).to_be_visible()
+    expect(menu.locator('.row:visible')).to_have_count(0)
+
+
+def test_authored_reactions_draw_real_frames_with_finite_motion(companion_page):
+    page, _ = companion_page
+    drawn = page.evaluate('''async () => {
+      const { Perch, setMotionPreference } = await import('/companions/engine.js');
+      setMotionPreference('animated');
+      const rendered = {};
+      for (const def of window.creatures) {
+        const perch = new Perch(document.createElement('canvas'), {scale: 1});
+        perch.use(def);
+        const paint = perch.paint.bind(perch);
+        let frames = [];
+        perch.paint = (name, x, y, ...rest) => {
+          if (!(name in def.frames)) throw new Error(`${def.id}: unknown frame ${name}`);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error(`${def.id}: invalid position`);
+          frames.push(name);
+          paint(name, x, y, ...rest);
+        };
+        rendered[def.id] = {};
+        for (const state of ['idle', 'typing', 'thinking', 'reading', 'writing', 'running',
+                             'browsing', 'desktop', 'grinding', 'waiting', 'listening', 'speaking', 'success', 'error']) {
+          perch.use(def);
+          if (state === 'success' || state === 'error') perch.flash(state);
+          else perch.set(state);
+          frames = [];
+          for (const elapsed of [0, 100, 300, 700, 1100]) perch.draw(performance.now() + elapsed);
+          if (!frames.length) throw new Error(`${def.id}: no rendered frames for ${state}`);
+          rendered[def.id][state] = [...new Set(frames)];
+        }
+        perch.destroy();
+      }
+      return rendered;
+    }''')
+    assert 'compass' in drawn['fox']['browsing']
+    assert {'book_a', 'book_b'} <= set(drawn['owl']['reading'])
+    assert 'pencil' in drawn['octopus']['writing']
+    assert 'beam' in drawn['drone']['desktop']
+    assert 'ink' in drawn['octopus']['error']

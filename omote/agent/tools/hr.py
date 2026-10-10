@@ -66,7 +66,7 @@ class HrTool(Tool):
         "decisions with their reasons, the stated policy, the notice the person gives, and what is already "
         "booked. It returns facts and possibly a band (clear, coin-flip, unlikely) — not a verdict and not "
         "a percentage, and no band at all until there are enough comparable decisions to mean anything.\n"
-        "Read the evidence and decide yourself; the pattern is evidence, not an answer. Be even-handed: "
+        "Summarize the evidence for the person to decide; do not approve or deny leave yourself. Be even-handed: "
         "these are decisions about real people's time, and a request that is unlike the ones in the "
         "ledger deserves a decision on its own facts rather than a verdict borrowed from a neighbour's. "
         "If the request is for a person who is not in the ledger, say so and ask rather than guessing from "

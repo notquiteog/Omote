@@ -65,11 +65,14 @@ function openEditor() {
 }
 
 export function wireComfyUI() {
-  for (const [id, advanced] of [['studio-simple', false], ['studio-graph', true]]) {
+  for (const [id, advanced] of [['studio-simple', false], ['studio-graph', true], ['studio-library', false]]) {
     $(`#${id}`).onclick = () => {
-      $('#studio-generate').hidden = advanced;
+      const library = id === 'studio-library';
+      $('#studio-generate').hidden = advanced || library;
+      const libraryPane = $('#creative-workspace');
+      if (libraryPane) libraryPane.hidden = !library;
       $('#comfy-workspace').hidden = !advanced;
-      for (const [button, on] of [['studio-simple', !advanced], ['studio-graph', advanced]]) {
+      for (const [button, on] of [['studio-simple', !advanced && !library], ['studio-graph', advanced], ['studio-library', library]]) {
         $(`#${button}`).classList.toggle('on', on);
         $(`#${button}`).setAttribute('aria-pressed', String(on));
       }

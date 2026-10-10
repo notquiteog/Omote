@@ -3,7 +3,12 @@
 The desktop workspace includes chat and coding tools, browser and computer control,
 background workers, image/video generation, and two voice pipelines. **Studio →
 Advanced · ComfyUI** opens your connected ComfyUI installation's full graph editor,
-including Nodes 2.0 when supported by that installation. **Memory** lets you inspect,
+including Nodes 2.0 when supported by that installation. The workbench adds saved
+versions, schema validation, run history, and output imports. **Characters & assets**
+keeps reusable character references, generation recipes, and interactive 3D previews.
+PhotoCraft, email, and browser-based employee portals are available to the agent;
+see [Creative workspace](docs/CREATIVE.md) and [Business workflows](docs/BUSINESS.md).
+**Memory** lets you inspect,
 correct, export, or delete remembered user and project information, including while
 memory is paused. The default appearance follows the system with a Codex-style sidebar,
 task starters, and composer. See [Workspace setup](docs/WORKSPACE.md) for the required
@@ -66,45 +71,27 @@ outside the trip's dates. The reasoning for each is at the top of the module.
 
 ---
 
-## Parity, and where it stops
+## Integrations and boundaries
 
-This started as an open-source digital twin of Claude Code and openCode, so
-the honest thing is to say what matches and what does not rather than let
-"parity" sit in a marketing sentence.
+Omote runs locally and exposes its actions, questions, approvals and results. It
+ships terminal, browser, desktop and VS Code clients; code/file/shell/LSP tools;
+workers and subagents; web and desktop control; configurable model providers;
+image/video generation; ComfyUI graph access; voice; and opt-in embedding memory.
+The [workspace guide](docs/WORKSPACE.md) explains how these fit together.
 
-| | Claude Code | openCode | this |
-|---|---|---|---|
-| Terminal client | ✓ | ✓ | ✓ `omote chat` |
-| Headless one-shot, pipes, CI | ✓ `-p` | ✓ `run` | ✓ `omote run` |
-| Edit, patch, search, shell, notebook | ✓ | ✓ | ✓ |
-| Plan mode, to-do list, subagents | ✓ | ✓ | ✓ |
-| Custom agents as markdown, per-role tools | ✓ | ✓ | ✓ |
-| Skills, slash commands, `CLAUDE.md`/`AGENTS.md` | ✓ | ✓ | ✓ `opencode.md` too |
-| Model and effort switchable mid-conversation | ✓ | ✓ | ✓ `/model`, `/think` |
-| Undo and redo, repeatable | ✓ `/undo` | ✓ | ✓ `/undo`, `/redo` |
-| Session search across every conversation | ✓ | ✓ | ✓ |
-| Share a conversation as a file | ✓ | ✓ `/share` | ✓ one self-contained HTML file |
-| Resumable transcripts, fork, export | ✓ | ✓ | ✓ |
-| Checkpoint rewind, hunk-by-hunk review | ✓ | ✓ | ✓ |
-| MCP, as client and as server | ✓ | ✓ | ✓ stdio, HTTP and SSE, both ways |
-| LSP: definitions, diagnostics, code actions, rename, format | partial | ✓ | ✓ |
-| Pull requests from the agent | ✓ | ✓ | ✓ `git pr_create` |
-| Images pasted into the prompt | ✓ | ✓ | ✓ |
-| Hooks, custom tools, providers, themes, keybinds | ✓ | ✓ | ✓ except keybinds are fixed |
-| Terminal, desktop app, browser, IDE extension | ✓ | ✓ | all four — the VS Code extension ships as a `.vsix` beside the installers |
-| Web search, browser control, image and video generation | ✓ | partial | ✓ and more than openCode does |
-| Cost per session | ✓ | ✓ | **deliberately not** — see below |
+Accounts, model services and desktop applications must be connected or installed.
+Email, employee portals and reservations operate through configured native tools,
+MCP servers or actual browser pages. Model and regional service availability still
+apply. These integrations do not establish feature-for-feature parity with every
+commercial agent, and a saved workflow cannot supply missing model weights or
+custom nodes. The ComfyUI workbench adds versioning, validation and an asset library
+around the installed native editor; it does not replace its renderer.
 
-**Not built, on purpose.** Cloud sessions, a hosted web version, a phone app,
-scheduled recurring tasks, team chat integrations, and any account system.
-Those are all somebody else's servers, and a tool that runs commands on your
-machine is a different promise from one that runs them on a rented box.
-
-**Not built, and it could be.** A **JetBrains** plugin — IntelliJ, PyCharm,
-WebStorm. The VS Code extension is the same panel against the same daemon, and
-`ide/vscode/` is deliberately plain CommonJS with no dependencies and no build
-step, so a JetBrains plugin is a different shell around the same protocol rather
-than a second implementation of it. It is the largest remaining gap.
+There is no hosted account service, mobile application, JetBrains plugin, team chat
+service or general recurring scheduler bundled here. Other systems can invoke the
+CLI or MCP server. Cost accounting is discussed below. The project's capability
+claims describe implemented behavior, with tests and setup boundaries, rather
+than a blanket promise to operate every application in every country.
 
 ---
 

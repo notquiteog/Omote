@@ -37,6 +37,8 @@ import { refreshReview, resetReview, wireReview } from './review.js';
 import { renderUpdate, watchUpdates, wireUpdates } from './updates.js';
 import { wireThemes } from './theme.js';
 import { wireComfyUI } from './comfyui.js';
+import { wireWorkbench } from './workbench.js';
+import { wireCreative } from './creative.js';
 import { wireMemory } from './memory.js';
 import { Voice } from './voice.js';
 import { attach as attachAutopilot, narrate, reattach as reattachAutopilot, wireAutopilot } from './autopilot.js';
@@ -434,6 +436,8 @@ const VERBS = {
   generate_music: 'Composed music',
   compose_music: 'Wrote a score',
   edit_media: 'Edited',
+  photocraft: 'Editing in PhotoCraft',
+  creative_library: 'Organizing creative assets',
   media_edit_params: 'Asked what can be edited',
   agent: 'Delegated',
   skill: 'Used the skill',
@@ -2241,6 +2245,75 @@ function wire() {
 // has no way to observe, and dropping the background without it would leave
 // the interface floating on nothing.
 
+/* The same navigation on a phone, opened as a temporary modal surface.
+   Nothing is duplicated: provider controls, sessions, and dialogs keep their
+   existing handlers. The main workspace is inert only while navigation is open. */
+function wireMobileNavigation() {
+  const sidebar = $('#sidebar');
+  const toggle = $('#sidebar-toggle');
+  const close = $('#sidebar-close');
+  const backdrop = $('#sidebar-backdrop');
+  const main = document.querySelector('main');
+  const narrow = window.matchMedia('(max-width: 760px)');
+  let open = false;
+  function setOpen(wanted, restore = true) {
+    open = wanted && narrow.matches;
+    document.body.classList.toggle('navigation-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    backdrop.hidden = !open;
+    sidebar.inert = narrow.matches && !open;
+    main.inert = open;
+    if (open) {
+      sidebar.setAttribute('role', 'dialog');
+      sidebar.setAttribute('aria-modal', 'true');
+      close.focus();
+    } else {
+      sidebar.removeAttribute('role');
+      sidebar.removeAttribute('aria-modal');
+      if (restore && narrow.matches && !document.querySelector('dialog[open]')) toggle.focus();
+    }
+  }
+  toggle.onclick = () => setOpen(!open);
+  close.onclick = () => setOpen(false);
+  backdrop.onclick = () => setOpen(false);
+  narrow.addEventListener('change', () => setOpen(false, false));
+  sidebar.addEventListener('click', (event) => {
+    if (!open) return;
+    const action = event.target.closest('[data-mode], #nav-new, #new-session, #nav-rewind, #nav-review, '
+      + '#open-memory, #open-settings, #worktree-open, #hooks-open, #sessions li[aria-current]');
+    if (action && !action.disabled) queueMicrotask(() => {
+      const dialog = document.querySelector('dialog[open]');
+      if (dialog) dialog.addEventListener('close', () => {
+        if (narrow.matches && !document.querySelector('dialog[open]')) toggle.focus();
+      }, { once: true });
+      setOpen(false);
+    });
+  });
+  document.addEventListener('keydown', (event) => {
+    if (!open) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (sidebar.querySelector('.companion-menu:not([hidden])')) {
+        companion.closeMenus();
+        $('#brand-pet .pet').focus();
+      } else setOpen(false);
+    } else if (event.key === 'Tab') {
+      const available = [...sidebar.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), '
+        + 'select:not(:disabled), [tabindex]:not([tabindex="-1"])')]
+        .filter((node) => node.getClientRects().length && !node.closest('[hidden]'));
+      const first = available[0];
+      const last = available[available.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !sidebar.contains(document.activeElement))) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !sidebar.contains(document.activeElement))) {
+        event.preventDefault(); first?.focus();
+      }
+    }
+  }, true);
+  setOpen(false, false);
+}
+
 /* ------------------------------------------------------------------ modes */
 
 /* What Studio owns while it is on screen, and what it must give back.
@@ -2263,8 +2336,11 @@ function wireModeLifecycle() {
 }
 
 wire();
+wireMobileNavigation();
 wireMemory();
 wireComfyUI();
+wireWorkbench();
+wireCreative();
 for (const starter of document.querySelectorAll('[data-start]')) {
   starter.onclick = () => {
     $('#input').value = starter.dataset.start;

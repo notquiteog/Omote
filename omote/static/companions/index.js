@@ -11,14 +11,37 @@
  * the plumbing.
  */
 
-import { Perch, portrait, stateForTool } from './engine.js';
+import { Perch, portrait, stateForTool, setMotionPreference } from './engine.js';
 import moth from './moth.js';
 import gargoyle from './gargoyle.js';
 import slime from './slime.js';
 import mechbit from './mechbit.js';
 import mandrake from './mandrake.js';
 
-export const COMPANIONS = [moth, gargoyle, slime, mechbit, mandrake];
+import fox from './fox.js';
+import owl from './owl.js';
+import octopus from './octopus.js';
+import drone from './drone.js';
+
+export const COMPANIONS = [moth, gargoyle, slime, mechbit, mandrake, fox, owl, octopus, drone];
+
+const pickerStyle = document.createElement('link');
+pickerStyle.rel = 'stylesheet';
+pickerStyle.href = new URL('./picker.css', import.meta.url).href;
+document.head.appendChild(pickerStyle);
+const MOTION_STORE = 'omote.companion.motion';
+const PERSONALITIES = {
+  moth: 'Orbits its lamp while working, then bumps into the glass when something fails.',
+  gargoyle: 'A stone guardian who wakes for work and holds still while waiting.',
+  slime: 'Changes shape and expression to match the pace of your work.',
+  mechbit: 'Shows scanlines, a drive light, and command progress on its little CRT.',
+  mandrake: 'A shy plant who emerges from its pot as the work gets going.',
+};
+
+function motionSetting() {
+  try { return localStorage.getItem(MOTION_STORE) || 'system'; } catch { return 'system'; }
+}
+setMotionPreference(motionSetting());
 
 const STORE = 'omote.companion';
 const DEFAULT = 'moth';
@@ -83,6 +106,7 @@ class Companion {
     this.id = null;
     this.state = 'idle';
     this.quietUntil = 0;
+    this.flashTimer = null;
   }
 
   /* ------------------------------------------------------------- perches */
@@ -97,13 +121,15 @@ class Companion {
 
     const button = el('button', 'pet');
     button.type = 'button';
-    button.setAttribute('aria-haspopup', 'true');
+    button.setAttribute('aria-haspopup', 'dialog');
     button.setAttribute('aria-expanded', 'false');
     button.appendChild(canvas);
     button.appendChild(el('span', 'empty', '◌'));
 
     const menu = el('div', `companion-menu ${opts.place || 'above'}`);
     menu.hidden = true;
+    menu.setAttribute('role', 'dialog');
+    menu.setAttribute('aria-label', 'Choose a companion');
 
     root.appendChild(button);
     root.appendChild(menu);
@@ -119,6 +145,9 @@ class Companion {
       if (open) {
         menu.hidden = false;
         button.setAttribute('aria-expanded', 'true');
+        this.preview(picker, this.def || COMPANIONS[0]);
+        this.positionMenu(picker);
+        picker.search.focus();
       }
     };
     this.buildMenu(picker);
@@ -127,14 +156,29 @@ class Companion {
     // every application closes.
     if (!this.closers) {
       this.closers = true;
-      document.addEventListener('click', () => this.closeMenus());
+      document.addEventListener('click', (event) => {
+        if (!this.pickers.some((p) => p.root.contains(event.target))) this.closeMenus();
+      });
+      window.addEventListener('resize', () => {
+        for (const openPicker of this.pickers) if (!openPicker.menu.hidden) this.positionMenu(openPicker);
+      });
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') this.closeMenus();
+        if (e.key === 'Escape') {
+          const active = this.pickers.find((p) => !p.menu.hidden);
+          if (active) { e.preventDefault(); this.closeMenus(); active.button.focus(); }
+        }
+      });
+      document.addEventListener('focusin', (e) => {
+        if (!this.pickers.some((p) => p.root.contains(e.target))) this.closeMenus();
       });
     }
 
     if (this.id === null) this.choose(remembered() || DEFAULT);
-    else this.dress(picker);
+    else {
+      picker.perch.use(this.def);
+      picker.perch.set(this.state);
+      this.dress(picker);
+    }
     return picker;
   }
 
@@ -179,27 +223,41 @@ class Companion {
   /* --------------------------------------------------------------- menus */
 
   buildMenu(picker) {
+    picker.menu.addEventListener('click', (event) => event.stopPropagation());
+    const heading = el('div', 'companion-heading', 'Your companion');
+    const note = el('p', 'companion-note', 'Reactions to your work. Your choice stays on this device.');
+    picker.menu.append(heading, note);
+
+    const search = el('input', 'companion-search');
+    search.type = 'search';
+    search.placeholder = 'Find a companion';
+    search.setAttribute('aria-label', 'Find a companion');
+    picker.search = search;
+    picker.menu.appendChild(search);
+
+    const rows = el('div', 'companion-choices');
+    picker.menu.appendChild(rows);
+    picker.rows = rows;
     const choose = (id) => (e) => {
       e.stopPropagation();
       this.choose(id);
       this.closeMenus();
       picker.button.focus();
     };
-
     for (const def of COMPANIONS) {
       const row = el('button', 'row');
       row.type = 'button';
       const shot = portrait(def, 2);
-      if (shot) row.appendChild(shot);
+      if (shot) { shot.setAttribute('aria-hidden', 'true'); row.appendChild(shot); }
       const text = el('div', 'text');
       text.appendChild(el('div', 'name', def.label));
       text.appendChild(el('div', 'blurb', def.blurb));
       row.appendChild(text);
       row.onclick = choose(def.id);
+      row.onmouseenter = row.onfocus = () => this.preview(picker, def);
       row.dataset.id = def.id;
-      picker.menu.appendChild(row);
+      rows.appendChild(row);
     }
-
     const off = el('button', 'row off');
     off.type = 'button';
     const text = el('div', 'text');
@@ -207,8 +265,97 @@ class Companion {
     text.appendChild(el('div', 'blurb', 'an empty corner'));
     off.appendChild(text);
     off.onclick = choose(NONE);
+    off.onmouseenter = off.onfocus = () => this.preview(picker, null);
     off.dataset.id = NONE;
-    picker.menu.appendChild(off);
+    rows.appendChild(off);
+
+    const noMatches = el('p', 'companion-note', 'No companions match this search.');
+    noMatches.hidden = true;
+    picker.menu.appendChild(noMatches);
+    search.oninput = () => {
+      const query = search.value.trim().toLocaleLowerCase();
+      for (const row of rows.children) row.hidden = !row.textContent.toLocaleLowerCase().includes(query);
+      noMatches.hidden = [...rows.children].some((row) => !row.hidden);
+    };
+    picker.menu.addEventListener('keydown', (event) => {
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+      if (event.target !== search && !rows.contains(event.target)) return;
+      if (event.target === search && ['Home', 'End'].includes(event.key)) return;
+      const visible = [...rows.children].filter((row) => !row.hidden);
+      if (!visible.length) return;
+      event.preventDefault();
+      const at = visible.indexOf(document.activeElement);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? visible.length - 1
+        : at < 0 ? (event.key === 'ArrowDown' ? 0 : visible.length - 1)
+          : (at + (event.key === 'ArrowDown' ? 1 : -1) + visible.length) % visible.length;
+      visible[next].focus();
+    });
+
+    const preview = el('div', 'companion-preview');
+    const canvas = el('canvas');
+    canvas.setAttribute('aria-hidden', 'true');
+    picker.previewCanvas = canvas;
+    picker.previewText = el('p', 'companion-note');
+    preview.append(canvas, picker.previewText);
+    picker.menu.appendChild(preview);
+    const stateLabel = el('label', 'companion-control', 'Preview a reaction');
+    const state = el('select');
+    state.setAttribute('aria-label', 'Preview a reaction');
+    for (const [id, label] of Object.entries(CAPTIONS)) {
+      const option = el('option', '', label);
+      option.value = id;
+      state.appendChild(option);
+    }
+    picker.previewState = state;
+    state.onchange = () => this.preview(picker, picker.previewDef);
+    stateLabel.appendChild(state);
+    picker.menu.appendChild(stateLabel);
+
+    const motionLabel = el('label', 'companion-control', 'Motion');
+    const motion = el('select');
+    motion.setAttribute('aria-label', 'Companion motion');
+    for (const [id, label] of [['system', 'Follow device setting'], ['still', 'Still images'], ['animated', 'Animate']]) {
+      const option = el('option', '', label);
+      option.value = id;
+      motion.appendChild(option);
+    }
+    motion.value = ['still', 'animated'].includes(motionSetting()) ? motionSetting() : 'system';
+    picker.motion = motion;
+    motion.onchange = () => {
+      try { localStorage.setItem(MOTION_STORE, motion.value); } catch { /* private window */ }
+      setMotionPreference(motion.value);
+      for (const other of this.pickers) other.motion.value = motion.value;
+    };
+    motionLabel.appendChild(motion);
+    picker.menu.appendChild(motionLabel);
+  }
+
+  preview(picker, def) {
+    picker.previewDef = def;
+    if (!picker.previewPerch) picker.previewPerch = new Perch(picker.previewCanvas, { scale: 2 });
+    picker.previewPerch.use(def);
+    if (['success', 'error', 'typing'].includes(picker.previewState.value)) picker.previewPerch.flash(picker.previewState.value);
+    else picker.previewPerch.set(picker.previewState.value);
+    const reaction = def && def.behaviors && def.behaviors[picker.previewState.value];
+    picker.previewText.textContent = def
+      ? `${def.label}: ${reaction || def.personality || PERSONALITIES[def.id] || def.blurb}`
+      : 'No companion. Agent status remains available in text.';
+  }
+
+  positionMenu(picker) {
+    const rect = picker.button.getBoundingClientRect();
+    const width = picker.menu.offsetWidth;
+    const height = picker.menu.offsetHeight;
+    const viewport = window.visualViewport;
+    const left = viewport ? viewport.offsetLeft : 0;
+    const top = viewport ? viewport.offsetTop : 0;
+    const viewportWidth = viewport ? viewport.width : window.innerWidth;
+    const viewportHeight = viewport ? viewport.height : window.innerHeight;
+    const below = rect.bottom + 8;
+    const wantedY = picker.menu.classList.contains('below') && below + height < top + viewportHeight - 12
+      ? below : rect.top - height - 8;
+    picker.menu.style.left = `${Math.max(left + 12, Math.min(rect.left, left + viewportWidth - width - 12))}px`;
+    picker.menu.style.top = `${Math.max(top + 12, Math.min(wantedY, top + viewportHeight - height - 12))}px`;
   }
 
   closeMenus() {
@@ -216,6 +363,7 @@ class Companion {
       if (picker.menu.hidden) continue;
       picker.menu.hidden = true;
       picker.button.setAttribute('aria-expanded', 'false');
+      if (picker.previewPerch) { picker.previewPerch.destroy(); picker.previewPerch = null; }
     }
   }
 
@@ -253,11 +401,12 @@ class Companion {
     picker.button.setAttribute('aria-label', def ? `Companion: ${def.label}. Choose another.` : 'Choose a companion');
     for (const row of picker.menu.querySelectorAll('.row')) {
       row.setAttribute('aria-current', String(row.dataset.id === this.id));
+      row.setAttribute('aria-pressed', String(row.dataset.id === this.id));
     }
   }
 
   /* The tab icon is the creature too. It costs one canvas at selection time,
-     and it means a omote tab in a row of twenty is findable by the animal on
+     and it means an Omote tab in a row of twenty is findable by the animal on
      it rather than by reading the titles. */
   favicon() {
     let link = document.querySelector('link[rel="icon"]');
@@ -282,6 +431,7 @@ class Companion {
   set(state) {
     if (state === this.state) return;
     this.state = state;
+    clearTimeout(this.flashTimer);
     for (const perch of this.perches) perch.set(state);
     this.announce();
   }
@@ -301,7 +451,9 @@ class Companion {
     // A flash is a moment, not a condition, so the captions are told about it
     // and then told again when it lapses back to what is really going on.
     for (const fn of this.watchers) fn(state, this.def);
-    setTimeout(() => this.announce(), 1300);
+    clearTimeout(this.flashTimer);
+    const reaction = this.def && this.def.states[state];
+    this.flashTimer = setTimeout(() => this.announce(), (reaction && reaction.once) || 1200);
   }
 
   tool(name) {

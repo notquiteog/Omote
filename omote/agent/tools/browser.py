@@ -24,6 +24,7 @@ costs one confirmation. A false negative costs money.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any
 
 from omote.agent.tools.base import Assessment, Output, Tool, ToolContext, ToolError, truncate
@@ -43,7 +44,7 @@ def normalise(text: str) -> str:
     `pwd`. Splitting camelCase and turning separators into spaces makes all
     three forms the same haystack.
     """
-    return _SEPARATOR.sub(' ', _CAMEL.sub(' ', text)).lower()
+    return _SEPARATOR.sub(' ', _CAMEL.sub(' ', unicodedata.normalize('NFKC', text))).casefold()
 
 
 # Words that mean a transaction is being committed, not merely browsed.
@@ -77,6 +78,39 @@ _BUYING = re.compile(
     r')', re.I,
 )
 
+# Additional labels seen on regional commerce and messaging sites. These are
+# conservative hints, not a claim that arbitrary languages can be classified.
+# An agent can explicitly raise a click's intent when a label is not recognised.
+_BUYING_LOCAL = re.compile(unicodedata.normalize('NFKC', (
+    r'購入|注文を確定|支払い|支払う|予約を確定|今すぐ予約|申し込む|'
+    r'立即购买|立即購買|确认支付|確認支付|确认订单|確認訂單|提交订单|提交訂單|付款|支付|立即预订|立即預訂|'
+    r'지금 구매|결제|예약 확정|ชำระเงิน|ยืนยันการจอง|'
+    r'\b(?:jetzt kaufen|zahlungspflichtig bestellen|kostenpflichtig bestellen|jetzt buchen|bezahlen|'
+    r'acheter|payer|confirmer la réservation|réserver maintenant|'
+    r'comprar|pagar|confirmar (?:la )?reserva|reservar ahora|finalizar compra|'
+    r'acquista|paga|prenota ora|conferma prenotazione|'
+    r'bestellen en betalen|nu boeken|betalen|zapłać|kup teraz|zarezerwuj|'
+    r'оплатить|купить|забронировать|confirm booking|confirm reservation)\b|'
+    r'ادفع|تأكيد الحجز|شراء الآن')), re.I)
+_SENDING = re.compile(unicodedata.normalize('NFKC', (
+    r'\b(?:send(?:\s+(?:an?\s+)?(?:email|e mail|message|reply|invitation))?|reply|reply all|'
+    r'publish|post comment|post message|submit (?:comment|message)|'
+    r'envoyer|répondre|publier|senden|abschicken|antworten|veröffentlichen|'
+    r'enviar|responder|publicar|invia|pubblica|verzenden|отправить|ответить)\b|'
+    r'送信|返信|投稿|公開する|发送|發送|发送邮件|發送郵件|回复|回覆|发布|發佈|'
+    r'보내기|전송|답장|إرسال|ส่งข้อความ')), re.I)
+_SECRET_LOCAL = re.compile(unicodedata.normalize('NFKC', (
+    r'パスワード|暗証番号|認証コード|確認コード|カード番号|マイナンバー|'
+    r'密码|密碼|验证码|驗證碼|银行卡号|銀行卡號|信用卡号|信用卡號|身份证|身份證|'
+    r'비밀번호|인증번호|카드번호|รหัสผ่าน|'
+    r'\b(?:mot de passe|code de sécurité|numéro de carte|passwort|kennwort|kartennummer|'
+    r'contraseña|senha|número do cartão|codice fiscale|пароль|номер карты)\b|كلمة المرور')), re.I)
+_SECRET_AUTOCOMPLETE = frozenset({
+    'current-password', 'new-password', 'one-time-code', 'cc-number', 'cc-csc',
+    'cc-exp', 'cc-exp-month', 'cc-exp-year',
+})
+
+
 # Weaker signals: putting something in a basket is not buying it, but it is
 # the step before, and it is worth naming in the summary.
 _CART = re.compile(r'\b(?:add\s+to\s+(?:cart|basket|bag)|add\s+to\s+order)\b', re.I)
@@ -109,8 +143,10 @@ def classify_click(element: dict[str, Any]) -> tuple[Risk, str]:
     label = normalise(' '.join(
         str(element.get(k) or '') for k in ('label', 'name', 'id', 'value', 'href')
     ))
-    if _BUYING.search(label):
+    if _BUYING.search(label) or _BUYING_LOCAL.search(label):
         return Risk.PURCHASE, 'this looks like it completes a purchase'
+    if _SENDING.search(label):
+        return Risk.MESSAGE, 'sends or publishes a message to other people'
     if _CART.search(label):
         return Risk.WRITE, 'adds to a cart'
     return Risk.EXECUTE, 'clicks on a page'
@@ -118,10 +154,11 @@ def classify_click(element: dict[str, Any]) -> tuple[Risk, str]:
 
 def classify_field(element: dict[str, Any]) -> tuple[Risk, str]:
     """What typing into this field would expose."""
-    if (element.get('type') or '').lower() in _SECRET_TYPE:
+    if (element.get('secret') or (element.get('type') or '').lower() in _SECRET_TYPE
+            or set(str(element.get('autocomplete', '')).split()) & _SECRET_AUTOCOMPLETE):
         return Risk.CREDENTIAL, 'a password field'
     haystack = normalise(' '.join(str(element.get(k) or '') for k in ('name', 'id', 'label', 'placeholder')))
-    if _SECRET_NAME.search(haystack):
+    if _SECRET_NAME.search(haystack) or _SECRET_LOCAL.search(haystack):
         return Risk.CREDENTIAL, 'the field name suggests it holds a secret'
     return Risk.WRITE, 'types into a form field'
 
@@ -132,8 +169,10 @@ def _render(elements: list[dict[str, Any]]) -> str:
         bits = [f'[{e["ref"]}]', e['tag'] + (f'/{e["type"]}' if e.get('type') else '')]
         if e.get('label'):
             bits.append(repr(e['label']))
-        if e.get('value'):
+        if e.get('value') and classify_field(e)[0] is not Risk.CREDENTIAL:
             bits.append(f'value={e["value"]!r}')
+        if e.get('options'):
+            bits.append('options=' + repr(e['options']))
         if e.get('checked'):
             bits.append('checked')
         if e.get('disabled'):
@@ -252,12 +291,15 @@ class BrowserClickTool(_BrowserTool):
     description = (
         'Click an element by the number browser_read gave it. '
         'If the click completes a purchase or commits money, say so plainly in your message '
-        'first — it will be confirmed with the person before it happens.'
+        'first — it will be confirmed with the person before it happens. Use intent=purchase '
+        'or intent=message for final booking, payment, email or publication actions in any language.'
     )
     input_schema = {
         'type': 'object',
         'properties': {
             'ref': {'type': 'integer', 'description': 'The number from browser_read.'},
+            'intent': {'type': 'string', 'enum': ['purchase', 'message'],
+                       'description': 'Declare an external commitment even when its label is not recognised. Only raises risk.'},
         },
         'required': ['ref'],
     }
@@ -269,15 +311,19 @@ class BrowserClickTool(_BrowserTool):
 
         element = self.browser.last_elements.get(ref)
         if element is None:
-            # Unknown because the page has not been read, or was read and has
-            # changed. Escalated rather than assumed harmless: an unread button
-            # is exactly the one worth asking about.
+            # A mode that auto-runs execute calls must not turn an unread
+            # booking or send button into an ordinary click.
             return Assessment(
-                risk=Risk.EXECUTE,
-                summary=f'click element {ref} (not in the last page read — read the page first)',
+                risk=Risk.EXECUTE, summary='',
+                invalid='read the page first; this reference is not in the last page read',
             )
 
         risk, why = classify_click(element)
+        intent = args.get('intent')
+        if intent == 'purchase':
+            risk, why = Risk.PURCHASE, 'commits to a purchase or reservation'
+        elif intent == 'message' and risk is not Risk.PURCHASE:
+            risk, why = Risk.MESSAGE, 'sends or publishes a message'
         label = element.get('label') or element.get('name') or f'element {ref}'
         return Assessment(risk=risk, summary=f'click {label!r} — {why}')
 
@@ -305,7 +351,8 @@ class BrowserClickTool(_BrowserTool):
 class BrowserTypeTool(_BrowserTool):
     name = 'browser_type'
     description = (
-        'Type into a field by the number browser_read gave it. Set submit to press Enter '
+        'Type into a field by the number browser_read gave it, or select a native dropdown option '
+        'by its exact value or visible label. Set submit to press Enter '
         'afterwards. Passwords, card numbers and one-time codes can be typed and are '
         'confirmed with the person first; their value is never echoed back to you or '
         'written to the transcript. Only type a secret the person gave you for this — and '
@@ -332,9 +379,21 @@ class BrowserTypeTool(_BrowserTool):
 
         element = self.browser.last_elements.get(ref)
         if element is None:
-            return Assessment(risk=Risk.WRITE, summary=f'type into element {ref} (read the page first)')
+            return Assessment(risk=Risk.WRITE, summary='',
+                              invalid='read the page first; this field is not in the last page read')
 
         risk, why = classify_field(element)
+        if args.get('submit'):
+            commitment, reason = classify_click({'label': element.get('submit_label', '')})
+            if commitment not in (Risk.PURCHASE, Risk.MESSAGE) and (
+                    element.get('tag') == 'textarea' or element.get('contenteditable')
+                    or _SENDING.search(normalise(str(element.get('name', ''))))):
+                commitment, reason = Risk.MESSAGE, 'Enter may send the composed message'
+            if commitment in (Risk.PURCHASE, Risk.MESSAGE):
+                if risk is Risk.CREDENTIAL:
+                    return Assessment(risk=risk, summary='', invalid=
+                        'type the secret with submit=false, then approve the final button separately')
+                risk, why = commitment, reason
         label = element.get('label') or element.get('name') or f'element {ref}'
         shown = args['text'] if len(args['text']) <= 40 else args['text'][:37] + '...'
         if risk is Risk.CREDENTIAL:
@@ -376,7 +435,16 @@ class BrowserTypeTool(_BrowserTool):
             kind = (await locator.evaluate('el => (el.type || "").toLowerCase()')) or ''
             segmented = kind in SEGMENTED_INPUTS
 
-            if segmented:
+            if kind in ('select-one', 'select-multiple'):
+                options = await locator.evaluate('el => Array.from(el.options, o => ({value:o.value,label:o.label}))')
+                chosen = next((o for o in options if o['value'] == args['text']), None)
+                if chosen is None:
+                    matches = [o for o in options if o['label'] == args['text']]
+                    if len(matches) != 1:
+                        raise ToolError('no unique option matches that value or label; read the dropdown options again')
+                    chosen = matches[0]
+                await locator.select_option(value=chosen['value'])
+            elif segmented:
                 await locator.fill(args['text'])
             else:
                 if args.get('clear', True):

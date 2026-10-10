@@ -1,0 +1,25 @@
+/* Kept with the companion module so embedded clients get the same picker. */
+.companion-menu.above, .companion-menu.below {
+  position: fixed; z-index: 100; right: auto; bottom: auto; margin: 0;
+  width: 340px; min-width: 0; max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain;
+  box-sizing: border-box; padding: 12px; text-align: left; color: var(--ink, #242424);
+}
+.companion-menu[hidden], .companion-menu [hidden] { display: none !important; }
+.companion-heading { font-size: 14px; font-weight: 600; }
+.companion-note { margin: 5px 0 10px; font-size: 12px; line-height: 1.5; color: var(--dim, #aaa); }
+.companion-search { color: var(--ink); background: var(--glass); border: 1px solid var(--edge); border-radius: var(--radius-sm); width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 8px; }
+.companion-choices { max-height: 232px; overflow-y: auto; overscroll-behavior: contain; }
+.companion-menu .row { min-height: 55px; }
+.companion-menu .row canvas { flex-shrink: 0; }
+.companion-menu .row:focus-visible { outline: 2px solid var(--accent, #8eb7ff); outline-offset: -2px; }
+.companion-preview {
+  display: flex; align-items: center; gap: 8px; min-height: 68px;
+  border-top: 1px solid var(--edge, #444); margin-top: 8px; padding-top: 8px;
+}
+.companion-preview canvas { flex-shrink: 0; image-rendering: pixelated; }
+.companion-preview .companion-note { margin: 0; }
+.companion-control { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; }
+.companion-control select { max-width: 180px; padding: 6px; }
+@media (max-height: 550px) { .companion-choices { max-height: 140px; } }
+@media (prefers-contrast: more) { .companion-note { color: inherit; } }

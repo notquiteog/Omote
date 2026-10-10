@@ -64,12 +64,17 @@ INTERACTIVE_JS = """
     // result and handed to a model. The only place a secret can be kept out
     // of all three is on this side of the boundary.
     const secretish = /(pass(word|wd|phrase)?|pwd|otp|mfa|2fa|totp|one[-_ ]?time|card[-_ ]?(number|num)?|ccnum|cc[-_ ]?number|credit[-_ ]?card|cvv|cvc|csc|security[-_ ]?code|verification[-_ ]?code|ssn|social[-_ ]?security|passport|pin|secret|api[-_ ]?key|token|private[-_ ]?key|seed[-_ ]?phrase|mnemonic|recovery[-_ ]?phrase)/i;
+    const associated = Array.from(el.labels || [], label => label.innerText).join(' ');
     const naming = [el.getAttribute('name'), el.id, el.getAttribute('placeholder'),
-                    el.getAttribute('aria-label')].filter(Boolean).join(' ');
-    const isSecret = el.type === 'password' || secretish.test(naming);
+                    el.getAttribute('aria-label'), associated].filter(Boolean).join(' ').normalize('NFKC');
+    const regionalSecret = /パスワード|暗証番号|認証コード|確認コード|カード番号|マイナンバー|密码|密碼|验证码|驗證碼|银行卡号|銀行卡號|信用卡号|信用卡號|身份证|身份證|비밀번호|인증번호|카드번호|รหัสผ่าน|mot de passe|code de sécurité|numéro de carte|passwort|kennwort|kartennummer|contraseña|senha|número do cartão|codice fiscale|пароль|номер карты|كلمة المرور/i;
+    const autocomplete = el.getAttribute('autocomplete') || '';
+    const isSecret = el.type === 'password' || secretish.test(naming) || regionalSecret.test(naming) ||
+      autocomplete.split(/\\s+/).some(value => /^(current-password|new-password|one-time-code|cc-number|cc-csc|cc-exp|cc-exp-month|cc-exp-year)$/.test(value));
 
     const label = (
       el.getAttribute('aria-label') ||
+      associated ||
       el.innerText ||
       // Never the value on a secret field. This fallback was how a typed
       // password came back out: with no aria-label and no inner text, the
@@ -95,6 +100,11 @@ INTERACTIVE_JS = """
       name: el.getAttribute('name') || '',
       id: el.id || '',
       role: el.getAttribute('role') || '',
+      autocomplete,
+      contenteditable: el.isContentEditable,
+      submit_label: el.form ? Array.from(el.form.querySelectorAll('button:not([type]),button[type=submit],input[type=submit]'),
+        button => button.innerText || button.value || button.getAttribute('aria-label') || '').join(' ').slice(0, 500) : '',
+      options: !isSecret && el.tagName === 'SELECT' ? Array.from(el.options, option => ({value: option.value.slice(0, 120), label: option.label.slice(0, 120)})).slice(0, 100) : undefined,
       label,
       href: el.getAttribute('href') || '',
       // Redacted by what the field *is*, not by its input type: a card

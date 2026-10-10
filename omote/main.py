@@ -22,6 +22,7 @@ from omote.routers import auth as auth_router
 from omote.routers import autopilot as autopilot_router
 from omote.routers import browser as browser_router
 from omote.routers import comfyui as comfyui_router
+from omote.routers import creative as creative_router
 from omote.routers import git as git_router
 from omote.routers import history as history_router
 from omote.routers import mail as mail_router
@@ -33,6 +34,7 @@ from omote.routers import realtime as realtime_router
 from omote.routers import search as search_router
 from omote.routers import updates as updates_router
 from omote.routers import voice as voice_router
+from omote.routers import workbench as workbench_router
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +70,12 @@ async def lifespan(app: FastAPI):
 
     media_router.service = MediaService(MediaStore(config.media_dir), registry)
     app.state.media = media_router.service
+
+    from omote.creative.store import CreativeStore
+
+    creative_router.store = CreativeStore(config.data_dir / 'creative')
+    creative_router.media_store = media_router.service.store
+    app.state.creative = creative_router.store
 
     if config.memory_enabled:
         from omote.memory.service import MemoryService
@@ -229,6 +237,8 @@ app.include_router(providers_router.router)
 app.include_router(memory_router.router)
 app.include_router(media_router.router)
 app.include_router(comfyui_router.router)
+app.include_router(workbench_router.router)
+app.include_router(creative_router.router)
 app.include_router(search_router.router)
 app.include_router(browser_router.router)
 app.include_router(updates_router.router)

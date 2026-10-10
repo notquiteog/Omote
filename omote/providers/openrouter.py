@@ -255,7 +255,7 @@ def _image_params(supported: dict[str, Any] | None) -> list[Param]:
     references = supported.get('input_references')
     if isinstance(references, dict) and (references.get('max') or 0) > 0:
         needed = (references.get('min') or 0) > 0
-        params.append(Param('image', 'Images to work from', 'image', group='prompt',
+        params.append(Param('image', 'Images to work from', 'image', group='prompt', max_images=int(references['max']),
                             help=f'Up to {references["max"]}, to edit or to match the look of.'
                                  + (' This model needs at least one.' if needed else '')))
     return params

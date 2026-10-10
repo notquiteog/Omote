@@ -169,7 +169,7 @@ class RunwayProvider(HostedMedia):
             return params + [
                 Param('ratio', 'Size', 'enum', default='1920:1080', options=list(IMAGE_RATIOS), group='shape',
                       help='Runway names these by pixels rather than by ratio.'),
-                Param('reference_images', 'Reference images', 'image', group='prompt',
+                Param('reference_images', 'Reference images', 'image', group='prompt', max_images=3,
                       help='Up to three. A person, a place, a product — whatever has to stay the same.'),
                 Param('reference_tags', 'Names for them', 'string', group='prompt',
                       help='Comma separated, in the same order. Then write them into the prompt with an '

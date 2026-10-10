@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/static/style.css">
 <link rel="stylesheet" href="/static/themes.css">
 <link rel="stylesheet" href="/static/workspace.css">
+<link rel="stylesheet" href="/static/creative.css">
 <!-- The theme, before the first paint. A module arrives after the stylesheet
      and the page flashes the wrong theme at somebody who chose dark months
      ago; the flash happens on every load and is the reason this is here
@@ -49,12 +50,14 @@
   <symbol id="i-git" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.8"/><circle cx="4.5" cy="12.5" r="1.8"/><circle cx="11.5" cy="8" r="1.8"/><path d="M4.5 5.3v5.4"/><path d="M4.5 8h5.2"/></symbol>
 </svg>
 
-<aside id="sidebar">
+<button type="button" id="sidebar-backdrop" aria-label="Close navigation" tabindex="-1" hidden></button>
+<aside id="sidebar" aria-label="Workspace navigation">
   <header id="brand">
     <!-- The companion is the app icon. Clicking it opens the same picker the
          perch does. -->
     <div id="brand-pet"></div>
     <h1>Omote</h1>
+    <button type="button" id="sidebar-close" class="icon mobile-nav-control" aria-label="Close navigation">×</button>
     <button id="new-session" class="icon" title="New session">
       <svg class="ic"><use href="#i-new"></use></svg>
     </button>
@@ -133,6 +136,9 @@
 
 <main>
   <header id="bar">
+    <button type="button" id="sidebar-toggle" class="icon mobile-nav-control" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
+      <svg class="ic" aria-hidden="true" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"></path></svg>
+    </button>
     <div id="session-title">No session</div>
     <span id="session-meta" class="meta"></span>
     <div class="spacer"></div>
@@ -360,8 +366,9 @@
       <div class="studio-workspace-switch" role="group" aria-label="Studio workspace">
         <button type="button" id="studio-simple" class="seg on" aria-pressed="true">Generate</button>
         <button type="button" id="studio-graph" class="seg" aria-pressed="false">Advanced · ComfyUI</button>
+        <button type="button" id="studio-library" class="seg" aria-pressed="false">Characters &amp; assets</button>
       </div>
-      <span class="meta">Images, video &amp; workflows</span>
+      <span class="meta">Create, reuse &amp; tell stories</span>
     </div>
     <section id="comfy-workspace" hidden aria-label="ComfyUI graph editor">
       <div class="comfy-toolbar">
@@ -376,8 +383,9 @@
         <p>This is your ComfyUI installation’s full editor: connect nodes, use custom nodes and subgraphs,
           import and save workflows, and queue images or video. Enable Nodes 2.0 in the ComfyUI menu
           on a frontend version that supports it. Update ComfyUI if that option is missing.</p>
-        <p>Workflows and outputs here are saved by ComfyUI. To reuse a graph in Generate,
-          export it in API format and use Import a workflow. If embedding is blocked by your server,
+        <p>Use the workbench to save workflow versions, inspect API inputs, and keep run outputs in your library.
+          Install the optional editor bridge to capture and restore complete graphs. To reuse an API graph in Generate,
+          use Import a workflow. If embedding is blocked by your server,
           use Open in tab. The editor address must be reachable from this browser.</p>
       </details>
       <iframe id="comfy-frame" title="ComfyUI full node and graph editor" hidden
@@ -399,6 +407,7 @@
         </div>
         <label class="field">
           <span>Prompt</span>
+          <p id="studio-character" class="meta" hidden></p>
           <textarea id="studio-prompt" rows="4" placeholder="What should it make?"></textarea>
         </label>
         <div class="studio-route">
@@ -483,6 +492,7 @@
         <div class="shot-actions">
           <button type="button" id="shot-reuse" class="primary">Use these settings</button>
           <button type="button" id="shot-copy" class="ghost small">Copy prompt</button>
+          <button type="button" id="shot-keep" class="ghost small">Keep in library</button>
           <button type="button" id="shot-download" class="ghost small">Download</button>
           <button type="button" id="shot-delete" class="ghost small danger">Delete</button>
         </div>
