@@ -127,13 +127,20 @@ class Companion {
 
     const menu = el('div', `companion-menu ${opts.place || 'above'}`);
     menu.hidden = true;
+    menu.id = `companion-picker-${this.pickers.length}`;
+    button.setAttribute('aria-controls', menu.id);
+    // A top-layer popover escapes the sidebar's backdrop/stacking context.
+    // Keep it inside the perch so mobile navigation and focus still contain it.
+    const topLayer = typeof menu.showPopover === 'function';
+    if (topLayer) menu.setAttribute('popover', 'manual');
     menu.setAttribute('role', 'dialog');
     menu.setAttribute('aria-label', 'Choose a companion');
 
     root.appendChild(button);
-    root.appendChild(menu);
+    // Older desktop webviews need a body-level popup to escape that context.
+    (topLayer ? root : document.body).appendChild(menu);
 
-    const picker = { root, button, menu, perch: new Perch(canvas, { scale: opts.scale }) };
+    const picker = { root, button, menu, topLayer, perch: new Perch(canvas, { scale: opts.scale }) };
     this.perches.push(picker.perch);
     this.pickers.push(picker);
 
@@ -143,6 +150,7 @@ class Companion {
       this.closeMenus();
       if (open) {
         menu.hidden = false;
+        if (topLayer) menu.showPopover();
         button.setAttribute('aria-expanded', 'true');
         this.preview(picker, this.def || COMPANIONS[0]);
         this.positionMenu(picker);
@@ -156,19 +164,27 @@ class Companion {
     if (!this.closers) {
       this.closers = true;
       document.addEventListener('click', (event) => {
-        if (!this.pickers.some((p) => p.root.contains(event.target))) this.closeMenus();
+        if (!this.pickers.some((p) => p.root.contains(event.target) || p.menu.contains(event.target))) this.closeMenus();
       });
-      window.addEventListener('resize', () => {
+      const reposition = () => {
         for (const openPicker of this.pickers) if (!openPicker.menu.hidden) this.positionMenu(openPicker);
-      });
+      };
+      window.addEventListener('resize', reposition);
+      window.visualViewport?.addEventListener('resize', reposition);
+      window.visualViewport?.addEventListener('scroll', reposition);
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           const active = this.pickers.find((p) => !p.menu.hidden);
-          if (active) { e.preventDefault(); this.closeMenus(); active.button.focus(); }
+          if (active) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.closeMenus();
+            active.button.focus();
+          }
         }
-      });
+      }, true);
       document.addEventListener('focusin', (e) => {
-        if (!this.pickers.some((p) => p.root.contains(e.target))) this.closeMenus();
+        if (!this.pickers.some((p) => p.root.contains(e.target) || p.menu.contains(e.target))) this.closeMenus();
       });
     }
 
@@ -223,9 +239,15 @@ class Companion {
 
   buildMenu(picker) {
     picker.menu.addEventListener('click', (event) => event.stopPropagation());
+    const header = el('div', 'companion-header');
     const heading = el('div', 'companion-heading', 'Your companion');
+    const close = el('button', 'companion-close', '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Close companion picker');
+    close.onclick = () => { this.closeMenus(); picker.button.focus(); };
+    header.append(heading, close);
     const note = el('p', 'companion-note', 'Reactions to your work. Your choice stays on this device.');
-    picker.menu.append(heading, note);
+    picker.menu.append(header, note);
 
     const search = el('input', 'companion-search');
     search.type = 'search';
@@ -343,13 +365,15 @@ class Companion {
 
   positionMenu(picker) {
     const rect = picker.button.getBoundingClientRect();
-    const width = picker.menu.offsetWidth;
-    const height = picker.menu.offsetHeight;
     const viewport = window.visualViewport;
     const left = viewport ? viewport.offsetLeft : 0;
     const top = viewport ? viewport.offsetTop : 0;
     const viewportWidth = viewport ? viewport.width : window.innerWidth;
     const viewportHeight = viewport ? viewport.height : window.innerHeight;
+    picker.menu.style.maxWidth = `${Math.max(0, viewportWidth - 24)}px`;
+    picker.menu.style.maxHeight = `${Math.max(0, viewportHeight - 24)}px`;
+    const width = picker.menu.offsetWidth;
+    const height = picker.menu.offsetHeight;
     const below = rect.bottom + 8;
     const wantedY = picker.menu.classList.contains('below') && below + height < top + viewportHeight - 12
       ? below : rect.top - height - 8;
@@ -357,9 +381,14 @@ class Companion {
     picker.menu.style.top = `${Math.max(top + 12, Math.min(wantedY, top + viewportHeight - height - 12))}px`;
   }
 
+  openMenuWithin(root) {
+    return this.pickers.find(p => !p.menu.hidden && root.contains(p.root))?.menu;
+  }
+
   closeMenus() {
     for (const picker of this.pickers) {
       if (picker.menu.hidden) continue;
+      if (picker.topLayer) picker.menu.hidePopover();
       picker.menu.hidden = true;
       picker.button.setAttribute('aria-expanded', 'false');
       if (picker.previewPerch) { picker.previewPerch.destroy(); picker.previewPerch = null; }

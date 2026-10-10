@@ -51,6 +51,7 @@ def workspace(tmp_path):
             page = browser.new_page(viewport={'width': 1440, 'height': 1000}, color_scheme='dark')
             errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
+            page.add_init_script("localStorage.setItem('omote.welcome.v1', 'done')")
             page.goto(url)
             yield page, url
             assert not errors, errors

@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/static/themes.css">
 <link rel="stylesheet" href="/static/workspace.css">
 <link rel="stylesheet" href="/static/creative.css">
+<link rel="stylesheet" href="/static/onboarding.css">
 <!-- The theme, before the first paint. A module arrives after the stylesheet
      and the page flashes the wrong theme at somebody who chose dark months
      ago; the flash happens on every load and is the reason this is here
@@ -59,7 +60,7 @@
     <img class="brand-logo" src="/static/brand/omote-64.png" width="36" height="36" alt="">
     <h1>Omote</h1>
     <button type="button" id="sidebar-close" class="icon mobile-nav-control" aria-label="Close navigation">×</button>
-    <button id="new-session" class="icon" title="New session">
+    <button id="new-session" class="icon" title="New chat">
       <svg class="ic"><use href="#i-new"></use></svg>
     </button>
   </header>
@@ -87,7 +88,7 @@
 
   <nav id="nav">
     <button class="nav-row" id="nav-new">
-      <svg class="ic"><use href="#i-new"></use></svg><span>New session</span>
+      <svg class="ic"><use href="#i-new"></use></svg><span>New chat</span>
     </button>
     <button class="nav-row" id="nav-rewind" disabled>
       <svg class="ic"><use href="#i-undo"></use></svg><span>Rewind</span>
@@ -105,13 +106,13 @@
   </nav>
 
   <div id="session-pane">
-    <div class="sec-head"><span>Sessions</span></div>
+    <div class="sec-head"><span>Chats</span></div>
     <!-- Search reaches the closed conversations too, not just the ones the
          live list holds — which on a machine that has been working all week is
          the only place the answer is. Escape or an emptied box puts the
          ordinary list back. -->
     <input id="session-search" type="search" placeholder="Search every conversation…" aria-label="Search conversations" autocomplete="off">
-    <ul id="sessions" aria-label="Sessions"></ul>
+    <ul id="sessions" aria-label="Chats"></ul>
   </div>
 
   <footer id="foot">
@@ -129,6 +130,9 @@
     </button>
     <button class="nav-row" id="hooks-open">
       <svg class="ic"><use href="#i-list"></use></svg><span>Hooks</span>
+    </button>
+    <button class="nav-row" id="open-guide" type="button">
+      <svg class="ic"><use href="#i-chat"></use></svg><span>Getting started</span>
     </button>
     <button class="nav-row" id="open-settings">
       <svg class="ic"><use href="#i-gear"></use></svg><span>Settings</span>
@@ -186,6 +190,11 @@
        policy nobody agreed to. -->
   <div id="hooks-banner" class="hooks-banner" hidden aria-live="polite"></div>
 
+  <div id="setup-banner" class="setup-banner" hidden>
+    <div><strong>Connect your AI to get started</strong><span>Add an API key, or connect a local model.</span></div>
+    <button id="setup-connect" type="button" class="primary">Connect a provider</button>
+  </div>
+
   <div id="transcript" role="log" aria-live="polite">
     <!-- What an empty session looks like: the companion, a question, and the
          composer under it. Removed the moment there is anything to read. -->
@@ -224,6 +233,7 @@
   </div>
 
   <form id="composer">
+    <p id="composer-hint" class="composer-hint">Enter to send · Shift+Enter for a new line · / for commands · @ for files</p>
     <!-- What stays in view while the transcript scrolls: where the agent is in
          its to-do list, and anything it has left running. Both hidden until
          there is something in them. -->
@@ -241,7 +251,7 @@
       <!-- Pictures pasted or dropped into the composer, with a way to take each
            one back out. Hidden when empty, which is most of the time. -->
       <div id="attachments" aria-label="Attached pictures" hidden></div>
-      <textarea id="input" rows="1" placeholder="Ask it to do something, or / for commands and skills…  (Enter to send, Shift+Enter for a newline)" disabled></textarea>
+      <textarea id="input" rows="1" aria-label="Message Omote" placeholder="Ask Omote anything…" aria-describedby="composer-hint" disabled></textarea>
       <div id="controls">
         <!-- The buddy, at thumbnail size, saying what it is doing in words.
              Same state as the perch, close enough to the caret to catch. -->
@@ -251,7 +261,7 @@
         </span>
         <label id="mode-wrap" class="chip" hidden>
           <svg class="ic"><use href="#i-shield"></use></svg>
-          <select id="mode">
+          <select id="mode" aria-label="Action permissions">
             <option value="read_only">read only</option>
             <option value="plan">plan first</option>
             <option value="ask">ask first</option>
@@ -396,6 +406,11 @@
     </section>
     <div class="studio" id="studio-generate">
       <div class="studio-controls">
+      <div id="studio-connection-help" class="studio-connection-help" hidden>
+        <p>Connect a provider for this type of media, or retry if it’s temporarily unavailable.</p>
+        <button id="studio-connect-provider" type="button" class="ghost">AI providers</button>
+        <button id="studio-retry" type="button" class="ghost">Try again</button>
+      </div>
       <form id="studio-form" class="studio-form">
         <div class="studio-kind" role="group" aria-label="What to make">
           <button type="button" class="seg on" data-kind="image">Image</button>
@@ -430,7 +445,7 @@
         </button>
         <div id="studio-advanced-params" class="studio-params" hidden></div>
         <div class="studio-go">
-          <button id="studio-make" class="primary" type="submit">Make it</button>
+          <button id="studio-make" class="primary" type="submit">Generate image</button>
           <span id="studio-status" class="meta"></span>
         </div>
       </form>
@@ -504,9 +519,9 @@
 
 </main>
 
-<dialog id="worktree-dialog">
+<dialog id="worktree-dialog" aria-labelledby="worktree-dialog-heading">
   <form method="dialog">
-    <h2>Worktrees</h2>
+    <h2 id="worktree-dialog-heading">Worktrees</h2>
     <p class="explain">
       A second checkout of this repository, on its own branch, that a session works in — so a turn
       cannot touch the tree you have open. The branch is there afterwards to merge, look at, or
@@ -523,9 +538,9 @@
   </form>
 </dialog>
 
-<dialog id="hooks-dialog">
+<dialog id="hooks-dialog" aria-labelledby="hooks-dialog-heading">
   <form method="dialog">
-    <h2>Hooks</h2>
+    <h2 id="hooks-dialog-heading">Hooks</h2>
     <p class="explain">
       Commands that run around a tool call. One that exits non-zero stops the call and its reason goes
       back to the model — a hook can take things away and can never allow them, so a project can stop
@@ -544,9 +559,9 @@
   </form>
 </dialog>
 
-<dialog id="review-dialog">
+<dialog id="review-dialog" aria-labelledby="review-dialog-heading">
   <form method="dialog">
-    <h2>Review this turn's changes</h2>
+    <h2 id="review-dialog-heading">Review this turn's changes</h2>
     <p class="explain">
       Each block is one change. Put back the ones you disagree with and leave the rest — the undo of
       "the agent changed this and got it right" is not the undo of the turn.
@@ -564,9 +579,9 @@
   </form>
 </dialog>
 
-<dialog id="commit-dialog">
+<dialog id="commit-dialog" aria-labelledby="commit-dialog-heading">
   <form method="dialog">
-    <h2>Commit</h2>
+    <h2 id="commit-dialog-heading">Commit</h2>
     <p id="commit-root" class="meta"></p>
     <div id="commit-files" class="commit-files" aria-label="What has changed"></div>
     <label>Message
@@ -589,17 +604,19 @@
   </form>
 </dialog>
 
-<dialog id="new-dialog">
+<dialog id="new-dialog" aria-labelledby="new-dialog-heading">
   <form method="dialog">
-    <h2>New session</h2>
-    <label>Working root<input name="root" placeholder="leave blank for the server default"></label>
-    <label>Model<input name="model" placeholder="leave blank to use the first available"></label>
+    <h2 id="new-dialog-heading">New chat</h2>
+    <p class="explain">Start with your connected provider. Choose a project folder when you want to work on local files.</p>
+    <label>Project folder <span class="meta">(optional)</span><input name="root" placeholder="Use my default workspace"></label>
+    <details class="session-advanced"><summary>Model, tools and permissions</summary>
+    <label>Model<input name="model" placeholder="Use my default model"></label>
     <label>Provider
-      <select name="provider"><option value="">first that can do chat</option></select>
+      <select name="provider"><option value="">Use my default provider</option></select>
     </label>
     <label>Tools
       <select name="tools">
-        <option value="">everything it has</option>
+        <option value="">All available tools</option>
         <option value="files,shell,todo,web,agents,skills">code — files, commands, the web</option>
         <option value="browser,web">the web — a real browser, search, research</option>
         <option value="browser,desktop">the screen — browser and desktop control</option>
@@ -613,9 +630,7 @@
       </select>
     </label>
     <p class="explain">
-      A long tool list costs a small model accuracy: a 12B model given every tool failed a
-      five-step browser task that it finished in twenty-six seconds with only the browser
-      ones. Leave this alone on a large model.
+      Choose a smaller tool set for a focused task, or keep all available tools.
     </p>
     <label>Approval
       <select name="mode">
@@ -627,15 +642,16 @@
         <option value="unrestricted">unrestricted — nothing is asked</option>
       </select>
     </label>
+    </details>
     <menu>
       <button value="cancel" class="ghost">Cancel</button>
-      <button value="create" id="create-session">Create</button>
+      <button value="create" id="create-session">Start chat</button>
     </menu>
   </form>
 </dialog>
 
-<dialog id="rewind-dialog">
-  <h2>Rewind</h2>
+<dialog id="rewind-dialog" aria-labelledby="rewind-dialog-heading">
+  <h2 id="rewind-dialog-heading">Rewind</h2>
   <p class="explain">
     Put files back to how they were before a turn. This undoes that turn and every
     one after it — undoing one in the middle would leave a state that never existed.
@@ -652,8 +668,8 @@
   </menu>
 </dialog>
 
-<dialog id="memory-dialog">
-  <h2>Memory</h2>
+<dialog id="memory-dialog" aria-labelledby="memory-dialog-heading">
+  <h2 id="memory-dialog-heading">Memory</h2>
   <p class="explain">
     What Omote remembers about you between conversations. It is off until you turn
     it on, everything stored is listed here, and you can remove any of it or all of it.
@@ -697,8 +713,8 @@
   </menu>
 </dialog>
 
-<dialog id="settings-dialog">
-  <h2>Settings</h2>
+<dialog id="settings-dialog" aria-labelledby="settings-title">
+  <h2 id="settings-title">Settings</h2>
 
   <!-- Tabs rather than one long scroll: these are unrelated decisions that
        happen to be settings, and a person opening this has come for exactly
@@ -717,7 +733,7 @@
       <svg class="ic"><use href="#i-browser"></use></svg><span>Browser</span>
     </button>
     <button class="tab" role="tab" id="tab-connections" aria-controls="panel-connections" aria-selected="false">
-      <svg class="ic"><use href="#i-plug"></use></svg><span>Connections</span>
+      <svg class="ic"><use href="#i-plug"></use></svg><span>AI providers</span>
     </button>
     <button class="tab" role="tab" id="tab-updates" aria-controls="panel-updates" aria-selected="false">
       <svg class="ic"><use href="#i-up"></use></svg><span>Updates</span>
@@ -756,16 +772,12 @@
 
   <section class="tab-panel" role="tabpanel" id="panel-browser" aria-labelledby="tab-browser">
     <p class="explain">
-      Which browser Omote drives — both when the agent browses and when it searches.
-      Chromium comes with the browser extra and is always the right version for it;
-      your own Chrome has the codecs Chromium lacks and looks like an ordinary visitor
-      to sites that check. Firefox and WebKit are different engines, not reskinned
-      Chromium.
+      Choose the browser Omote uses for web tasks. Available browsers are listed below.
+      If browser control is not installed, the setup instructions appear here.
     </p>
     <p class="explain">
-      Your profile and logins are per browser. Switching means signing in again in the
-      new one — once, by hand, which is the arrangement that keeps Omote from ever
-      needing a password.
+      Each browser has its own profile. Sign in to websites directly in that browser;
+      switching browsers may require signing in again.
     </p>
 
     <ul id="browser-list" class="conn-list"></ul>
@@ -787,17 +799,21 @@
 
   <section class="tab-panel" role="tabpanel" id="panel-connections" aria-labelledby="tab-connections" hidden>
     <p class="explain">
-      What answers each kind of request. Chat and embedding are chosen separately on
-      purpose: the model you think with and the model you remember with are different
-      decisions, and they send different things to different places.
+      Connect a provider, then choose which one handles each feature. You can use a
+      different provider for chat, memory, voice and media.
     </p>
 
-    <div id="conn-routes" class="conn-routes"></div>
+    <button id="settings-quick-connect" type="button" class="primary">Quick setup</button>
+    <p id="conn-status" class="meta" role="status" aria-live="polite"></p>
+    <details class="route-details"><summary>Default providers and models</summary>
+      <p class="explain">Changes apply to new chats. Existing chats keep their selected model.</p>
+      <div id="conn-routes" class="conn-routes"></div>
+    </details>
 
     <div class="sec-head"><span>Connected</span></div>
     <ul id="conn-list" class="conn-list"></ul>
 
-    <div class="sec-head"><span>Add</span></div>
+    <details id="connection-advanced"><summary>Advanced connection</summary>
     <form id="conn-add" class="conn-add">
       <label class="field">
         <span>Service</span>
@@ -828,17 +844,57 @@
           rather than saved and quietly ignored</em></span>
       </label>
       <menu>
-        <span id="conn-status" class="meta"></span>
         <div class="spacer"></div>
         <button type="submit" class="primary">Connect</button>
       </menu>
     </form>
+    </details>
   </section>
 
   <menu>
     <div class="spacer"></div>
     <button id="settings-close" class="ghost">Close</button>
   </menu>
+</dialog>
+
+
+<dialog id="welcome-dialog" class="welcome-dialog" aria-labelledby="welcome-title">
+  <div class="welcome-top"><img src="/static/brand/omote-128.png" width="56" height="56" alt="Omote"><button id="welcome-close" class="icon" type="button" aria-label="Close setup">×</button></div>
+  <div id="welcome-connect-panel">
+    <p class="welcome-eyebrow">YOUR WORKSPACE, YOUR AI</p>
+    <h2 id="welcome-title">Make yourself at home.</h2>
+    <p class="welcome-description">One connection to start chatting, researching and working on your projects.</p>
+    <form id="welcome-form">
+      <label class="field" for="welcome-provider">AI provider<select id="welcome-provider"><option value="openrouter">OpenRouter</option></select></label>
+      <p id="welcome-provider-note" class="explain">One key for a choice of models. You can change providers anytime.</p>
+      <label class="field" id="welcome-key-field" for="welcome-key">API key
+        <span class="secret-input"><input id="welcome-key" aria-label="API key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your API key"><button id="welcome-show-key" type="button" class="ghost small" aria-pressed="false" aria-label="Show API key">Show</button></span>
+      </label>
+      <a id="welcome-key-link" href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener noreferrer">Get an OpenRouter API key ↗</a>
+      <label class="field" id="welcome-address-field" for="welcome-address" hidden>Server address<input id="welcome-address" type="url" placeholder="http://localhost:11434"></label>
+      <p class="welcome-privacy">Your key is saved privately on this computer and used only with that provider. Provider usage may incur charges. No test message is sent.</p>
+      <p id="welcome-status" class="setup-status" role="status" aria-live="polite"></p>
+      <button id="welcome-submit" type="submit" class="primary welcome-submit">Connect and continue</button>
+    </form>
+    <button id="welcome-preview-tour" type="button" class="ghost welcome-submit">Take a quick tour</button>
+    <div class="welcome-secondary"><button id="welcome-skip" class="ghost" type="button">Explore without connecting</button><button id="welcome-advanced" class="ghost" type="button">More options</button></div>
+  </div>
+  <div id="welcome-ready-panel" hidden>
+    <p class="welcome-eyebrow">CONNECTED</p><h2>You’re ready to begin.</h2>
+    <p id="welcome-ready-description" class="welcome-description"></p>
+    <div class="welcome-checklist"><p><strong>Chat and work</strong><span>Describe what you need. Omote asks before taking actions that need permission.</span></p><p><strong>Memory is your choice</strong><span>Enable it in Memory when you’re ready. View, edit, export or delete what’s saved.</span></p><p><strong>Explore at your pace</strong><span>Find images, video and characters in Studio. Voice, browser control and local tools may need additional setup.</span></p></div>
+    <button id="welcome-start" type="button" class="primary welcome-submit">Start chatting</button>
+    <button id="welcome-tour" type="button" class="ghost welcome-submit">Show me around · 1 minute</button>
+  </div>
+</dialog>
+
+<dialog id="guide-dialog" class="guide-dialog" aria-labelledby="guide-title">
+  <div class="guide-top"><span id="guide-progress" class="welcome-eyebrow"></span><button id="guide-close" type="button" class="ghost small">Skip tour</button></div>
+  <div id="guide-visual" class="guide-visual" aria-hidden="true"></div>
+  <h2 id="guide-title" tabindex="-1"></h2><p id="guide-description" class="welcome-description"></p>
+  <ul id="guide-tips" class="guide-tips"></ul>
+  <div id="guide-dots" class="guide-dots" aria-label="Tour steps"></div>
+  <menu><button id="guide-back" type="button" class="ghost">Back</button><div class="spacer"></div><button id="guide-next" type="button" class="primary">Next</button></menu>
 </dialog>
 
 <script src="/static/app.js" type="module"></script>

@@ -171,7 +171,15 @@ async def bootstrap(cfg: Config, registry: ProviderRegistry) -> list[str]:
             if provider_id not in registered:
                 registered.append(provider_id)
 
-    registry.set_defaults(_default_routes(cfg))
+    from omote.providers.routing import RouteStore
+
+    defaults = _default_routes(cfg)
+    for modality, route in RouteStore(cfg.connections_db).load().items():
+        if route.provider:
+            defaults.routes[modality] = route
+        else:
+            defaults.routes.pop(modality, None)
+    registry.set_defaults(defaults)
 
     if not registered:
         log.warning(

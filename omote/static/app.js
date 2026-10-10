@@ -17,6 +17,7 @@
 
 import { companion, caption } from './companions/index.js';
 import { openConnections, wireConnections } from './connections.js';
+import { openSetup, updateSetup, wireOnboarding } from './onboarding.js';
 import { handleFileKey, resetFiles, wireFiles } from './files.js';
 import { clear as clearAttachments, pending as pendingAttachments, wireAttachments } from './attachments.js';
 import { active as searchActive, wireHistory } from './history.js';
@@ -286,6 +287,7 @@ function buildStarters() {
       input.value = text;
       input.focus();
       input.dispatchEvent(new Event('input'));
+      if (!state.sessionId && !chatReady) openSetup();
     };
     box.appendChild(row);
   }
@@ -1642,6 +1644,7 @@ function showSettingsTab(id) {
   for (const [tab, { panel }] of Object.entries(SETTINGS_TABS)) {
     const on = tab === id;
     $(`#${tab}`).setAttribute('aria-selected', String(on));
+    $(`#${tab}`).tabIndex = on ? 0 : -1;
     $(`#${panel}`).hidden = !on;
   }
   SETTINGS_TABS[id].load();
@@ -1650,10 +1653,18 @@ function showSettingsTab(id) {
 function wireSettings(onConnectionsChanged) {
   for (const id of Object.keys(SETTINGS_TABS)) {
     $(`#${id}`).onclick = () => showSettingsTab(id);
+    $(`#${id}`).onkeydown = event => {
+      const keys = Object.keys(SETTINGS_TABS);
+      const index = keys.indexOf(id);
+      const next = event.key === 'ArrowRight' ? keys[(index + 1) % keys.length]
+        : event.key === 'ArrowLeft' ? keys[(index + keys.length - 1) % keys.length]
+        : event.key === 'Home' ? keys[0] : event.key === 'End' ? keys.at(-1) : null;
+      if (next) { event.preventDefault(); showSettingsTab(next); $(`#${next}`).focus(); }
+    };
   }
 
   $('#open-settings').onclick = () => {
-    showSettingsTab('tab-browser');
+    showSettingsTab('tab-connections');
     $('#settings-dialog').showModal();
     watchUpdates(true);
   };
@@ -1665,10 +1676,6 @@ function wireSettings(onConnectionsChanged) {
 
   $('#settings-close').onclick = () => {
     $('#settings-dialog').close();
-    // Connections are re-read on close whichever tab was open. Changing a
-    // route and coming back to a header still naming the old model is how you
-    // conclude the change did not take.
-    if (onConnectionsChanged) onConnectionsChanged();
   };
 
   // The dialog's own close (Escape, the backdrop) has to do the same, or the
@@ -1818,7 +1825,12 @@ async function loadSessions() {
       li.title = `${status} · ${s.model}`;
       li.setAttribute('aria-label', `${s.title || s.id} — ${status}`);
 
+      li.tabIndex = 0;
+      li.setAttribute('role', 'button');
       li.onclick = () => openSession(s);
+      li.onkeydown = event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSession(s); }
+      };
       sessionRows.set(s.id, { when, summary: s });
       list.appendChild(li);
     }
@@ -1896,6 +1908,9 @@ function dressChips(patch) {
   dressHero();
 }
 
+let chatReady = false;
+let startingChat = false;
+
 async function loadProviders() {
   const res = await api('/api/providers');
   if (!res || !res.ok) return;
@@ -1918,11 +1933,23 @@ async function loadProviders() {
   // Which provider is answering, next to which model is answering. The pair
   // is one fact, and it belongs under the composer with the rest of them.
   const chat = (data.capabilities || {}).chat || [];
+  chatReady = chat.length > 0;
+  updateSetup(data);
+  if (!state.sessionId) {
+    $('#input').disabled = !chatReady;
+    $('#send').disabled = !chatReady;
+    $('#input').placeholder = chatReady ? 'Ask Omote anything…' : 'Connect an AI provider to start chatting';
+    $('#session-title').textContent = 'New chat';
+    $('#link').textContent = chatReady ? 'ready' : 'setup needed';
+    $('#link').className = `pill ${chatReady ? 'on' : 'off'}`;
+  }
+  $('#provider-chip').hidden = !chat.length;
   const chip = $('#provider-chip');
   if (chat.length) {
-    const info = (data.providers || []).find((p) => p.id === chat[0]);
+    const chosen = data.routes?.chat?.provider || chat[0];
+    const info = (data.providers || []).find((p) => p.id === chosen);
     chip.hidden = false;
-    chip.textContent = chat[0];
+    chip.textContent = info?.label || chosen;
     chip.title = info && info.local ? 'running on this machine' : 'a remote provider';
     chip.classList.toggle('local', Boolean(info && info.local));
   }
@@ -1931,7 +1958,7 @@ async function loadProviders() {
   // Rebuilt rather than appended to: this runs again whenever a connection is
   // added, and appending would give three copies of Groq after three edits.
   select.textContent = '';
-  const auto = el('option', '', 'first that can do chat');
+  const auto = el('option', '', 'Use my default provider');
   auto.value = '';
   select.appendChild(auto);
   for (const p of data.providers || []) {
@@ -2022,15 +2049,15 @@ function rememberEffort(value) {
   } catch { /* storage unavailable: the session still has its level */ }
 }
 
-async function createSession(form) {
-  const body = {
+async function createSession(form = null) {
+  const body = form ? {
     root: form.root.value.trim() || null,
     model: form.model.value.trim() || null,
     provider: form.provider.value || null,
     mode: form.mode.value,
     tools: form.tools.value ? form.tools.value.split(',') : [],
     effort: preferredEffort(),
-  };
+  } : { mode: 'ask', effort: preferredEffort() };
   const res = await api('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2046,6 +2073,7 @@ async function createSession(form) {
   }
   const session = await res.json();
   openSession({ ...session, policy: body.mode });
+  return session;
 }
 
 function wire() {
@@ -2095,7 +2123,7 @@ function wire() {
 
   $('#todo-head').onclick = () => foldTodos($('#todo-head').getAttribute('aria-expanded') === 'true');
 
-  $('#composer').addEventListener('submit', (e) => {
+  $('#composer').addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = input.value.trim();
     // A picture is a message on its own. "Have a look at this" with a
@@ -2104,6 +2132,21 @@ function wire() {
     // where it is least needed.
     const attachments = pendingAttachments();
     if (!text && !attachments.length) return;
+    if (startingChat) return;
+    if (!state.sessionId) {
+      if (!chatReady) { openSetup(); return; }
+      startingChat = true;
+      input.disabled = true;
+      $('#send').disabled = true;
+      try {
+        if (!await createSession()) return;
+      } finally {
+        startingChat = false;
+        input.disabled = false;
+        $('#send').disabled = false;
+        input.focus();
+      }
+    }
     // Echoed immediately so typing feels instant; the server's turn.started
     // replaces it, so live and replayed conversations render identically. With
     // a picture and no words, the echo says so — otherwise the local copy of
@@ -2126,7 +2169,11 @@ function wire() {
 
   $('#stop').onclick = () => send({ type: 'turn.interrupt' });
 
-  const newSession = () => $('#new-dialog').showModal();
+  const newSession = () => {
+    if (!chatReady) { openSetup(); return; }
+    $('#new-dialog').returnValue = '';
+    $('#new-dialog').showModal();
+  };
   $('#new-session').onclick = newSession;
   $('#nav-new').onclick = newSession;
   $('#new-dialog').addEventListener('close', function () {
@@ -2155,6 +2202,7 @@ function wire() {
     + 'models; a smaller model uses its hardest setting instead.';
   const effortSelect = document.createElement('select');
   effortSelect.id = 'effort';
+  effortSelect.setAttribute('aria-label', 'Thinking effort');
   for (const [value, label] of [
     ['', 'think: default'], ['off', 'think: off'], ['low', 'think: low'], ['medium', 'think: medium'],
     ['high', 'think: high'], ['xhigh', 'think: xhigh'], ['max', 'think: max'],
@@ -2221,7 +2269,8 @@ function wire() {
   // `call()` is consulted only so this chain does not also interrupt the turn
   // underneath a call that is being ended by the other handler.
   document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    if (document.querySelector('dialog[open]')) return;
     if (call()) return;
     if (state.voice) state.voice.interrupt();
     else if (state.busy) send({ type: 'turn.interrupt' });
@@ -2258,6 +2307,7 @@ function wireMobileNavigation() {
   let open = false;
   function setOpen(wanted, restore = true) {
     open = wanted && narrow.matches;
+    if (!open) companion.closeMenus();
     document.body.classList.toggle('navigation-open', open);
     toggle.setAttribute('aria-expanded', String(open));
     backdrop.hidden = !open;
@@ -2294,19 +2344,20 @@ function wireMobileNavigation() {
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (sidebar.querySelector('.companion-menu:not([hidden])')) {
+      if (companion.openMenuWithin(sidebar)) {
         companion.closeMenus();
         $('#brand-pet .pet').focus();
       } else setOpen(false);
     } else if (event.key === 'Tab') {
-      const available = [...sidebar.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), '
+      const scope = companion.openMenuWithin(sidebar) || sidebar;
+      const available = [...scope.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), '
         + 'select:not(:disabled), [tabindex]:not([tabindex="-1"])')]
         .filter((node) => node.getClientRects().length && !node.closest('[hidden]'));
       const first = available[0];
       const last = available[available.length - 1];
-      if (event.shiftKey && (document.activeElement === first || !sidebar.contains(document.activeElement))) {
+      if (event.shiftKey && (document.activeElement === first || !scope.contains(document.activeElement))) {
         event.preventDefault(); last?.focus();
-      } else if (!event.shiftKey && (document.activeElement === last || !sidebar.contains(document.activeElement))) {
+      } else if (!event.shiftKey && (document.activeElement === last || !scope.contains(document.activeElement))) {
         event.preventDefault(); first?.focus();
       }
     }
@@ -2344,6 +2395,7 @@ wireCreative();
 for (const starter of document.querySelectorAll('[data-start]')) {
   starter.onclick = () => {
     $('#input').value = starter.dataset.start;
+    if (!state.sessionId && !chatReady) openSetup();
     $('#input').dispatchEvent(new Event('input', { bubbles: true }));
     $('#input').focus();
   };
@@ -2353,7 +2405,7 @@ wireBrowserChoice();
 wireRewind();
 
 const sessionId = () => state.sessionId;
-const currentSession = () => (state.sessionId ? state.sessionId() : null);
+const currentSession = () => state.sessionId;
 wireTalk({ sessionId });
 wireLive({ sessionId });
 // The two buttons in the bar. Each one opens the microphone and starts
@@ -2397,6 +2449,7 @@ json('/api/update/status').then((info) => {
 // Adding or removing a connection changes what every picker on the page can
 // offer, so the whole lot is refreshed rather than the dialog patching them.
 wireConnections();
+wireOnboarding(() => loadProviders());
 wireSettings(() => loadProviders());
 wireModeLifecycle();
 
@@ -2429,6 +2482,7 @@ companion.watch((what) => {
 
 loadProviders();
 loadSessions();
+document.addEventListener('omote:providers-changed', () => loadProviders());
 
 /* The session list, and how often it is asked for.
  *

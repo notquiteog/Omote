@@ -45,12 +45,14 @@ async function loadCatalog() {
     option.value = h.id;
     select.appendChild(option);
   }
+  select.value = 'openrouter';
   fillHost();
 }
 
 function fillHost() {
   const chosen = host($('#conn-host').value);
   if (!chosen) return;
+  $('#conn-key').value = '';
   $('#conn-url').value = chosen.base_url;
   $('#conn-editor-field').hidden = !['comfyui', 'perch'].includes(chosen.id);
   $('#conn-editor-url').value = '';
@@ -85,7 +87,8 @@ async function loadRoutes(providers, capabilities, routes) {
     row.appendChild(el('span', '', label));
 
     const select = el('select');
-    const auto = el('option', '', able.length ? 'first that can' : 'nothing can do this yet');
+    select.setAttribute('aria-label', `${label} provider`);
+    const auto = el('option', '', able.length ? 'Automatic' : 'Connect a provider first');
     auto.value = '';
     select.appendChild(auto);
     for (const providerId of able) {
@@ -98,28 +101,45 @@ async function loadRoutes(providers, capabilities, routes) {
     if (routes[id]) select.value = routes[id].provider;
 
     const model = el('input');
-    model.placeholder = 'model (optional)';
+    model.placeholder = 'Automatic model';
+    model.setAttribute('aria-label', `${label} model`);
+    const choices = el('datalist');
+    choices.id = `route-models-${id}`;
+    model.setAttribute('list', choices.id);
     model.value = (routes[id] && routes[id].model) || '';
+    model.disabled = !select.value;
     model.style.width = '150px';
 
     const save = async () => {
-      if (!select.value) return;
+
       const res = await api('/api/providers/routes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ modality: id, provider: select.value, model: model.value.trim() }),
       });
-      if (res && !res.ok) {
+      if (!res) { $('#conn-status').textContent = 'Could not save. Check the connection and try again.'; return; }
+      if (!res.ok) {
         $('#conn-status').textContent = (await res.json().catch(() => ({}))).detail || 'that route was refused';
       } else {
-        $('#conn-status').textContent = `${label} now goes to ${select.value}.`;
+        $('#conn-status').textContent = `${label}: ${select.value || 'automatic selection'} saved. New chats use this choice.`;
+        document.dispatchEvent(new Event('omote:providers-changed'));
       }
     };
-    select.onchange = save;
+    const loadModels = async () => {
+      choices.replaceChildren();
+      if (!select.value) return;
+      const provider = select.value;
+      const data = await json(`/api/providers/${encodeURIComponent(provider)}/models?modality=${id}`);
+      if (provider !== select.value) return;
+      for (const item of data?.models || []) { const option = el('option'); option.value = item.id; option.label = item.label || item.id; choices.append(option); }
+    };
+    model.addEventListener('focus', loadModels);
+    select.onchange = () => { model.value = ''; model.disabled = !select.value; save(); loadModels(); };
     model.onchange = save;
 
     row.appendChild(select);
     row.appendChild(model);
+    row.appendChild(choices);
     if (why) row.title = why;
     box.appendChild(row);
   }
@@ -158,7 +178,7 @@ async function loadList(providers) {
       test.textContent = result
         ? (result.ok ? `${result.models} models` : 'failed')
         : 'no answer';
-      if (result && !result.ok) test.title = result.error;
+      if (result && !result.ok) { test.title = result.error; $('#conn-status').textContent = result.error || 'The connection test failed. Check your key and address.'; }
       setTimeout(() => { test.textContent = 'Test'; }, 6000);
     };
     li.appendChild(test);
@@ -172,8 +192,10 @@ async function loadList(providers) {
           ? `Disconnect ${cid}? Every one of its services goes with it.`
           : `Disconnect ${p.label || p.id}?`;
         if (!confirm(what)) return;
-        await api(`/api/providers/connections/${cid}`, { method: 'DELETE' });
+        const response = await api(`/api/providers/connections/${encodeURIComponent(cid)}`, { method: 'DELETE' });
+        if (!response?.ok) { $('#conn-status').textContent = 'Could not disconnect. Please try again.'; return; }
         refresh();
+        document.dispatchEvent(new Event('omote:providers-changed'));
       };
       li.appendChild(remove);
     }
@@ -199,7 +221,10 @@ export async function refresh() {
 
 async function add(event) {
   event.preventDefault();
-  $('#conn-status').textContent = 'connecting…';
+  const button = $('#conn-add button[type=submit]');
+  if (button.disabled) return;
+  button.disabled = true;
+  $('#conn-status').textContent = 'Checking connection…';
 
   const res = await api('/api/providers/connections', {
     method: 'PUT',
@@ -210,12 +235,14 @@ async function add(event) {
       frontend_url: $('#conn-editor-url').value.trim() || undefined,
       // Undefined rather than '' when blank, so the server keeps whatever key
       // it already has instead of clearing it.
-      api_key: $('#conn-key').value || undefined,
+      api_key: $('#conn-key').value.trim() || undefined,
+      verify: true,
       local: $('#conn-local').checked,
       tor: $('#conn-tor').checked,
     }),
   });
 
+  button.disabled = false;
   if (!res) {
     $('#conn-status').textContent = 'the daemon is not reachable';
     return;
@@ -236,6 +263,7 @@ async function add(event) {
       + (off.length ? `; ${off.join(', ')} switched off` : '')
     : 'connected';
   refresh();
+  document.dispatchEvent(new Event('omote:providers-changed'));
 }
 
 /* Fill the panel in. Exported rather than bound to a button of its own,
@@ -249,6 +277,7 @@ export async function openConnections() {
 export function showConnections() {
   $('#open-settings').click();
   $('#tab-connections').click();
+  $('#connection-advanced').open = true;
 }
 
 export function wireConnections() {

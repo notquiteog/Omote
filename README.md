@@ -16,6 +16,12 @@ memory is paused. The default appearance follows the system with a Codex-style s
 task starters, and composer. See [Workspace setup](docs/WORKSPACE.md) for the required
 connections and the boundaries of each integration.
 
+**First use:** choose OpenRouter (or another provider), paste your API key, and
+select **Connect and continue**. Omote verifies the connection, chooses a chat model
+and remembers it. Your first message starts a chat. An optional one-minute tour and
+**Getting started** in the sidebar explain the workspace; memory stays opt-in.
+See [First use](docs/WORKSPACE.md#first-use) for details.
+
 **An open-source digital twin.** Something that lives on your own machine and
 acts there the way you would — running commands, driving a browser, holding a
 spoken conversation, and (when you switch it on) remembering what it learns

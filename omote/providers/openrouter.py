@@ -146,7 +146,15 @@ class OpenRouterProvider(OpenAICompatProvider):
 
     async def models(self) -> list[dict[str, Any]]:
         rows = await _listing(self.transport, self.base_url, self.api_key, self.kind, self.provider_id)
-        return [{'id': row['id'], 'provider': self.provider_id} for row in rows]
+        models = []
+        for row in rows:
+            item = {'id': row['id'], 'provider': self.provider_id, 'label': row.get('name') or row['id']}
+            if self.kind is Modality.CHAT:
+                item['capabilities'] = ['completion']
+                if 'tools' in (row.get('supported_parameters') or []):
+                    item['capabilities'].append('tools')
+            models.append(item)
+        return models
 
     async def check(self) -> None:
         """Prove the key, which listing models cannot — see the module docstring."""
@@ -154,6 +162,8 @@ class OpenRouterProvider(OpenAICompatProvider):
             async with session.get(f'{self.base_url}/key', headers=self._headers()) as resp:
                 if resp.status in (401, 403):
                     raise refused(self.provider_id, self.base_url, resp.status)
+                if resp.status != 200:
+                    raise RuntimeError(f'Provider key check failed (HTTP {resp.status})')
 
     async def voices(self) -> list[dict[str, Any]]:
         """Every voice, with the model it belongs to.

@@ -37,6 +37,7 @@
  */
 
 import { $, api, el, json, post } from './dom.js';
+import { showConnections } from './connections.js';
 
 let kind = 'image';
 let schema = [];
@@ -49,6 +50,7 @@ let characterRecipe = null;
 const manualReferenceInputs = new Set();
 const appliedReferences = new Map();
 let describeEpoch = 0;
+let describedModel = null;
 
 function imageLimit(param) {
   return param.max_images === null ? Infinity : Math.max(1, Number(param.max_images) || 1);
@@ -403,7 +405,7 @@ function markChanged() {
   // The button says what pressing it will actually do, which changes with the
   // kind and with whether anything is in flight.
   const make = $('#studio-make');
-  make.textContent = kind === 'video' ? 'Render it' : kind === 'music' ? 'Compose it' : 'Make it';
+  make.textContent = kind === 'video' ? 'Generate video' : kind === 'music' ? 'Generate music' : 'Generate image';
 }
 
 /* ----------------------------------------------------------------- form */
@@ -444,16 +446,19 @@ function render() {
   }
 
   const count = rest.filter((p) => p.advanced).length;
-  $('#studio-advanced').textContent = count ? `Everything else — ${count} more ›` : 'Nothing else to tune';
+  $('#studio-advanced').textContent = count ? `Advanced settings · ${count} options` : 'No advanced settings';
   $('#studio-advanced').disabled = !count;
   markChanged();
 }
 
 async function describe() {
   const revision = ++describeEpoch;
-  status('asking what it can do…');
+  status('Loading models and controls…');
+  $('#studio-make').disabled = true;
+  $('#studio-connection-help').hidden = true;
   const provider = $('#studio-provider').value;
   const model = $('#studio-model').value.trim();
+  describedModel = model;
   const params = new URLSearchParams({ kind });
   if (provider) params.set('provider', provider);
   if (model) params.set('model', model);
@@ -461,7 +466,8 @@ async function describe() {
   const res = await api(`/api/media/describe?${params}`);
   if (revision !== describeEpoch) return;
   if (!res) {
-    status('the daemon is not reachable', 'bad');
+    status('Omote is not reachable. Check the connection and try again.', 'bad');
+    $('#studio-connection-help').hidden = false;
     return;
   }
   if (!res.ok) {
@@ -483,6 +489,7 @@ async function describe() {
     }
     paintProviders(provider);
     status(detail, 'bad');
+    $('#studio-connection-help').hidden = false;
     schema = [];
     known.models = [];
     paintModels('');
@@ -493,6 +500,7 @@ async function describe() {
 
   const info = await res.json();
   if (revision !== describeEpoch) return;
+  $('#studio-make').disabled = false;
   schema = info.params || [];
   known = { providers: info.providers || [], models: info.models || [] };
 
@@ -503,6 +511,7 @@ async function describe() {
   // to a mistaken click.
   paintProviders(info.provider);
   paintModels(info.model);
+  describedModel = $('#studio-model').value.trim();
   status(`${info.provider}${info.local ? ' · on this machine' : ''}`, info.local ? 'good' : '');
   applyCharacterReferences();
   render();
@@ -511,7 +520,7 @@ async function describe() {
 function paintProviders(current) {
   const select = $('#studio-provider');
   select.textContent = '';
-  const auto = el('option', '', 'whatever is configured');
+  const auto = el('option', '', 'Use my default provider');
   auto.value = '';
   select.appendChild(auto);
   for (const p of known.providers) {
@@ -1221,6 +1230,8 @@ async function startEdit(event) {
 }
 
 export function wireStudio(providers = []) {
+  $('#studio-connect-provider').onclick = showConnections;
+  $('#studio-retry').onclick = describe;
   known.providers = providers.filter((p) => !p.modalities || p.modalities.includes(kind));
   if (!$('#studio-provider').options.length) paintProviders('');
 
@@ -1242,7 +1253,11 @@ export function wireStudio(providers = []) {
     $('#studio-model').value = '';
     describe();
   };
-  $('#studio-model').onchange = describe;
+  $('#studio-model').onchange = () => {
+    // A datalist selection can fire change again on blur. Reloading the same
+    // schema here disables Generate between pointer-down and click.
+    if ($('#studio-model').value.trim() !== describedModel) describe();
+  };
 
   $('#studio-form').onsubmit = make;
   $('#studio-advanced').onclick = function toggle() {

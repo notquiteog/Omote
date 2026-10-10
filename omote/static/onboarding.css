@@ -1,0 +1,70 @@
+/* A quiet first-run path with the same surfaces as the working app. */
+.welcome-dialog, .guide-dialog { width: min(520px, calc(100vw - 32px)); min-width: 0; max-height: calc(100dvh - 32px); padding: 28px; overflow: auto; border-radius: 24px; }
+.welcome-top, .guide-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+.welcome-top img { border-radius: 15px; }
+.welcome-eyebrow { color: var(--dim); letter-spacing: .13em; font-size: 10px; font-weight: 650; margin: 0 0 10px; }
+.welcome-dialog h2, .guide-dialog h2 { margin: 0 0 12px; font-size: 28px; line-height: 1.15; letter-spacing: -.035em; }
+.welcome-description { color: var(--dim); font-size: 14px; line-height: 1.65; margin: 0 0 22px; }
+#welcome-form .field { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+#welcome-form input, #welcome-form select { width: 100%; min-height: 42px; margin-top: 0; padding: 8px 12px; font: inherit; color: var(--ink); background: var(--raise); border: 1px solid var(--edge); border-radius: var(--radius-sm); }
+#welcome-form input { cursor: text; }
+#welcome-form a { display: inline-block; font-size: 12px; color: var(--accent); margin-top: 10px; }
+.secret-input { display: flex; position: relative; align-items: center; }
+#welcome-form .secret-input input { padding-right: 66px; }
+.secret-input button { position: absolute; right: 6px; }
+.welcome-privacy { font-size: 11px; color: var(--dim); line-height: 1.6; margin: 18px 0 0; }
+.welcome-submit { width: 100%; min-height: 42px; margin-top: 10px; }
+.welcome-secondary { display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.welcome-secondary button { font-size: 12px; }
+.setup-status { font-size: 13px; line-height: 1.5; margin: 12px 0 0; }
+.setup-status:empty { display: none; }
+.setup-status.error { color: var(--danger); }
+.welcome-checklist { border: 1px solid var(--edge); border-radius: 14px; padding: 0 16px; margin-bottom: 20px; }
+.welcome-checklist p + p { border-top: 1px solid var(--edge); padding-top: 14px; }
+.welcome-checklist strong, .welcome-checklist span { display: block; font-size: 13px; line-height: 1.55; }
+.welcome-checklist span { color: var(--dim); margin-top: 4px; }
+.setup-banner { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin: 14px 24px 0; padding: 14px 18px; border: 1px solid var(--edge); background: var(--glass); border-radius: 14px; }
+.setup-banner strong, .setup-banner span { display: block; font-size: 13px; line-height: 1.5; }
+.setup-banner span { color: var(--dim); font-size: 12px; }
+.setup-banner button { white-space: nowrap; }
+.guide-visual { min-height: 112px; padding: 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; border-radius: 16px; background: var(--hover); border: 1px solid var(--edge); }
+.guide-visual span { padding: 10px 14px; border: 1px solid var(--edge); background: var(--glass-strong); border-radius: 10px; font-size: 13px; box-shadow: var(--shadow); }
+.guide-visual span:first-child { color: var(--accent); }
+.guide-tips { padding-left: 20px; color: var(--dim); font-size: 13px; line-height: 1.7; min-height: 104px; }
+.guide-tips li { margin: 8px 0; }
+.guide-dots { display: flex; justify-content: center; gap: 7px; margin: 18px 0 0; }
+.guide-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--edge); }
+.guide-dots .current { width: 20px; border-radius: 6px; background: var(--accent); }
+.route-details, .session-advanced, #connection-advanced { margin: 18px 0; border-top: 1px solid var(--edge); padding-top: 14px; }
+summary { cursor: pointer; font-size: 13px; color: var(--ink); }
+.session-advanced[open] > summary { margin-bottom: 14px; }
+.composer-hint { font-size: 10px; color: var(--dim); margin: 0 0 8px; text-align: center; }
+.conn-routes .row select, .conn-routes .row input { min-width: 0; }
+.conn-routes .row input { width: 150px; }
+.conn-list .who { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .welcome-dialog, .guide-dialog { padding: 22px; border-radius: 18px; }
+  .welcome-dialog h2, .guide-dialog h2 { font-size: 25px; }
+  .setup-banner { margin: 10px 12px 0; padding: 12px; align-items: stretch; flex-direction: column; gap: 10px; }
+  .guide-tips { min-height: 0; }
+  .welcome-secondary { flex-direction: column; }
+  .conn-routes .row { flex-wrap: wrap; }
+  .conn-routes .row > span { width: 100%; }
+  .conn-routes .row input { width: 100%; }
+  .composer-hint { font-size: 9px; }
+}
+
+/* Keep every native dialog usable on short windows and narrow phones. */
+dialog { max-height: calc(100dvh - 32px); overflow-y: auto; }
+@media (max-width: 760px) {
+  dialog { min-width: 0; max-width: calc(100vw - 24px); }
+  #new-dialog { width: calc(100vw - 24px); }
+}
+.studio-connection-help { border: 1px solid var(--edge); border-radius: 12px; padding: 14px; margin-bottom: 16px; font-size: 13px; color: var(--dim); }
+.studio-connection-help p { margin: 0 0 10px; }
+.studio-connection-help button + button { margin-left: 6px; }
+#sessions li[role=button]:focus-visible { outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) { dialog, .setup-banner { animation: none; transition: none; } }
+
+.welcome-description, .setup-status { overflow-wrap: anywhere; }
+#conn-status:empty { display: none; }

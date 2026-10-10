@@ -108,6 +108,7 @@ def creative_workspace(tmp_path):
             errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
             page.on('dialog', lambda dialog: dialog.accept())
+            page.add_init_script("localStorage.setItem('omote.welcome.v1', 'done')")
             page.goto(url)
             upstream_url = f'http://127.0.0.1:{upstream.server_port}'
             for body in [

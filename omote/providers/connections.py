@@ -112,8 +112,9 @@ class ConnectionStore:
         # Written to a temporary file in the same directory and renamed, so a
         # crash halfway cannot leave a half-written file where the keys were.
         tmp = self.path.with_suffix('.tmp')
-        tmp.write_text(payload)
-        os.chmod(tmp, 0o600)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w') as out:
+            out.write(payload)
         tmp.replace(self.path)
 
     def put(self, connection: Connection) -> list[Connection]:

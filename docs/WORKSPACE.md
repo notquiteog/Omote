@@ -2,10 +2,46 @@
 
 Omote runs on the user's machine. It provides the agent runtime and interface;
 model inference, ComfyUI, and desktop applications must be configured separately.
-Settings → Connections selects a provider and model independently for chat,
+Settings → AI providers selects a provider and model independently for chat,
 embeddings, dictation, speech, images, and video. The default system theme uses
 opaque light/dark surfaces, a session sidebar, task starters, and a central composer.
 Existing themes are still available in Settings.
+
+## First use
+
+1. Open Omote and choose a provider in the welcome screen. OpenRouter is selected
+   initially; OpenAI, Anthropic, other hosted services and local model servers are
+   available in the same picker.
+2. Paste your API key and choose **Connect and continue**. Local servers also show
+   an address field. Omote checks the connection before saving it and selects a
+   chat model from the provider’s live catalog. It does not send a billed test
+   message. The provider may require credit or a paid account for actual use.
+3. Choose **Start chatting** and write your first message. Omote creates the chat
+   automatically with **Ask first** permissions. No model ID, routing configuration
+   or environment file is needed for this path.
+
+OpenRouter uses its [automatic router](https://openrouter.ai/docs/guides/routing/routers/auto-router)
+when that model appears in the live catalog. Other choices prefer models that
+advertise tool support when the provider exposes that information. The selected
+model is shown after connecting, and can be changed under **Settings → AI providers
+→ Default providers and models**. Saved choices apply to new chats and survive
+restarting Omote. A model’s permissions and availability still depend on its provider.
+
+The one-minute tour is optional. Choose **Take a quick tour**, **Explore without
+connecting**, or close setup. **Getting started** in the sidebar reopens setup or
+replays the tour. The page keeps showing a connection button until chat is available.
+API keys are stored in the daemon’s private connection file, never browser storage.
+
+Use **New chat** to choose a project folder. Model, tool and permission overrides
+are under **Model, tools and permissions**. Failed chat creation keeps the message
+in the composer so you can retry. Keyboard users can navigate settings tabs with
+arrow keys and select chats with Enter or Space.
+
+Memory remains opt-in; connecting a provider does not enable it. Images, video and
+voice use the capabilities that provider supplies. ComfyUI, browser control,
+PhotoCraft and other local integrations may still need their own installations;
+see the relevant sections below. Studio links directly to provider setup when a
+feature is not configured and offers **Try again** after connection failures.
 
 ## Images, video, and the full ComfyUI editor
 

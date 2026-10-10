@@ -23,9 +23,10 @@ from pydantic import BaseModel
 from omote.config import config
 from omote.net import tor as tor_mod
 from omote.providers import catalog, connections
-from omote.providers.base import Modality
+from omote.providers.base import Modality, ProviderRefused
 from omote.providers.connections import Connection, ConnectionStore
-from omote.providers.registry import NoProviderError, Route, registry
+from omote.providers.registry import NoProviderError, Route, RouteSet, pick_model, registry
+from omote.providers.routing import RouteStore
 
 log = logging.getLogger(__name__)
 
@@ -154,6 +155,8 @@ class ConnectionBody(BaseModel):
     tor_host: str = ''
     tor_port: int = 0
     enabled: bool = True
+    verify: bool = False
+    configure_chat: bool = False
 
 
 @router.get('/connections')
@@ -242,13 +245,49 @@ async def put_connection(body: ConnectionBody) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f'could not build that connection: {exc}') from exc
 
+    selected_model = ''
+    if body.verify or body.configure_chat:
+        if not conn.enabled:
+            raise HTTPException(status_code=400, detail='Enable the connection before testing it.')
+        if body.configure_chat and Modality.CHAT not in impls:
+            raise HTTPException(status_code=400, detail='Choose a provider that supports chat.')
+        if body.configure_chat and config.local_only and not conn.local:
+            raise HTTPException(status_code=400, detail='Local-only mode is on. Choose a local provider or change that setting first.')
+        impl = impls.get(Modality.CHAT) or next(iter(impls.values()))
+        try:
+            async with asyncio.timeout(35):
+                await _check(impl)
+                models = await impl.models()
+            if body.configure_chat:
+                selected_model = pick_model(models, Modality.CHAT, need_tools=True)
+                # Use the provider's router only when its live catalogue offers it.
+                if conn.adapter == 'openrouter' and any(m.get('id') == 'openrouter/auto' for m in models):
+                    selected_model = 'openrouter/auto'
+                if not selected_model:
+                    raise HTTPException(status_code=400, detail='No chat models are available. Add a model at your provider, then try again.')
+        except ProviderRefused as exc:
+            raise HTTPException(status_code=400, detail='The provider refused this API key. Check the key and its permissions, then try again.') from exc
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail='The provider took too long to answer. Check the address and network, then try again.') from exc
+        except HTTPException:
+            raise
+        except Exception as exc:
+            # Provider exceptions may contain headers or URLs with credentials.
+            raise HTTPException(status_code=502, detail='Could not verify the connection. Check the provider address, API key and network, then try again.') from exc
+
     store.put(conn)
+    if selected_model:
+        route = Route(provider=conn.id, model=selected_model)
+        RouteStore(store.path).put(Modality.CHAT, route)
+        defaults = registry.defaults
+        defaults.routes[Modality.CHAT] = route
+        registry.set_defaults(defaults)
     if conn.enabled:
         registry.register(info, impls, connection=conn)
     else:
         registry.unregister(conn.id)
 
-    return {'connection': conn.redacted(), 'providers': _providers()}
+    return {'connection': conn.redacted(), 'providers': _providers(), 'chat_model': selected_model, 'verified': body.verify or body.configure_chat}
 
 
 @router.delete('/connections/{connection_id}')
@@ -256,8 +295,15 @@ async def delete_connection(connection_id: str) -> dict[str, Any]:
     conn = store.get(connection_id)
     if not store.remove(connection_id):
         raise HTTPException(status_code=404, detail=f'no such connection: {connection_id}')
-    for provider_id in connections.provider_ids(conn) if conn else [connection_id]:
+    removed = connections.provider_ids(conn) if conn else [connection_id]
+    for provider_id in removed:
         registry.unregister(provider_id)
+    defaults = registry.defaults
+    saved = RouteStore(store.path)
+    for modality, route in list(defaults.routes.items()):
+        if route.provider in removed:
+            del defaults.routes[modality]
+            saved.put(modality, None)
     if conn is not None and conn.adapter == 'perch':
         # A saved Perch replaced the one the environment configured, since both
         # register the same ids. Removing the saved one puts the environment's
@@ -382,21 +428,16 @@ async def set_route(body: RouteUpdate) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f'unknown modality: {body.modality}') from exc
 
-    defaults = registry.defaults
-    previous = defaults.routes.get(modality)
-    defaults.routes[modality] = Route(provider=body.provider, model=body.model, options=body.options)
-
-    # Resolved immediately so a route that cannot work is rejected now rather
-    # than at the start of someone's next call.
-    try:
-        registry.resolve(modality, defaults)
-    except NoProviderError as exc:
-        if previous is None:
-            del defaults.routes[modality]
-        else:
-            defaults.routes[modality] = previous
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
+    defaults = RouteSet(routes=dict(registry.defaults.routes), local_only=registry.defaults.local_only)
+    if body.provider:
+        defaults.routes[modality] = Route(provider=body.provider, model=body.model, options=body.options)
+        try:
+            registry.resolve(modality, defaults)
+        except NoProviderError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        defaults.routes.pop(modality, None)
+    RouteStore(store.path).put(modality, defaults.routes.get(modality))
     registry.set_defaults(defaults)
     return {'ok': True, 'routes': _routes()}
 

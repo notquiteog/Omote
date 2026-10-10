@@ -1,15 +1,18 @@
 /* Kept with the companion module so embedded clients get the same picker. */
 .companion-menu.above, .companion-menu.below {
-  position: fixed; z-index: 100; right: auto; bottom: auto; margin: 0;
+  position: fixed; z-index: 201; right: auto; bottom: auto; margin: 0;
   width: 340px; min-width: 0; max-width: calc(100vw - 24px);
   max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain;
   box-sizing: border-box; padding: 12px; text-align: left; color: var(--ink, #242424);
 }
 .companion-menu[hidden], .companion-menu [hidden] { display: none !important; }
+.companion-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.companion-close { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; background: transparent; box-shadow: none; color: var(--dim); font-size: 21px; line-height: 1; }
+.companion-close:hover { background: var(--hover); color: var(--ink); }
 .companion-heading { font-size: 14px; font-weight: 600; }
 .companion-note { margin: 5px 0 10px; font-size: 12px; line-height: 1.5; color: var(--dim, #aaa); }
 .companion-search { color: var(--ink); background: var(--glass); border: 1px solid var(--edge); border-radius: var(--radius-sm); width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 8px; }
-.companion-choices { max-height: 232px; overflow-y: auto; overscroll-behavior: contain; }
+.companion-choices { max-height: 232px; overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable; overscroll-behavior: contain; }
 .companion-menu .row { min-height: 55px; }
 .companion-menu .row canvas { flex-shrink: 0; }
 .companion-menu .row:focus-visible { outline: 2px solid var(--accent, #8eb7ff); outline-offset: -2px; }
