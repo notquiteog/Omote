@@ -2390,6 +2390,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "omote-desktop"
+version = "0.7.0"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-notification",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "webkit2gtk",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2404,19 +2417,6 @@ dependencies = [
  "dunce",
  "is-wsl",
  "libc",
-]
-
-[[package]]
-name = "omote-desktop"
-version = "0.7.0"
-dependencies = [
- "serde",
- "tauri",
- "tauri-build",
- "tauri-plugin-notification",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "webkit2gtk",
 ]
 
 [[package]]
