@@ -77,7 +77,9 @@ def test_key_only_setup_bad_key_retry_and_first_message(workspace, chat_provider
     expect(page.locator('#input')).to_be_enabled()
     page.locator('#input').fill('Help me plan my first task')
     page.locator('#input').press('Enter')
-    expect(page.locator('#transcript')).to_contain_text('Ready to help with your first task.')
+    expect(page.locator('#transcript .turn.assistant')).to_contain_text('Ready to help with your first task.')
+    expect(page.locator('#transcript')).not_to_contain_text('Not connected')
+    expect(page.locator('#transcript')).not_to_contain_text('Reconnected')
     sessions = page.request.get(url + '/api/sessions').json()['sessions']
     assert len(sessions) == 1
     assert sessions[0]['model'] == 'deepseek/deepseek-v4-flash'

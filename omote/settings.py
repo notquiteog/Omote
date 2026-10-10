@@ -438,6 +438,7 @@ def for_root(root: Path | str, base: Any = None, *, environ: dict[str, str] | No
     found = load(root, environ=environ)
     # Only the values this project's files set, so a caller's own overrides
     # and the environment are not re-applied into a different object.
+    overrides = {}
     for key, value in found.values.items():
         if not hasattr(base, key):
             continue
@@ -446,10 +447,9 @@ def for_root(root: Path | str, base: Any = None, *, environ: dict[str, str] | No
             value = Path(value).expanduser()
         elif isinstance(current, bool) and not isinstance(value, bool):
             value = _coerce(str(value))
+        overrides[key] = value
     try:
-        return replace(base, **{
-            k: v for k, v in found.values.items() if hasattr(base, k)
-        })
+        return replace(base, **overrides)
     except TypeError:
         return base
 

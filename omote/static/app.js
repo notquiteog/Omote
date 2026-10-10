@@ -1100,14 +1100,18 @@ function send(command) {
   // held rather than dropped. Losing what someone typed — silently, because
   // the UI had already echoed it — is the worst failure this client has.
   state.outbox.push(command);
-  notice('Not connected — held until the connection is back.');
+  // A new chat queues its first message while the initial socket opens.
+  // Only an interrupted connection should be presented as a reconnect.
+  if (state.retries || state.agent?.readyState !== WebSocket.CONNECTING) {
+    notice('Not connected — held until the connection is back.');
+  }
 }
 
-function flushOutbox() {
+function flushOutbox(reconnected = false) {
   if (!state.agent || state.agent.readyState !== WebSocket.OPEN) return;
   const held = state.outbox.splice(0);
   for (const command of held) state.agent.send(JSON.stringify(command));
-  if (held.length) notice(`Reconnected — sent ${held.length} held message${held.length === 1 ? '' : 's'}.`);
+  if (held.length && reconnected) notice(`Reconnected — sent ${held.length} held message${held.length === 1 ? '' : 's'}.`);
 }
 
 function setBusy(busy) {
@@ -1150,6 +1154,7 @@ function connectAgent(sessionId) {
 
   ws.onopen = () => {
     setLink(true);
+    const reconnected = state.retries > 0;
     state.retries = 0;
     // Whatever arrives next is the replay of what was missed, not news.
     companion.resumed();
@@ -1158,7 +1163,7 @@ function connectAgent(sessionId) {
     $('#voice-toggle').disabled = false;
     $('#rewind').hidden = false;
     $('#nav-rewind').disabled = false;
-    flushOutbox();
+    flushOutbox(reconnected);
   };
 
   ws.onmessage = (msg) => handleAgentEvent(JSON.parse(msg.data));

@@ -447,3 +447,31 @@ def test_the_narrowable_list_only_names_safety_settings():
             word in key
             for word in ('allow', 'enabled', 'approval', 'local_only', 'unconfined', 'update_check')
         ), f'{key} is narrowable and does not read like a safety switch'
+
+
+def test_session_config_keeps_paths_usable_after_environment_overrides(tmp_path, monkeypatch):
+    from omote.config import Config
+    from omote import settings
+
+    monkeypatch.setattr(settings, 'PERSONAL', tmp_path / 'no-personal-settings.json')
+    base = Config(browser_profile=tmp_path / 'original-profile', browser_enabled=False)
+    selected = tmp_path / 'selected-profile'
+    resolved = for_root(tmp_path, base, environ={
+        'OMOTE_BROWSER_PROFILE': str(selected), 'OMOTE_BROWSER_ENABLED': 'true',
+    })
+    # BrowserSession creates this directory when its first real tool runs.
+    resolved.browser_profile.mkdir(parents=True, exist_ok=True)
+    assert selected.is_dir()
+    assert resolved.browser_enabled is True
+    assert base.browser_profile == tmp_path / 'original-profile'
+    assert base.browser_enabled is False
+
+
+def test_session_config_converts_personal_boolean_strings(tmp_path, monkeypatch):
+    from omote.config import Config
+    from omote import settings
+
+    personal = write(tmp_path, 'personal.json', {'browser_enabled': 'false'})
+    monkeypatch.setattr(settings, 'PERSONAL', personal)
+    resolved = for_root(tmp_path, Config(browser_enabled=True), environ={})
+    assert resolved.browser_enabled is False
