@@ -20,7 +20,7 @@ const steps = [
     tips: ['Choose a connected provider and model, then describe what to create.', 'Save characters and references for your next story.', 'The graph workspace connects to your ComfyUI installation, including its supported Nodes 2.0 editor.'] },
   { title: 'Memory belongs to you.', visual: ['Choose what to remember', 'Inspect', 'Edit or delete'],
     description: 'Memory starts paused for new users. Turn it on only when you want Omote to remember details across chats.',
-    tips: ['Memory is always available from the sidebar.', 'Review, edit, export or delete saved facts and project information.', 'Memory uses an embedding model. Choose where that data goes in AI providers.'] },
+    tips: ['Open Brain in the sidebar to find your saved memories.', 'Review, edit, export or delete saved facts and project information.', 'Recall uses an embedding model. Choose where that data goes in AI providers.'] },
   { title: 'Make it your workspace.', visual: ['Voice', 'Your providers', 'Your companion'],
     description: 'You’re ready to explore. Add more capabilities whenever you need them.',
     tips: ['Talk uses your speech and chat providers. Live voice uses a separate OpenAI API connection.', 'Browser control, ComfyUI and creative tools show their setup options where you use them.', 'Change themes and providers in Settings, or choose a companion in the sidebar. Replay this tour from Getting started.'] },

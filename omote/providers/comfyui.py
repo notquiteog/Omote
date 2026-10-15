@@ -93,6 +93,10 @@ class ComfyUIProvider(VideoProvider):
         # Resolved and checked against the directory, because a model name
         # arrives from a request and `../../etc/passwd` is a path too.
         path = (WORKFLOW_DIR / f'{model}.json').resolve()
+        for directory in (workflow_mod.user_directory(), WORKFLOW_DIR):
+            candidate = (directory / f'{model}.json').resolve()
+            if directory.resolve() in candidate.parents and candidate.is_file():
+                return candidate
         if WORKFLOW_DIR.resolve() not in path.parents or not path.is_file():
             available = sorted(p.stem for p in WORKFLOW_DIR.glob('*.json') if not p.name.endswith('.omote.json'))
             raise FileNotFoundError(
@@ -110,9 +114,12 @@ class ComfyUIProvider(VideoProvider):
     ) -> list[GeneratedMedia]:
         import random
 
-        graph, _ = self._load_workflow(model)
+        graph, overrides = self._load_workflow(model)
+        defaults = {param.name: param.default for param in workflow_mod.describe(graph, overrides.get('params')) if param.default is not None}
 
         seed = kw.pop('seed', None)
+        if seed is None:
+            seed = defaults.get('seed')
         if seed in (None, -1, ''):
             # ComfyUI needs a number. -1 is our spelling of "surprise me", and
             # it is resolved here rather than sent, so the seed that produced a
@@ -129,8 +136,9 @@ class ComfyUIProvider(VideoProvider):
                 kw[field] = await self._upload(bytes(blob), field)
 
         values = {
+            **defaults,
             'prompt': prompt,
-            'negative': kw.pop('negative_prompt', kw.pop('negative', '')),
+            'negative': kw.pop('negative_prompt', kw.pop('negative', defaults.get('negative', ''))),
             'seed': int(seed),
             **{k: v for k, v in kw.items() if v is not None},
         }
@@ -269,7 +277,7 @@ class ComfyUIProvider(VideoProvider):
         """
         WORKFLOW_DIR.mkdir(parents=True, exist_ok=True)
         out: list[dict[str, Any]] = []
-        for path in sorted(WORKFLOW_DIR.glob('*.json')):
+        for path in self._templates():
             if path.name.endswith('.omote.json'):
                 continue
             try:
@@ -301,7 +309,7 @@ class ComfyUIProvider(VideoProvider):
             return workflow_mod.describe(graph, overrides.get('params'))
 
         merged: dict[str, Param] = {}
-        for path in sorted(WORKFLOW_DIR.glob('*.json')):
+        for path in self._templates():
             if path.name.endswith('.omote.json'):
                 continue
             try:
@@ -319,4 +327,8 @@ class ComfyUIProvider(VideoProvider):
         server — a caller that does not have a connection in hand should call
         `workflow.install` directly rather than inventing one.
         """
-        return workflow_mod.install(WORKFLOW_DIR, name, graph, overrides=overrides)
+        return workflow_mod.install(workflow_mod.user_directory(), name, graph, overrides=overrides)
+
+    def _templates(self):
+        paths = {path.name: path for directory in (WORKFLOW_DIR, workflow_mod.user_directory()) for path in directory.glob('*.json')}
+        return [paths[name] for name in sorted(paths)]

@@ -691,6 +691,25 @@ class MemoryStore:
 
     # -- writing ------------------------------------------------------------
 
+    def add_pending(self, user_id: str, text: str, *, kind: str = 'fact',
+                    subject: str | None = None, source: str | None = None) -> Memory:
+        """Save text locally without manufacturing a searchable vector."""
+        memory = Memory(id=uuid.uuid4().hex[:16], user_id=user_id, kind=kind,
+                        subject=subject, text=text, source=source, created_at=time.time())
+        self._db.execute(
+            'INSERT INTO memories (id, user_id, kind, subject, text, source, created_at, '
+            "dim, src_dim, embedder, scale, vec) VALUES (?,?,?,?,?,?,?,0,-1,'',1,X'')",
+            (memory.id, user_id, kind, subject, text, source, memory.created_at),
+        )
+        self._db.commit()
+        return memory
+
+    def has_text(self, user_id: str, text: str, *, subject: str | None = None) -> bool:
+        return self._db.execute(
+            'SELECT 1 FROM memories WHERE user_id = ? AND text = ? COLLATE NOCASE '
+            'AND subject IS ? LIMIT 1', (user_id, text, subject),
+        ).fetchone() is not None
+
     def _encode(self, user_id: str, vector: list[float] | np.ndarray) -> tuple[bytes, float, int, int]:
         """One model vector, as the columns a row stores it in.
 
@@ -872,16 +891,32 @@ class MemoryStore:
 
     # -- reading ------------------------------------------------------------
 
-    def list(self, user_id: str, *, kind: str | None = None, subject: str | None = None,
-             limit: int = 200, offset: int = 0) -> list[Memory]:
-        sql = 'SELECT id, user_id, kind, subject, text, source, created_at, hits FROM memories WHERE user_id = ?'
+    @staticmethod
+    def _filters(user_id: str, *, kind: str | None = None, subject: str | None = None,
+                 q: str = '', scope: str = 'all') -> tuple[str, list[object]]:
+        sql = ' WHERE user_id = ?'
         params: list[object] = [user_id]
         if kind:
             sql += ' AND kind = ?'
             params.append(kind)
-        if subject:
+        if subject is not None:
             sql += ' AND subject = ?'
             params.append(subject)
+        if scope == 'personal':
+            sql += " AND (subject IS NULL OR subject = '')"
+        elif scope == 'projects':
+            sql += " AND subject IS NOT NULL AND subject != ''"
+        if q.strip():
+            # instr treats %, _ and quotes literally; browsing works offline
+            # and does not count as a recall or send text to an embedder.
+            sql += " AND (instr(lower(text), lower(?)) > 0 OR instr(lower(COALESCE(subject, '')), lower(?)) > 0)"
+            params.extend([q.strip(), q.strip()])
+        return sql, params
+
+    def list(self, user_id: str, *, kind: str | None = None, subject: str | None = None,
+             q: str = '', scope: str = 'all', limit: int = 200, offset: int = 0) -> list[Memory]:
+        where, params = self._filters(user_id, kind=kind, subject=subject, q=q, scope=scope)
+        sql = 'SELECT id, user_id, kind, subject, text, source, created_at, hits FROM memories' + where
         sql += ' ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?'
         params.extend([limit, offset])
         return [
@@ -892,9 +927,28 @@ class MemoryStore:
             for r in self._db.execute(sql, params)
         ]
 
-    def count(self, user_id: str) -> int:
-        row = self._db.execute('SELECT COUNT(*) AS n FROM memories WHERE user_id = ?', (user_id,)).fetchone()
+    def count(self, user_id: str, *, kind: str | None = None, subject: str | None = None,
+              q: str = '', scope: str = 'all') -> int:
+        where, params = self._filters(user_id, kind=kind, subject=subject, q=q, scope=scope)
+        row = self._db.execute('SELECT COUNT(*) AS n FROM memories' + where, params).fetchone()
         return int(row['n'])
+
+    def catalog(self, user_id: str) -> dict[str, object]:
+        """User-scoped filter choices, including custom kinds and older entries."""
+        rows = self._db.execute(
+            'SELECT kind, subject, COUNT(*) AS n FROM memories WHERE user_id = ? GROUP BY kind, subject',
+            (user_id,),
+        ).fetchall()
+        subjects: dict[str, int] = {}
+        personal = 0
+        for row in rows:
+            if row['subject']:
+                subjects[row['subject']] = subjects.get(row['subject'], 0) + row['n']
+            else:
+                personal += row['n']
+        return {'personal': personal, 'projects': sum(subjects.values()),
+                'subjects': [{'name': name, 'count': subjects[name]} for name in sorted(subjects)],
+                'kinds': sorted(set(KINDS) | {row['kind'] for row in rows})}
 
     def _search_indexed(
         self,

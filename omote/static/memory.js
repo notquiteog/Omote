@@ -6,6 +6,33 @@ let editing = null;
 let offset = 0;
 let revision = 0;
 let enabled = false;
+let filterTimer;
+
+function filters() {
+  const params = new URLSearchParams({ limit: '100', scope: $('#mem-scope').value });
+  if ($('#mem-query').value.trim()) params.set('q', $('#mem-query').value.trim());
+  if ($('#mem-filter-kind').value) params.set('kind', $('#mem-filter-kind').value);
+  if ($('#mem-filter-subject').value) params.set('subject', $('#mem-filter-subject').value);
+  return params;
+}
+
+function choices(selector, values, placeholder) {
+  const select = $(selector);
+  const selected = select.value;
+  select.replaceChildren();
+  for (const [value, label] of [['', placeholder], ...values]) {
+    const option = el('option', '', label);
+    option.value = value;
+    select.appendChild(option);
+  }
+  // Keep an active filter even if deleting its final match removed the facet.
+  if (selected && !values.some(([value]) => value === selected)) {
+    const option = el('option', '', selected);
+    option.value = selected;
+    select.appendChild(option);
+  }
+  select.value = selected;
+}
 
 async function request(path, options) {
   const response = await api(`/api/memory${path}`, options);
@@ -27,6 +54,8 @@ function resetForm() {
   $('#mem-save').textContent = 'Add memory';
   $('#mem-save').disabled = !enabled;
   $('#mem-cancel').hidden = true;
+  $('#mem-editor').open = false;
+  $('#mem-editor > summary').textContent = 'Add a memory';
 }
 
 function row(memory) {
@@ -52,6 +81,8 @@ function row(memory) {
     $('#mem-save').textContent = 'Save correction';
     $('#mem-save').disabled = false;
     $('#mem-cancel').hidden = false;
+    $('#mem-editor').open = true;
+    $('#mem-editor > summary').textContent = 'Edit memory';
     $('#mem-text').focus();
   };
   const forget = el('button', 'ghost small forget', 'Forget');
@@ -70,10 +101,17 @@ function row(memory) {
 }
 
 async function load(more = false) {
+  clearTimeout(filterTimer);
   const version = ++revision;
+  const params = filters();
+  params.set('offset', String(more ? offset : 0));
+  $('#mem-list').setAttribute('aria-busy', 'true');
+  $('#mem-more').disabled = true;
   try {
-    const settings = await (await request('/settings')).json();
-    const page = await (await request(`?limit=100&offset=${more ? offset : 0}`)).json();
+    const [settings, page] = await Promise.all([
+      request('/settings').then((res) => res.json()),
+      request(`?${params}`).then((res) => res.json()),
+    ]);
     if (version !== revision) return;
     enabled = settings.enabled;
     $('#mem-enabled').checked = enabled;
@@ -82,25 +120,48 @@ async function load(more = false) {
     $('#mem-save').disabled = !enabled && !editing;
     $('#mem-reembed').disabled = !enabled;
     if (!$('#mem-kind').options.length) {
-      for (const kind of settings.kinds) {
+      for (const kind of page.catalog.kinds) {
         const option = el('option', '', kind);
         option.value = kind;
         $('#mem-kind').appendChild(option);
       }
     }
+    choices('#mem-filter-kind', page.catalog.kinds.map((kind) => [kind, kind]), 'All kinds');
+    choices('#mem-filter-subject', page.catalog.subjects.map(({ name, count }) => [name, `${name} (${count})`]), 'All subjects');
     if (!more) { $('#mem-list').replaceChildren(); offset = 0; }
     $('#mem-list').append(...page.memories.map(row));
     offset += page.memories.length;
-    $('#mem-more').hidden = offset >= page.total;
-    $('#mem-count').textContent = `${page.total} saved · showing ${offset}. ` + (enabled
+    $('#mem-more').hidden = offset >= page.matched;
+    $('#mem-count').textContent = `${page.total} saved · ${page.catalog.personal} about you · ${page.catalog.projects} about projects & subjects. ` + (enabled
       ? 'Recall is on. Automatic capture is ' + (settings.auto_capture ? 'on.' : 'off.')
       : 'Memory is paused. Nothing is captured or recalled; your saved entries remain below.');
+    $('#mem-results').textContent = `Showing ${offset} of ${page.matched} matching memories`;
+    $('#mem-empty').hidden = page.matched !== 0;
+    $('#mem-empty').textContent = page.total
+      ? 'No memories match these filters. Try another search or choose Everything and All subjects.'
+      : 'No memories yet. Add a detail you want Omote to remember.';
     $('#mem-provider').textContent = settings.embedding_model
       ? `Embedding model: ${settings.embedding_model}. Text is sent to your selected embedding connection for indexing and search.`
-      : 'No embedding model selected. Choose one in Connections to save and recall memories.';
+      : 'No embedding model selected. You can save memories locally; choose a connection to enable recall.';
     const index = await (await request('/index')).json();
     if (version === revision) $('#mem-provider').textContent += ` ${index.searchable} indexed · ${index.pending} pending.`;
-  } catch (error) { report(error); }
+  } catch (error) { if (version === revision) report(error); }
+  finally {
+    if (version === revision) {
+      $('#mem-list').setAttribute('aria-busy', 'false');
+      $('#mem-more').disabled = false;
+    }
+  }
+}
+
+function filterChanged() {
+  // Invalidate outstanding pages as soon as typing starts. Old results must
+  // not overwrite the new query during the debounce window.
+  ++revision;
+  clearTimeout(filterTimer);
+  $('#mem-more').hidden = true;
+  $('#mem-results').textContent = 'Searching…';
+  filterTimer = setTimeout(() => load(), 180);
 }
 
 function jsonRequest(method, body) {
@@ -117,11 +178,24 @@ async function settingsChanged() {
 }
 
 export function wireMemory() {
-  $('#open-memory').onclick = () => { load(); $('#memory-dialog').showModal(); };
+  $('#open-memory').onclick = () => {
+    resetForm();
+    $('#mem-status').textContent = '';
+    load();
+    $('#memory-dialog').showModal();
+  };
   $('#mem-close').onclick = () => $('#memory-dialog').close();
   $('#mem-enabled').onchange = settingsChanged;
   $('#mem-auto').onchange = settingsChanged;
   $('#mem-more').onclick = () => load(true);
+  $('#mem-query').oninput = filterChanged;
+  $('#mem-filter-kind').onchange = filterChanged;
+  $('#mem-filter-subject').onchange = filterChanged;
+  $('#mem-scope').onchange = () => {
+    $('#mem-filter-subject').value = '';
+    $('#mem-filter-subject').disabled = $('#mem-scope').value === 'personal';
+    filterChanged();
+  };
   $('#mem-cancel').onclick = resetForm;
   $('#mem-connections').onclick = () => { $('#memory-dialog').close(); showConnections(); };
   $('#mem-form').onsubmit = async (event) => {
@@ -134,7 +208,7 @@ export function wireMemory() {
       }));
       const saved = await response.json();
       $('#mem-status').textContent = saved.indexed === false
-        ? 'Correction saved locally. Its embedding is pending; rebuild when memory and your embedding connection are available.'
+        ? 'Memory saved locally. Recall will be available after indexing; connect an embedding model and index pending memories in Memory settings.'
         : 'Memory saved.';
       resetForm();
       await load();

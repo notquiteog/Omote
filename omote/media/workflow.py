@@ -40,6 +40,12 @@ from omote.media.params import Param
 
 log = logging.getLogger(__name__)
 
+
+def user_directory() -> Path:
+    from omote.config import config
+
+    return config.data_dir / 'workflows'
+
 TOKEN = re.compile(r'%([a-z_]+)%')
 
 # Every token a template may use, and the control it turns into. Adding a row

@@ -341,8 +341,7 @@ async def import_workflow(body: ImportWorkflow) -> dict[str, Any]:
     confirmation: it says which controls the panel will have, and whether the
     importer managed to find the prompt at all.
     """
-    from omote.media.workflow import install
-    from omote.providers.comfyui import WORKFLOW_DIR
+    from omote.media.workflow import install, user_directory
 
     if not body.graph:
         raise HTTPException(status_code=400, detail='the graph is empty — did you use Save (API format)?')
@@ -357,6 +356,6 @@ async def import_workflow(body: ImportWorkflow) -> dict[str, Any]:
     # looks like a connection to reach it would be inventing an address —
     # and an invented address is one that will eventually be dialled.
     try:
-        return install(WORKFLOW_DIR, body.name, body.graph, overrides=body.overrides)
+        return install(user_directory(), body.name, body.graph, overrides=body.overrides)
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f'could not write the template: {exc}') from exc

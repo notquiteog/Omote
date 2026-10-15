@@ -202,15 +202,35 @@ class MemoryService:
 
     # -- writing ------------------------------------------------------------
 
+    async def index_memory(self, user_id: str, memory: Memory) -> bool:
+        """Index a local save; an outage must not lose a user's correction or note."""
+        if not self.settings(user_id).enabled:
+            return False
+        try:
+            self.sync_embedder()
+            name = self.embedder()
+            vectors = await self._embed([memory.text])
+            current = self.store.get(user_id, memory.id)
+            if (current and current.text == memory.text and self.settings(user_id).enabled
+                    and self.embedder() == name):
+                return self.store.set_vector(memory.id, vectors[0], name)
+        except Exception:
+            log.debug('memory saved locally; indexing is pending', exc_info=True)
+        return False
+
     async def remember(
         self, user_id: str, text: str, *, kind: str = 'fact',
         subject: str | None = None, source: str | None = None,
+        automatic: bool = False,
     ) -> Memory | None:
         """Store one thing. Returns None if this person has not opted in."""
         text = text.strip()
         if not text:
             return None
-        if not self.store.settings(user_id).enabled:
+        settings = self.settings(user_id)
+        if not settings.enabled or (automatic and not settings.auto_capture):
+            return None
+        if automatic and self.store.has_text(user_id, text, subject=subject):
             return None
 
         # Before the write rather than after: a row written under the store's
@@ -224,14 +244,19 @@ class MemoryService:
             return None
 
         # Consent can change while the embedding request is in flight.
-        if not self.store.settings(user_id).enabled or self.embedder() != embedding_name:
+        settings = self.settings(user_id)
+        if (not settings.enabled or (automatic and not settings.auto_capture)
+                or self.embedder() != embedding_name):
+            return None
+        if automatic and self.store.has_text(user_id, text, subject=subject):
             return None
         return self.store.add(
             user_id, text, vectors[0], kind=kind, subject=subject, source=source,
             embedder=embedding_name,
         )
 
-    async def capture(self, user_id: str, text: str, *, source: str | None = None) -> list[Memory]:
+    async def capture(self, user_id: str, text: str, *, source: str | None = None,
+                      subject: str | None = None) -> list[Memory]:
         """Automatic capture from a conversation, if that too is switched on.
 
         Deliberately conservative. Only sentences that read like a durable fact
@@ -247,7 +272,11 @@ class MemoryService:
         # conversation's worth of opinion.
         out: list[Memory] = []
         for line in _candidate_facts(text)[:3]:
-            memory = await self.remember(user_id, line, kind='episode', source=source)
+            line = ' '.join(line.split())
+            project = subject if _PROJECT_FACT.search(line) else None
+            kind = 'project' if project else ('preference' if _PREFERENCE.search(line) else 'fact')
+            memory = await self.remember(user_id, line, kind=kind, subject=project,
+                                         source=source, automatic=True)
             if memory:
                 out.append(memory)
         return out
@@ -364,6 +393,11 @@ _FACT_PATTERNS = [
 _TRANSIENT = re.compile(
     r'\b(?:today|right now|at the moment|currently|just now|this (?:morning|afternoon|time))\b', re.I
 )
+
+# Attach explicitly project-related statements to the active working folder;
+# personal preferences stay useful across projects.
+_PROJECT_FACT = re.compile(r'\b(?:project|repository|repo|codebase|deploy(?:ment)?|staging|database)\b', re.I)
+_PREFERENCE = re.compile(r'\b(?:prefer|always|never|usually|like|hate)\b', re.I)
 
 
 def _candidate_facts(text: str) -> list[str]:

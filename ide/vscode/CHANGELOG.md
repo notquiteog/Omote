@@ -3,6 +3,12 @@
 Versions follow the daemon's, because a panel that says 0.6.1 against a 0.6.0
 daemon is a support question nobody should have to ask.
 
+## 0.9.0
+
+- Match the daemon and desktop 0.9.0 release.
+- Support the current daemon protocol, lazy tool discovery and managed local-model tool cards.
+- Studio model/workflow downloads, Brain and system monitoring are available in the desktop/web workspace.
+
 ## 0.8.1
 
 - Package the Omote release after correcting the daemon CI image-test dependency.

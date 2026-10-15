@@ -1,48 +1,46 @@
-## Omote 0.8.1
+## Omote 0.9.0
 
-This release introduces the Omote name and folded O identity across the desktop,
-web workspace, startup screen, installer icons and VS Code extension.
+### Managed local models
 
-### Creative workspace
+- Download verified GGUF chat models with persistent cancel/resume, SHA-256 checks,
+  disk/RAM/VRAM preflight, and explicit GPU or CPU mode.
+- Install a pinned llama.cpp runtime, start or stop an owned local server, and use
+  a downloaded model directly in chat. Private runtime credentials, process recovery
+  and actual context-window limits keep local sessions predictable.
+- Studio’s Models & workflows library manages ComfyUI safetensors and JSON workflow
+  downloads, live node/model compatibility checks, native workflow exports and
+  Workbench imports. An SD Turbo starter recipe preserves its sampling defaults.
+- ComfyUI needs an existing installation and the one-time managed model-path setup
+  shown in Studio. Downloads use the network; inference stays on the selected backend.
 
-- Full connected ComfyUI editor, including Nodes 2.0 when supported by the installed
-  frontend, plus an optional bridge for capturing and restoring complete graphs.
-- Workflow versions, project labels, installed-node validation, API input inspection,
-  run history and imports of finished outputs into the local asset library.
-- Reusable character profiles, ordered identity references and continuity notes.
-  Reference selection follows the chosen model's declared image inputs.
-- Image/video assets and self-contained GLB, GLTF, OBJ and STL previews with orbit,
-  wireframe, animation playback, provenance and library export.
-- PhotoCraft integration for layered editing through its separately installed CLI.
+### Workspace improvements
 
-### Agent and workspace improvements
+- Lazy tool discovery loads optional schemas only when needed, with a bounded cache
+  that preserves toolset restrictions and approval rules.
+- A simpler Brain interface for viewing, creating, editing, deleting and exporting
+  memories, with improved automatic capture, filtering and duplicate handling.
+- Live CPU, RAM, disk and supported GPU monitoring, plus per-command root/admin
+  access through native Linux, macOS and Windows authentication paths.
+- More space for the native ComfyUI editor, a collapsible workbench, focus mode,
+  responsive Studio controls, and connection, voice and provider fixes.
 
-- Browser-based employee portals, email, travel and personal-assistant workflows,
-  multilingual action recognition, native dropdowns and clearer confirmations.
-- Inspectable, editable and exportable user/project memory with separate embeddings.
-- Codex-style workspace, accessible mobile navigation, nine companions and improved
-  companion behavior. The selected companion no longer replaces the app identity.
-- Configurable STT/LLM/TTS voice and the OpenAI Realtime API integration.
-- More robust MCP handling for large image previews and malformed responses.
+### Verification and setup
 
-### Setup and upgrading
+The local regression suite passed 2,716 tests with five skipped, followed by
+focused checks for final workflow defaults and exports. Real Linux RTX 5060 Ti
+checks covered Qwen chat, interrupted/resumed model downloads and 512 × 512 image
+creation through Studio and ComfyUI. Native macOS/Windows GPU inference and admin
+prompts still need verification on user hardware; installer smoke tests run in CI.
 
-Back up your existing data folder and stop the previous app before changing paths.
-The executable/package is now `omote`, the MCP command is `omote-mcp`, and settings
-use `OMOTE_` / `omote.*`. Set `OMOTE_DATA_DIR` to the existing data folder to retain
-sessions, media and memories. The desktop app's default state folder is `~/.omote`.
-Review launch scripts and browser-local preferences after upgrading.
+Model weights, ComfyUI/custom nodes, PhotoCraft and external provider accounts are
+separate downloads or services. SD Turbo is labeled for non-commercial research;
+review each model publisher’s license. Automatic multi-file diffusion dependency
+installation is not included. Optional native browser automation needs a separately
+installed `omote[browser]` daemon and `playwright install chromium`.
 
-Model providers, ComfyUI/custom nodes, PhotoCraft and external accounts are separate
-services. This installer does not bundle model weights or credentials. Native
-Playwright browser tools currently require a separately installed `omote[browser]`
-daemon and `playwright install chromium`; start that daemon before opening the
-app so the app attaches to it. Voice needs microphone access; Live uses OpenAI API
-access, not a ChatGPT subscription.
-
-See [Workspace setup](https://github.com/notquiteog/Omote/blob/v0.8.1/docs/WORKSPACE.md),
-[Creative workspace](https://github.com/notquiteog/Omote/blob/v0.8.1/docs/CREATIVE.md),
-and [Business workflows](https://github.com/notquiteog/Omote/blob/v0.8.1/docs/BUSINESS.md).
+See [Workspace setup](https://github.com/notquiteog/Omote/blob/v0.9.0/docs/WORKSPACE.md),
+[Creative workspace](https://github.com/notquiteog/Omote/blob/v0.9.0/docs/CREATIVE.md),
+and [Capability audit](https://github.com/notquiteog/Omote/blob/v0.9.0/docs/CAPABILITIES.md).
 
 Each installer contains the Omote app and its daemon, with its own Python runtime. Optional tools and services have the setup requirements above. It keeps its data, its logs and an optional `.env` in `~/.omote`. If a daemon is already running on port 8477, one you started yourself, the app uses that one and leaves it running when it quits.
 

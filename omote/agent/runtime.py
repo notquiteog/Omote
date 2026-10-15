@@ -67,7 +67,7 @@ TOOLSETS: dict[str, tuple[str, ...]] = {
                 'browser_screenshot', 'browser_hand_over'),
     'desktop': ('desktop_screenshot', 'desktop_click', 'desktop_type', 'desktop_key',
                 'desktop_scroll'),
-    'system': ('system_info', 'package_search', 'package_install', 'package_remove',
+    'system': ('system_info', 'system_usage', 'local_models', 'package_search', 'package_install', 'package_remove',
                'display_info', 'display_hdr'),
     'media': ('media_params', 'generate_image', 'generate_video', 'generate_music',
               'media_job', 'import_workflow', 'edit_media', 'photocraft', 'creative_library'),
@@ -98,14 +98,15 @@ def resolve_toolset(names: list[str]) -> set[str] | None:
 
 
 def default_tools() -> list[Tool]:
-    from omote.agent.tools.photocraft import PhotoCraftTool
-    from omote.agent.tools.schedule import ScheduleTool
-    from omote.creative.tools import creative_tools
+    from omote.agent.tools.discovery import LazyTool
 
     return [
-        PhotoCraftTool(),
-        ScheduleTool(),
-        *creative_tools(),
+        LazyTool('photocraft', 'Edit layered images and inspect PhotoCraft installation and commands.',
+                 'omote.agent.tools.photocraft', 'PhotoCraftTool'),
+        LazyTool('schedule', 'Create, list, update, pause or cancel recurring scheduled tasks and automations.',
+                 'omote.agent.tools.schedule', 'ScheduleTool'),
+        LazyTool('creative_library', 'Manage characters, reference images, creative assets and saved recipes.',
+                 'omote.creative.tools', 'CreativeLibraryTool'),
         ReadTool(),
         ReadFilesTool(),
         WriteTool(),
@@ -402,12 +403,12 @@ def build_session(
     if policy.mode is Mode.READ_ONLY:
         chosen = [t for t in chosen if t.name not in FILE_WRITERS]
 
-    # Memory is added as tools and as a per-turn hook, and only when this
-    # person has switched it on — so a model in a session without memory is
-    # never shown a `remember` tool it will be refused for using.
+    # Hooks check consent each turn; tools check it before being offered.
+    # Register them even while paused so enabling Brain works in the current
+    # chat, and disabling it hides its tools without requiring a new session.
     context_provider = None
     on_user_text = None
-    if memory is not None and user_id and memory.settings(user_id).enabled:
+    if memory is not None and user_id:
         from omote.agent.tools.memory import RecallTool, RememberTool
 
         chosen = [*chosen, RememberTool(memory, user_id), RecallTool(memory, user_id)]
@@ -416,7 +417,7 @@ def build_session(
             return await memory.context_for(user_id, text)
 
         async def on_user_text(text: str) -> None:  # noqa: F811
-            await memory.capture(user_id, text, source='chat')
+            await memory.capture(user_id, text, source='chat', subject=str(root_path))
 
     if web is not None:
         chosen = [*chosen, *web_tools(web)]

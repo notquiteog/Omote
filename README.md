@@ -4,15 +4,19 @@
 
 The desktop workspace includes chat and coding tools, browser and computer control,
 background workers, image/video generation, and two voice pipelines. **Studio →
-Advanced · ComfyUI** opens your connected ComfyUI installation's full graph editor,
+ComfyUI editor** opens your connected ComfyUI installation's full graph editor,
 including Nodes 2.0 when supported by that installation. The workbench adds saved
 versions, version comparison, schema validation, run history, and output imports. **Characters & assets**
 keeps reusable character references, generation recipes, and interactive 3D previews.
+The canvas fills the workspace; **Workflow library** opens optional version and
+API controls, and **Focus mode** gives the native editor the full window.
 PhotoCraft, email, and browser-based employee portals are available to the agent;
 see [Creative workspace](docs/CREATIVE.md) and [Business workflows](docs/BUSINESS.md).
-**Memory** lets you inspect,
-correct, export, or delete remembered user and project information, including while
-memory is paused. The default appearance follows the system with a Codex-style sidebar,
+**Brain** lets you search, filter, add,
+correct, export, or delete remembered user and project information. Inspection and
+corrections work while memory is paused. Manual additions save locally even when
+the embedding connection is unavailable; recall starts after indexing.
+The default appearance follows the system with a Codex-style sidebar,
 task starters, and composer. See [Workspace setup](docs/WORKSPACE.md) for the required
 connections and the boundaries of each integration.
 
@@ -324,9 +328,23 @@ Two failures it avoids by construction. A package manager asked to install
 something interactively stops at *"Do you want to continue? [Y/n]"* in a
 terminal nobody is reading, so every one of them is invoked non-interactively
 with stdin closed. And `sudo` on a machine that wants a password does not
-fail — it blocks forever on a prompt going nowhere — so the elevation route is
-worked out first and a system-wide install is *refused*, naming the per-user
-alternative, when there is no way to become root without a person.
+fail — it blocks on a prompt going nowhere — so elevated commands use
+passwordless sudo or a native OS authentication dialog (Linux polkit, macOS,
+Windows UAC). The shell's `elevated: true` option supports coding and tools
+that need root/admin access too. Approval still applies, passwords stay with
+the OS, and a worker handles output, deadlines and cancellation. Without an
+available elevation route it fails with setup guidance. See [platform notes](docs/INSTALL.md#platform-notes).
+
+**System** in the sidebar shows live CPU, RAM, disk, supported GPU/VRAM telemetry,
+common local runtimes, and active background chat work. The agent can discover
+`system_usage` before downloading models or starting demanding local jobs.
+The monitor polls only while visible. **System → Local models** installs a verified
+llama.cpp runtime, downloads GGUF models with cancel/resume across restarts, checks
+disk/RAM/VRAM estimates, and provides **Start → Use in chat → Stop**. Two official
+Qwen starter models are included; other public GGUF files can be added with their
+published checksum and size. The agent can discover `local_models` for the same
+operations under normal approvals. See [local model setup](docs/WORKSPACE.md#local-tools-and-system-usage)
+for platform support, storage, recovery and the tested NVIDIA GPU flow.
 
 On an immutable system — SteamOS, Silverblue, anything ostree — the system
 package managers are present and will not work. The tool says so and points at
@@ -795,13 +813,19 @@ the only part worth automating past "fill in the form" is the part that spends
 money, and a vendor API for it would be a much larger thing to get right than
 a click on the page the hotel already has.
 
-ComfyUI generation in the simple Studio form needs a workflow template per model, and none
-ship — but bringing one is now a command rather than an editing job: export
+ComfyUI generation in the simple Studio form needs a workflow template per model.
+To bring your own, export
 your graph with **Save (API format)**, import it, and the prompt, seed, size
 and sampler settings are found and turned into controls, with a list of what
-it found so you can see whether it worked. None ship because a template names
-the checkpoints and custom nodes *your* ComfyUI has; one written here would
-fail at the queue with an error about a missing key.
+it found so you can see whether it worked. A template needs the checkpoints and
+custom nodes installed on your connected ComfyUI server.
+
+Studio’s **Models & workflows** library manages ComfyUI safetensors and workflow
+JSON downloads with cancel/resume, SHA-256 verification, disk checks and live
+node/model compatibility checks. It includes an SD Turbo recipe; connect the
+managed model folders to your ComfyUI installation before using it. See
+[managed ComfyUI assets](docs/WORKSPACE.md#managed-comfyui-assets).
+
 The advanced Studio workspace uses ComfyUI's native frontend directly; build or
 load standard workflow JSON there, including graphs using custom nodes and Nodes
 2.0. Hosted image/video providers do not require ComfyUI workflows.

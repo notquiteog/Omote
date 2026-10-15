@@ -42,6 +42,8 @@ import { wireComfyUI } from './comfyui.js';
 import { wireWorkbench } from './workbench.js';
 import { wireCreative } from './creative.js';
 import { wireMemory } from './memory.js';
+import { wireSystem } from './system.js';
+import { wireLocalModels } from './local-models.js';
 import { Voice } from './voice.js';
 import { attach as attachAutopilot, narrate, reattach as reattachAutopilot, wireAutopilot } from './autopilot.js';
 
@@ -419,6 +421,7 @@ function renderDiff(text) {
    skimming a transcript is actually reading for. Anything not listed falls
    back to its own name in monospace, which is honest about being a tool. */
 const VERBS = {
+  find_tools: 'Prepared tools',
   schedule: 'Updated scheduled work',
   read_file: 'Read',
   read_files: 'Read',
@@ -466,6 +469,8 @@ const VERBS = {
   desktop_key: 'Pressed',
   desktop_scroll: 'Scrolled',
   system_info: 'Checked the machine',
+  system_usage: 'Checked system usage',
+  local_models: 'Managed local models',
   package_search: 'Looked for',
   package_install: 'Installed',
   package_remove: 'Removed',
@@ -1959,10 +1964,10 @@ async function loadProviders() {
   const chat = (data.capabilities || {}).chat || [];
   chatReady = chat.length > 0;
   updateSetup(data);
+  $('#input').placeholder = chatReady || state.sessionId ? 'Ask Omote anything…' : 'Connect an AI provider to start chatting';
   if (!state.sessionId) {
     $('#input').disabled = !chatReady;
     $('#send').disabled = !chatReady;
-    $('#input').placeholder = chatReady ? 'Ask Omote anything…' : 'Connect an AI provider to start chatting';
     $('#session-title').textContent = 'New chat';
     $('#link').textContent = chatReady ? 'ready' : 'setup needed';
     $('#link').className = `pill ${chatReady ? 'on' : 'off'}`;
@@ -2354,7 +2359,7 @@ function wireMobileNavigation() {
   sidebar.addEventListener('click', (event) => {
     if (!open) return;
     const action = event.target.closest('[data-mode], #nav-new, #new-session, #nav-rewind, #nav-review, '
-      + '#open-memory, #open-schedules, #open-settings, #worktree-open, #hooks-open, #sessions li[aria-current]');
+      + '#open-memory, #open-schedules, #open-system, #open-settings, #worktree-open, #hooks-open, #sessions li[aria-current]');
     if (action && !action.disabled) queueMicrotask(() => {
       const dialog = document.querySelector('dialog[open]');
       if (dialog) dialog.addEventListener('close', () => {
@@ -2413,8 +2418,26 @@ function wireModeLifecycle() {
 wire();
 wireMobileNavigation();
 wireMemory();
-wireComfyUI();
+wireLocalModels({ onUse: async (provider, model, label) => {
+  const response = await api('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider, model, title: label, mode: 'ask', effort: preferredEffort() }) });
+  if (!response?.ok) throw new Error('Could not create the local chat. Check that the runtime is running.');
+  const session = await response.json();
+  go('chat'); openSession({ ...session, policy: 'ask' });
+  await loadProviders(); await loadSessions();
+  $('#input').focus();
+} });
+wireSystem({
+  onPlan: () => {
+    go('chat');
+    if (!$('#input').value.trim()) $('#input').value = 'Help me set up a local model or creative tool. First check my system resources and installed runtimes, then ask what I want to run and show the download size, requirements, and setup plan.';
+    $('#input').dispatchEvent(new Event('input', { bubbles: true }));
+    $('#input').focus();
+  },
+  onOpenChat: async id => { await selectSession(id); go('chat'); },
+});
 wireWorkbench();
+wireComfyUI();
 wireCreative();
 for (const starter of document.querySelectorAll('[data-start]')) {
   starter.onclick = () => {

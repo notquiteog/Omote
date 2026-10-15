@@ -101,6 +101,7 @@ def test_comfy_version_comparison_includes_seed_and_escapes_prompt(workspace):
     assert page.request.post(base + '/' + job['id'] + '/versions', data={'name': 'Character portrait', 'prompt': prompt, 'base_revision': 1}).ok
     page.locator('#start-studio').click()
     page.locator('#studio-graph').click()
+    page.locator('#comfy-library-toggle').click()
     page.locator('.wb-saved').click()
     page.get_by_text('Compare saved versions', exact=True).click()
     page.locator('#wb-compare').click()

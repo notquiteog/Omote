@@ -22,7 +22,12 @@ if getattr(sys, 'frozen', False) and sys.platform.startswith('linux'):
     else:
         os.environ['LD_LIBRARY_PATH'] = original
 
-from omote.main import main  # noqa: E402 - after the environment is put right
-
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) == 4 and sys.argv[1] == '--elevated-worker':
+        from omote.elevation import worker_main
+
+        worker_main(sys.argv[2], sys.argv[3])
+    else:
+        from omote.main import main
+
+        main()

@@ -91,6 +91,60 @@ def test_pages_and_export_include_every_memory(environment):
     assert client.get('/api/memory?limit=-1').status_code == 422
 
 
+def test_brain_filters_search_all_pages_and_count_only_matches(environment):
+    client, svc, embedder = environment
+    for i in range(105):
+        svc.store.add_pending('alice', f'Detail {i}', kind='project', subject='demo')
+    svc.store.add_pending('alice', 'I prefer 100% zoom_', kind='preference')
+    svc.store.add_pending('alice', 'Custom category', kind='decision', subject='other')
+    svc.store.add_pending('bob', 'hidden', kind='secret', subject='private')
+    page = client.get('/api/memory', params={'q': 'detail', 'subject': 'demo', 'limit': 100}).json()
+    assert len(page['memories']) == 100
+    assert page['total'] == 107 and page['matched'] == 105
+    second = client.get('/api/memory', params={'q': 'detail', 'subject': 'demo', 'offset': 100}).json()
+    assert len(second['memories']) == 5
+    assert not ({m['id'] for m in page['memories']} & {m['id'] for m in second['memories']})
+    assert page['catalog']['subjects'] == [{'name': 'demo', 'count': 105}, {'name': 'other', 'count': 1}]
+    assert page['catalog']['personal'] == 1 and page['catalog']['projects'] == 106
+    assert 'decision' in page['catalog']['kinds'] and 'secret' not in page['catalog']['kinds']
+    personal = client.get('/api/memory?scope=personal&kind=preference').json()
+    assert personal['matched'] == 1 and personal['memories'][0]['subject'] is None
+    assert client.get('/api/memory?scope=projects').json()['matched'] == 106
+    assert client.get('/api/memory', params={'q': '%'}).json()['matched'] == 1
+    assert client.get('/api/memory', params={'q': "' OR 1=1 --"}).json()['matched'] == 0
+    assert client.get('/api/memory?scope=invalid').status_code == 422
+    assert embedder.calls == 0
+    assert all(m.hits == 0 for m in svc.store.list('alice'))
+
+
+def test_manually_created_memory_survives_outage_and_later_indexes(environment):
+    client, svc, embedder = environment
+    svc.set_settings('alice', enabled=True, auto_capture=False)
+    embedder.fail = True
+    response = client.post('/api/memory', json={'text': 'Saved offline', 'subject': ' demo '})
+    assert response.status_code == 200
+    assert response.json()['indexed'] is False
+    assert response.json()['subject'] == 'demo'
+    ident = response.json()['id']
+    assert svc.store.get('alice', ident).text == 'Saved offline'
+    assert svc.index_state().pending == 1
+    assert not svc.store.search('alice', [1., .5, .25], min_score=0)
+    embedder.fail = False
+    assert client.post('/api/memory/index/reembed').json() == {'embedded': 1, 'failed': 0}
+    assert svc.store.search('alice', [1., .5, .25], min_score=0)[0].id == ident
+
+
+def test_manual_save_with_no_embedding_provider_is_kept_locally(environment):
+    client, svc, embedder = environment
+    svc.registry = ProviderRegistry()
+    svc.set_settings('alice', enabled=True, auto_capture=False)
+    response = client.post('/api/memory', json={'text': 'A durable detail', 'subject': '   '})
+    assert response.status_code == 200 and response.json()['indexed'] is False
+    assert response.json()['subject'] is None
+    assert svc.index_state().pending == 1
+    assert embedder.calls == 0
+
+
 def test_wrong_user_and_invalid_input_are_rejected(environment):
     client, svc, _ = environment
     other = svc.store.add('bob', 'private fact', [1., .5, .25])

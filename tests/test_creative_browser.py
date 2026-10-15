@@ -169,8 +169,24 @@ def make_character(page):
 def workbench(page):
     page.locator('[data-mode="studio"]').click()
     page.locator('#studio-graph').click()
+    page.locator('#comfy-library-toggle').click()
     playwright.expect(page.locator('#comfy-tools')).to_be_visible()
     page.locator('#comfy-provider').select_option('comfy-test')
+
+
+def test_native_workflow_import_from_generate_keeps_the_editor_graph(creative_workspace):
+    page, _, received = creative_workspace
+    expect = playwright.expect
+    page.locator('#start-studio').click()
+    page.locator('#studio-workflow').set_input_files({
+        'name': 'native-workflow.json', 'mimeType': 'application/json',
+        'buffer': json.dumps(GRAPH).encode(),
+    })
+    expect(page.locator('#comfy-workspace')).to_be_visible()
+    expect(page.locator('#comfy-tools')).to_be_visible()
+    expect(page.locator('#wb-name')).to_have_value('native-workflow')
+    expect(page.locator('#wb-node-count')).to_contain_text('editor nodes')
+    assert not received, 'importing a native graph must not run it'
 
 
 def import_workflow(page):

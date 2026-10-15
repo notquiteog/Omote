@@ -450,8 +450,8 @@ def test_the_narrowable_list_only_names_safety_settings():
 
 
 def test_session_config_keeps_paths_usable_after_environment_overrides(tmp_path, monkeypatch):
-    from omote.config import Config
     from omote import settings
+    from omote.config import Config
 
     monkeypatch.setattr(settings, 'PERSONAL', tmp_path / 'no-personal-settings.json')
     base = Config(browser_profile=tmp_path / 'original-profile', browser_enabled=False)
@@ -468,8 +468,8 @@ def test_session_config_keeps_paths_usable_after_environment_overrides(tmp_path,
 
 
 def test_session_config_converts_personal_boolean_strings(tmp_path, monkeypatch):
-    from omote.config import Config
     from omote import settings
+    from omote.config import Config
 
     personal = write(tmp_path, 'personal.json', {'browser_enabled': 'false'})
     monkeypatch.setattr(settings, 'PERSONAL', personal)

@@ -21,10 +21,12 @@ from omote.routers import agent as agent_router
 from omote.routers import auth as auth_router
 from omote.routers import autopilot as autopilot_router
 from omote.routers import browser as browser_router
+from omote.routers import comfy_assets as comfy_assets_router
 from omote.routers import comfyui as comfyui_router
 from omote.routers import creative as creative_router
 from omote.routers import git as git_router
 from omote.routers import history as history_router
+from omote.routers import local_models as local_models_router
 from omote.routers import mail as mail_router
 from omote.routers import mcp as mcp_router
 from omote.routers import media as media_router
@@ -33,6 +35,7 @@ from omote.routers import providers as providers_router
 from omote.routers import realtime as realtime_router
 from omote.routers import schedules as schedules_router
 from omote.routers import search as search_router
+from omote.routers import system as system_router
 from omote.routers import updates as updates_router
 from omote.routers import voice as voice_router
 from omote.routers import workbench as workbench_router
@@ -198,7 +201,16 @@ async def lifespan(app: FastAPI):
                                         finish_session=finish_scheduled_session)
     schedules_router.service.start()
     app.state.scheduler = schedules_router.service
+    from omote.local_models.service import LocalModels
+
+    try:
+        local_models_router.service = LocalModels(config.data_dir / 'local-models', registry)
+    except (OSError, ValueError):
+        log.exception('Local model management could not start')
     yield
+    if local_models_router.service:
+        await local_models_router.service.close()
+        local_models_router.service = None
     await schedules_router.service.stop()
     schedules_router.service.store.close()
     schedules_router.service = None
@@ -265,14 +277,17 @@ app.include_router(agent_router.http)
 # `/api/sessions` prefix, the same stored transcripts, the same 404 for an id
 # nothing has heard of.
 app.include_router(history_router.router)
+app.include_router(local_models_router.router)
 app.include_router(voice_router.router)
 app.include_router(providers_router.router)
 app.include_router(memory_router.router)
 app.include_router(media_router.router)
 app.include_router(comfyui_router.router)
+app.include_router(comfy_assets_router.router)
 app.include_router(workbench_router.router)
 app.include_router(creative_router.router)
 app.include_router(search_router.router)
+app.include_router(system_router.router)
 app.include_router(schedules_router.router)
 app.include_router(browser_router.router)
 app.include_router(updates_router.router)

@@ -579,6 +579,8 @@ class ShellTool(Tool):
     description = (
         'Run a shell command on the machine and return its output. '
         'Use this for builds, tests, git, package managers and anything else with a CLI. '
+        'Set elevated=true only when root/administrator access is needed. It uses native '
+        'Linux polkit/sudo, macOS authentication or Windows UAC; never ask for passwords in chat. '
         'Prefer the dedicated file tools for reading and editing files: they are cheaper and '
         'their results are easier to act on.'
     )
@@ -599,6 +601,11 @@ class ShellTool(Tool):
                     'when it finishes.'
                 ),
             },
+            'elevated': {
+                'type': 'boolean',
+                'description': 'Run this command with root/admin privileges through OS authentication. '
+                               'Foreground only, with timeout and streamed output. Approval still applies.',
+            },
         },
         'required': ['command'],
     }
@@ -608,11 +615,24 @@ class ShellTool(Tool):
         self.max_output = max_output
 
     def assess(self, args: dict[str, Any], ctx: ToolContext) -> Assessment:
+        if 'elevated' in args and type(args['elevated']) is not bool:
+            return Assessment(risk=Risk.EXECUTE, summary='', invalid='elevated must be true or false')
         command = (args.get('command') or '').strip()
         if not command:
             return Assessment(risk=Risk.READ, summary='', invalid='command is required')
 
         risk, why = classify(command)
+        if args.get('elevated'):
+            if len(command.encode()) > 64_000:
+                return Assessment(risk=Risk.EXECUTE, summary='', invalid='Elevated command is too long (maximum 64 KB).')
+            if 'timeout' in args and (type(args['timeout']) is not int or not 1 <= args['timeout'] <= 1800):
+                return Assessment(risk=Risk.EXECUTE, summary=command, invalid='timeout must be an integer from 1 to 1800 seconds')
+            if args.get('background'):
+                return Assessment(risk=Risk.EXECUTE, summary=command,
+                                  invalid='Elevated commands must run in the foreground with a timeout.')
+            if risk in (Risk.READ, Risk.WRITE, Risk.NETWORK):
+                risk = Risk.EXECUTE
+            why = 'administrator access; ' + why
 
         # A command naming a path outside the root is never a plain read,
         # however innocent the verb. Without this, `cat /etc/shadow` grades as
@@ -642,6 +662,14 @@ class ShellTool(Tool):
         cwd = resolve_in_root(args['cwd'], ctx) if args.get('cwd') else ctx.cwd
         if not cwd.is_dir():
             raise ToolError(f'{cwd}: not a directory')
+
+        if args.get('elevated'):
+            if args.get('background'):
+                raise ToolError('Elevated commands must run in the foreground with a timeout.')
+            from omote.elevation import run_admin
+
+            timeout = max(1, min(int(args.get('timeout') or self.default_timeout), 1800))
+            return await run_admin(command, cwd, timeout, ctx, self.max_output)
 
         if args.get('background'):
             if ctx.tasks is None:

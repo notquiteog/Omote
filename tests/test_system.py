@@ -75,7 +75,7 @@ def test_this_machine_detects_as_something_coherent():
     host = detect()
     assert host.system in ('linux', 'windows', 'darwin')
     assert host.elevation in (
-        'root', 'sudo-nopasswd', 'pkexec', 'sudo-password', 'uac', 'none',
+        'root', 'sudo-nopasswd', 'pkexec', 'sudo-password', 'uac', 'none', 'macos-auth',
     )
     for manager in host.managers:
         assert manager.scope in ('system', 'user')

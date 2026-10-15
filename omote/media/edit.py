@@ -447,9 +447,13 @@ def _contact_sheet(Image: Any, source: str, count: int) -> Any:
 def pathlib_target(name: str) -> str:
     import os  # noqa: PLC0415
     import tempfile  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
 
-    scratch = tempfile.gettempdir()
-    return os.path.join(scratch, f'omote-{name}')
+    # `name` may be an absolute target path. Prefixing it produced a missing
+    # /tmp/omote-/full/path tree, and shared basenames could also collide.
+    descriptor, path = tempfile.mkstemp(prefix='omote-', suffix=Path(name).suffix)
+    os.close(descriptor)
+    return path
 
 
 def pathlib_unlink(path: str) -> None:

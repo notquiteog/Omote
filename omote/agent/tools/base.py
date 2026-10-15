@@ -129,6 +129,10 @@ class Tool(abc.ABC):
     description: str
     input_schema: dict[str, Any]
 
+    def available(self) -> bool:
+        """Whether this tool can be offered under its current live settings."""
+        return True
+
     @abc.abstractmethod
     def assess(self, args: dict[str, Any], ctx: ToolContext) -> Assessment: ...
 

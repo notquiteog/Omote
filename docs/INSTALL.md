@@ -191,8 +191,7 @@ vectors of different widths are not comparable. See
 
 ## Platform notes
 
-The shell tool is the only part that has to care which system it is on, and
-it is written for all three:
+The shell and package tools support Linux, macOS and Windows:
 
 * Commands run in their own process group — `start_new_session` on POSIX,
   `CREATE_NEW_PROCESS_GROUP` on Windows — so a timeout or an interrupt reaches
@@ -208,6 +207,42 @@ it is written for all three:
 * PowerShell cmdlet names are matched case-insensitively; POSIX command names
   are not, because lower-casing `LS` into `ls` would grade an unknown binary
   as a known-safe read.
+
+For a command that needs root/admin access, the agent calls `shell` with
+`elevated: true`. The ordinary risk classifier still applies: elevation has a
+minimum risk of `execute`, destructive commands stay destructive, and read-only
+mode refuses it. The approval summary explicitly says administrator access.
+System package installs/removals use the same elevated worker; user package
+managers such as Homebrew and user Flatpak remain per-user.
+
+Elevation uses these OS facilities:
+
+* Linux: existing root privileges, `sudo -n` when authorized without a password,
+  or [pkexec with a desktop polkit authentication agent](https://polkit.pages.freedesktop.org/polkit/pkexec.1.html).
+  Headless machines without passwordless sudo must arrange access outside chat.
+* macOS: existing root/passwordless sudo, otherwise Apple's
+  [administrator authentication dialog](https://developer.apple.com/library/archive/documentation/AppleScript/Conceptual/AppleScriptLangGuide/reference/ASLR_cmds.html)
+  through `osascript`.
+* Windows: existing administrator privileges, otherwise
+  [PowerShell Start-Process -Verb RunAs](https://learn.microsoft.com/powershell/module/Microsoft.PowerShell.Management/Start-Process)
+  invokes UAC. PowerShell must be available.
+
+Passwords are never collected in chat, arguments or files. Elevation applies to
+one foreground command, with streamed output and a 1–1800 second deadline;
+it does not elevate the entire Omote daemon. A short-lived worker receives the
+approved command over an authenticated loopback connection and stops its command
+when interrupted or disconnected. Native authentication has a separate two-minute
+deadline. Commands deliberately detached into OS services need that service's own
+stop command. Desktop OS permissions such as macOS Accessibility and Screen Recording
+remain separate. Root access does not override immutable filesystems or OS protections.
+
+Linux root execution and NVIDIA CUDA scaling/NVENC encoding have been smoke-tested
+on an RTX 5060 Ti host. Automated tests cover policy enforcement, worker output,
+timeouts, disconnect cancellation, quoting and all native launch routes. macOS and
+Windows authentication dialogs still need verification on those operating systems.
+
+**System** in the sidebar shows CPU, RAM, disk, supported GPU telemetry, common
+local runtimes and active background chat work. See [workspace setup](WORKSPACE.md#local-tools-and-system-usage).
 
 ## Running it as a service
 

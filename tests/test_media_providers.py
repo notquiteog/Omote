@@ -741,7 +741,7 @@ def test_what_a_clip_is_gets_reported_before_it_is_trimmed(tmp_path):
     from omote.media.edit import probe
 
     found = probe(str(_clip(tmp_path)))
-    assert found['duration'] > 3
+    assert 1.9 <= found['duration'] <= 2.1
     assert found['has_video'] and found['has_audio']
 
 

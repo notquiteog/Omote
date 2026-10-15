@@ -13,11 +13,10 @@ to install something interactively stops at "Do you want to continue? [Y/n]"
 and sits there until the tool times out, in a terminal nobody is reading. Every
 manager here is invoked with its own non-interactive flag.
 
-**It refuses rather than hangs when it cannot elevate.** `sudo` on a machine
-that wants a password will not fail — it will block on a prompt going nowhere.
-That is worse than an error, so the elevation route is worked out first and a
-system-wide install is refused, with the per-user alternative named, when
-there is no way to become root without a person.
+**It uses native authentication rather than a terminal password prompt.**
+System installs/removals share the shell's bounded elevated worker, using sudo,
+desktop polkit, macOS authentication or Windows UAC. Missing routes fail with
+setup guidance; passwords never pass through the chat.
 
 **It will not fight an immutable system.** On SteamOS and the ostree family
 the root filesystem is read-only by design, and an agent that meets `apt` failing
@@ -28,6 +27,10 @@ Something tells it not to.
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
+import shlex
+import subprocess
 from typing import Any
 
 from omote.agent.tools.base import Assessment, Output, Tool, ToolContext, ToolError, truncate
@@ -37,6 +40,28 @@ from omote.system import Manager, Platform, detect, recipe_for, route_for
 # Installing a large package is minutes, not seconds.
 INSTALL_TIMEOUT = 900
 SEARCH_TIMEOUT = 120
+
+
+class SystemUsageTool(Tool):
+    name = 'system_usage'
+    description = (
+        'Read live CPU, RAM, workspace disk space, GPU utilization and VRAM, and detect local '
+        'ComfyUI, Ollama, FFmpeg and Python commands or ports. Check before downloading models, '
+        'installing runtimes, or running local rendering and other demanding jobs. '
+        'Unknown readings are null; a reachable port does not prove a service is healthy. '
+        'Does not download, start, or stop anything. Use package tools and shell for setup '
+        'and execution under the session approval policy; shell background and tasks track long jobs.'
+    )
+    input_schema = {'type': 'object', 'properties': {}, 'additionalProperties': False}
+
+    def assess(self, args: dict[str, Any], ctx: ToolContext) -> Assessment:
+        return Assessment(risk=Risk.READ, summary='check local resources and runtimes')
+
+    async def run(self, args: dict[str, Any], ctx: ToolContext) -> Output:
+        from omote.resources import monitor
+
+        data = await monitor.snapshot(ctx.root)
+        return Output(content=json.dumps(data), display={'summary': 'CPU, RAM, disk, GPU and local runtimes'})
 
 
 class _SystemTool(Tool):
@@ -276,15 +301,14 @@ class PackageInstallTool(_SystemTool):
 
     async def run(self, args: dict[str, Any], ctx: ToolContext) -> Output:
         manager, package, note = self._plan(args)
-        prefix = _elevate(self.host, manager)
 
         # Flatpak needs a remote named before the id, and flathub is where
         # every id in the recipe table lives.
         tail = ['flathub', package] if manager.name == 'flatpak' else [package]
-        argv = [*prefix, *manager.install, *tail, *manager.assume_yes]
+        argv = [*manager.install, *tail, *manager.assume_yes]
 
         await ctx.emit(f'$ {" ".join(argv)}\n', 'stdout')
-        code, out = await _run(argv, INSTALL_TIMEOUT, emit=ctx.emit)
+        code, out = await _package_run(self.host, manager, argv, ctx)
 
         if code != 0:
             raise ToolError(
@@ -340,14 +364,33 @@ class PackageRemoveTool(_SystemTool):
         manager = self.host.manager(args['manager'])
         if manager is None:
             raise ToolError(f'{args["manager"]!r} is not installed here')
-        prefix = _elevate(self.host, manager)
-        argv = [*prefix, *self.REMOVE[manager.name], args['package'], *manager.assume_yes]
+        argv = [*self.REMOVE[manager.name], args['package'], *manager.assume_yes]
 
         await ctx.emit(f'$ {" ".join(argv)}\n', 'stdout')
-        code, out = await _run(argv, INSTALL_TIMEOUT, emit=ctx.emit)
+        code, out = await _package_run(self.host, manager, argv, ctx)
         if code != 0:
             raise ToolError(f'{manager.name} failed (exit {code}):\n{truncate(out, 3000, keep="tail")[0]}')
         return Output(content=f'Removed {args["package"]}.')
+
+
+async def _package_run(host: Platform, manager: Manager, argv: list[str], ctx: ToolContext) -> tuple[int, str]:
+    if not manager.needs_elevation:
+        return await _run(argv, INSTALL_TIMEOUT, emit=ctx.emit)
+
+    from omote.elevation import run_admin
+
+    if host.system == 'windows':
+        # list2cmdline alone does not protect package IDs containing cmd.exe
+        # metacharacters. PowerShell single-quoted literals preserve each ID.
+        script = '& ' + ' '.join("'" + arg.replace("'", "''") + "'" for arg in argv) + '; exit $LASTEXITCODE'
+        encoded = base64.b64encode(script.encode('utf-16-le')).decode()
+        command = subprocess.list2cmdline(['powershell.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded])
+    else:
+        command = 'env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a ' + shlex.join(argv)
+    result = await run_admin(command, ctx.cwd, INSTALL_TIMEOUT, ctx)
+    if result.display.get('timed_out'):
+        raise ToolError(result.content)
+    return result.display['exit_code'], result.content
 
 
 async def _run(
@@ -572,9 +615,14 @@ class DisplayHdrTool(_SystemTool):
 
 
 def system_tools() -> list[Tool]:
+    from omote.agent.tools.discovery import LazyTool
+
     host = detect()
     return [
+        LazyTool('local_models', 'Manage verified GGUF and ComfyUI model/workflow downloads, resume/cancel, disk/compatibility checks and chat GPU/CPU runtime start/stop.',
+                 'omote.agent.tools.local_models', 'LocalModelsTool'),
         SystemInfoTool(host),
+        SystemUsageTool(),
         PackageSearchTool(host),
         PackageInstallTool(host),
         PackageRemoveTool(host),

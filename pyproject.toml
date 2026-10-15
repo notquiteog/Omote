@@ -20,6 +20,7 @@ dependencies = [
   # Memory only. Brute-force cosine over a few thousand quantised vectors,
   # which is a dot product, not a vector database.
   "numpy>=1.26",
+  "psutil>=6.0",  # CPU, memory and disk telemetry on Linux, macOS and Windows.
 ]
 
 [project.optional-dependencies]

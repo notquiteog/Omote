@@ -237,7 +237,9 @@ def streamed() -> dict:
     # number from a stub would be a number about the stub.
     from omote.config import config
 
-    if not config.chat_provider and not (config.perch_host and config.perch_token) and not config.openrouter_key:
+    if not (config.chat_provider or (config.perch_host and config.perch_token)
+            or os.getenv('OPENROUTER_API_KEY') or config.openai_key or config.anthropic_key
+            or config.ollama_url or config.openwebui_url):
         pytest.skip('no provider configured, so there is no turn to measure')
 
     with tempfile.TemporaryDirectory() as scratch:

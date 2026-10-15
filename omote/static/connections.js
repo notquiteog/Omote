@@ -19,6 +19,7 @@
 import { $, api, el, json } from './dom.js';
 
 let catalog = { hosts: [], embedding_models: [] };
+let catalogLoading = null;
 
 const MODALITIES = [
   ['chat', 'Chat', 'The model that thinks. Everything you type goes here.'],
@@ -35,6 +36,17 @@ function host(id) {
 }
 
 async function loadCatalog() {
+  // Opening Settings and selecting its providers tab can request this twice.
+  // Share the request and initialize once, so a late response cannot replace
+  // a service or credentials the user has already started entering.
+  if (catalog.hosts.length) return;
+  if (catalogLoading) return catalogLoading;
+  catalogLoading = fetchCatalog();
+  try { await catalogLoading; }
+  finally { catalogLoading = null; }
+}
+
+async function fetchCatalog() {
   const data = await json('/api/providers/catalog');
   if (data) catalog = data;
 

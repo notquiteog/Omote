@@ -13,6 +13,8 @@
 <link rel="stylesheet" href="/static/creative.css">
 <link rel="stylesheet" href="/static/onboarding.css">
 <link rel="stylesheet" href="/static/schedules.css">
+<link rel="stylesheet" href="/static/system.css">
+<link rel="stylesheet" href="/static/local-models.css">
 <!-- The theme, before the first paint. A module arrives after the stylesheet
      and the page flashes the wrong theme at somebody who chose dark months
      ago; the flash happens on every load and is the reason this is here
@@ -103,7 +105,7 @@
       <svg class="ic"><use href="#i-list"></use></svg><span>Review changes</span>
     </button>
     <button class="nav-row" id="open-memory" hidden>
-      <svg class="ic"><use href="#i-memory"></use></svg><span>Memory</span>
+      <svg class="ic"><use href="#i-memory"></use></svg><span>Brain</span>
     </button>
   </nav>
 
@@ -136,6 +138,9 @@
     <button class="nav-row" id="open-guide" type="button">
       <svg class="ic"><use href="#i-chat"></use></svg><span>Getting started</span>
     </button>
+    <button class="nav-row" id="open-system" type="button">
+      <svg class="ic"><use href="#i-screen"></use></svg><span>System</span>
+    </button>
     <button class="nav-row" id="open-settings">
       <svg class="ic"><use href="#i-gear"></use></svg><span>Settings</span>
     </button>
@@ -148,6 +153,7 @@
       <svg class="ic" aria-hidden="true" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"></path></svg>
     </button>
     <div id="session-title">No session</div>
+    <div id="studio-title">Studio</div>
     <span id="session-meta" class="meta"></span>
     <div class="spacer"></div>
     <!-- Two buttons, and each one does the whole thing: opens the microphone
@@ -379,20 +385,25 @@
     <div class="studio-workspace-bar">
       <div class="studio-workspace-switch" role="group" aria-label="Studio workspace">
         <button type="button" id="studio-simple" class="seg on" aria-pressed="true">Generate</button>
-        <button type="button" id="studio-graph" class="seg" aria-pressed="false">Advanced · ComfyUI</button>
+        <button type="button" id="studio-graph" class="seg" aria-pressed="false">ComfyUI editor</button>
         <button type="button" id="studio-library" class="seg" aria-pressed="false">Characters &amp; assets</button>
       </div>
-      <span class="meta">Create, reuse &amp; tell stories</span>
+      <span class="meta" id="studio-workspace-hint">Describe it. Make it. Refine it.</span>
     </div>
     <section id="comfy-workspace" hidden aria-label="ComfyUI graph editor">
       <div class="comfy-toolbar">
         <label class="chip">Connection <select id="comfy-provider" aria-label="ComfyUI connection"></select></label>
-        <button id="comfy-connect" class="ghost small" type="button">Open editor</button>
-        <button id="comfy-refresh" class="ghost small" type="button">Refresh connections</button>
-        <button id="comfy-settings" class="ghost small" type="button">Connections</button>
+        <button id="comfy-connect" class="ghost small" type="button" disabled>Open editor</button>
+        <button id="comfy-focus" class="ghost small" type="button" aria-pressed="false">Focus mode</button>
+        <div class="comfy-toolbar-spacer"></div>
         <a id="comfy-external" class="chip" target="_blank" rel="noopener noreferrer" hidden>Open in tab ↗</a>
+        <details class="comfy-options"><summary>Connection options</summary><div class="comfy-option-actions">
+          <button id="comfy-refresh" class="ghost small" type="button">Refresh connections</button>
+          <button id="comfy-reload" class="ghost small" type="button" disabled>Reload editor</button>
+          <button id="comfy-settings" class="ghost small" type="button">Connections</button>
+        </div></details>
       </div>
-      <p id="comfy-status" class="explain" role="status"></p>
+      <p id="comfy-status" class="explain" role="status" aria-live="polite"></p>
       <details class="comfy-help"><summary>Nodes 2.0 &amp; workflow help</summary>
         <p>This is your ComfyUI installation’s full editor: connect nodes, use custom nodes and subgraphs,
           import and save workflows, and queue images or video. Enable Nodes 2.0 in the ComfyUI menu
@@ -414,6 +425,7 @@
         <button id="studio-retry" type="button" class="ghost">Try again</button>
       </div>
       <form id="studio-form" class="studio-form">
+        <div class="studio-form-heading"><h2>Create something</h2><p class="meta">Start with an idea. Fine-tune the details below.</p></div>
         <div class="studio-kind" role="group" aria-label="What to make">
           <button type="button" class="seg on" data-kind="image">Image</button>
           <button type="button" class="seg" data-kind="video">Video</button>
@@ -479,7 +491,7 @@
           <input id="studio-search" class="studio-search" placeholder="Search prompts" autocomplete="off">
           <div class="spacer"></div>
           <button type="button" id="studio-import" class="ghost small"
-                  title="A ComfyUI graph exported with Save (API format). The prompt, seed, size and sampler settings are found and turned into controls.">
+                  title="Import ComfyUI workflow JSON or an API prompt. Native graphs open in the workflow library; API prompts become generation controls.">
             Import a workflow
           </button>
           <input type="file" id="studio-workflow" accept="application/json,.json" hidden>
@@ -671,10 +683,10 @@
 </dialog>
 
 <dialog id="memory-dialog" aria-labelledby="memory-dialog-heading">
-  <h2 id="memory-dialog-heading">Memory</h2>
+  <h2 id="memory-dialog-heading">Brain</h2>
   <p class="explain">
-    What Omote remembers about you between conversations. It is off until you turn
-    it on, everything stored is listed here, and you can remove any of it or all of it.
+    A home for what Omote learns about you and your projects. Find, correct, or
+    forget anything here. Memory starts off; you choose when it learns.
   </p>
 
   <label class="switch">
@@ -683,17 +695,21 @@
   </label>
   <label class="switch">
     <input type="checkbox" id="mem-auto">
-    <span>Also pick things up automatically from what I say
-      <em>— otherwise only what you explicitly ask to be remembered is stored</em></span>
+    <span>Learn from our conversations
+      <em>Save durable facts from what I say. Otherwise, only save what I ask to remember.</em></span>
   </label>
 
   <div id="mem-count" class="explain"></div>
-  <p id="mem-provider" class="meta"></p>
-  <div class="memory-toolbar">
-    <button id="mem-export" class="ghost small">Export all</button>
-    <button id="mem-reembed" class="ghost small">Rebuild pending embeddings</button>
-    <button id="mem-connections" class="ghost small">Embedding connection</button>
+  <div class="memory-toolbar memory-filters" role="search" aria-label="Find saved memories">
+    <label class="field memory-query"><span>Search memories</span><input id="mem-query" type="search" maxlength="500" placeholder="Find a preference or project detail…"></label>
+    <label class="field"><span>About</span><select id="mem-scope">
+      <option value="all">Everything</option><option value="personal">About you</option><option value="projects">Projects &amp; subjects</option>
+    </select></label>
+    <label class="field"><span>Kind</span><select id="mem-filter-kind"><option value="">All kinds</option></select></label>
+    <label class="field"><span>Project / subject</span><select id="mem-filter-subject"><option value="">All subjects</option></select></label>
   </div>
+  <details id="mem-editor" class="memory-editor">
+  <summary>Add a memory</summary>
   <form id="mem-form" class="memory-form">
     <label class="field"><span>Memory</span><textarea id="mem-text" required maxlength="20000" rows="3"
       placeholder="A preference, project detail, or fact to remember"></textarea></label>
@@ -704,15 +720,63 @@
     <button id="mem-save" type="submit">Add memory</button>
     <button id="mem-cancel" type="button" class="ghost" hidden>Cancel edit</button>
   </form>
+  </details>
   <p id="mem-status" class="explain" role="status"></p>
-  <ul id="mem-list"></ul>
+  <p id="mem-results" class="meta" role="status"></p>
+  <ul id="mem-list" aria-label="Saved memories" aria-busy="false"></ul>
+  <p id="mem-empty" class="explain" hidden>No memories yet. Add a detail you want Omote to remember.</p>
   <button id="mem-more" class="ghost small" hidden>Load more</button>
 
+  <details class="memory-index">
+    <summary>Memory settings &amp; search connection</summary>
+    <p id="mem-provider" class="meta"></p>
+    <div class="memory-toolbar">
+      <button id="mem-reembed" class="ghost small">Index pending memories</button>
+      <button id="mem-connections" class="ghost small">Embedding connection</button>
+    </div>
+  </details>
+
   <menu>
-    <button id="mem-wipe" class="danger">Forget everything</button>
+    <button id="mem-wipe" class="ghost danger">Forget everything</button>
+    <button id="mem-export" class="ghost">Export all</button>
     <div class="spacer"></div>
     <button id="mem-close" class="ghost">Close</button>
   </menu>
+</dialog>
+
+<dialog id="system-dialog" aria-labelledby="system-title">
+  <div class="system-heading"><h2 id="system-title">System</h2><button id="system-close" class="ghost" type="button">Close</button></div>
+  <p class="system-intro">Live usage on the computer running Omote.</p>
+  <div class="system-monitor-controls"><p id="system-status" class="meta" role="status">Ready to check.</p><button id="system-pause" class="ghost small" type="button" aria-pressed="false">Pause updates</button><button id="system-refresh" class="ghost small" type="button">Refresh</button></div>
+  <div id="system-metrics" class="system-metrics" aria-label="Resource usage"></div>
+  <section aria-labelledby="system-runtime-title">
+    <div class="system-heading"><h3 id="system-runtime-title">Local tools</h3><div class="system-model-actions"><button id="open-local-models" type="button" class="ghost small">Local models</button><button id="system-plan" type="button" class="ghost small">Plan local setup</button></div></div>
+    <p class="system-intro">Ask in chat to install software, download models, or start a local tool. Your chat's approval settings apply.</p>
+    <ul id="system-runtimes" class="system-list"></ul>
+    <p class="meta">Common runtimes on PATH or default local ports. An open port doesn't confirm service health. Connect custom installations in Settings.</p>
+    <details class="system-admin"><summary>Administrator access</summary><p id="system-admin" class="meta"></p><p class="meta">Commands can request root/admin access through the OS. Chat approval still applies. Enter passwords only in the OS dialog.</p></details>
+  </section>
+  <section aria-labelledby="system-work-title"><h3 id="system-work-title">Active chats &amp; background tasks</h3><div id="system-work"></div></section>
+</dialog>
+
+<dialog id="local-models-dialog" aria-labelledby="local-models-title">
+  <div class="lm-heading"><h2 id="local-models-title">Local models</h2><button id="local-models-close" class="ghost" type="button">Close</button></div>
+  <p class="lm-intro">Download once. Run and chat on this computer.</p>
+  <div class="lm-toolbar"><label for="local-models-device">Run on <select id="local-models-device"><option value="gpu">GPU</option><option value="cpu">CPU</option></select></label><button id="local-models-refresh" class="ghost small" type="button">Refresh</button></div>
+  <p id="local-models-status" class="meta" role="status"></p>
+  <div id="local-models-runtime"></div>
+  <div id="local-models-list" aria-label="Model library"></div>
+  <details class="lm-advanced"><summary>Add another GGUF model</summary>
+    <p class="meta">Use a public HTTPS source and its published SHA-256 and exact file size. Model architecture support is checked at startup.</p>
+    <form id="local-models-custom">
+      <label>Name<input name="label" required maxlength="100" placeholder="My local model"></label>
+      <label>Download URL<input name="url" required type="url" placeholder="https://…/model.gguf" maxlength="2048"></label>
+      <label>File size in bytes<input name="size" required type="number" min="1" max="1099511627776" step="1"></label>
+      <label>SHA-256<input name="sha256" required pattern="[a-f0-9]{64}" minlength="64" maxlength="64" spellcheck="false"></label>
+      <button type="submit" class="ghost small">Add to library</button>
+    </form>
+  </details>
+  <details class="lm-advanced"><summary>Storage &amp; runtime details</summary><p id="local-models-storage" class="meta"></p><p class="meta">Cancel keeps partial downloads for Resume. Remove frees their space. Files are verified before use. Memory requirements are estimates; actual driver and architecture support are validated at startup. Starting a model registers it for chat; stopping it ends access for chats using it.</p><button id="local-models-repair" type="button" class="ghost small">Repair runtime</button><pre id="local-models-log"></pre></details>
 </dialog>
 
 <dialog id="settings-dialog" aria-labelledby="settings-title">

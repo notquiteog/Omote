@@ -4,6 +4,14 @@ Omote combines model-driven generation, your installed ComfyUI frontend, a local
 workflow workbench, and a reusable character and asset library. It does not bundle
 model weights or claim to replace every ComfyUI extension.
 
+**Studio → Models & workflows** downloads verified ComfyUI safetensors and JSON
+workflows with cancel/resume, disk checks and live node/model compatibility checks.
+An SD Turbo starter recipe opens directly in Generate after its model folder is
+connected to ComfyUI. Storage setup and custom URLs stay under expandable details.
+See [managed ComfyUI assets](WORKSPACE.md#managed-comfyui-assets) for setup and live
+GPU verification. API recipes keep their original defaults; native editor JSON
+can be saved to the workbench or exported into the full editor.
+
 ## From a character to a scene
 
 1. Open **Studio → Characters & assets → New character**. Give the character a
@@ -30,10 +38,25 @@ export. The generation gallery and library each expose deletion.
 
 ## ComfyUI workbench
 
-Configure a ComfyUI connection and open **Advanced · ComfyUI**. The full connected
+Configure a ComfyUI connection and open **Studio → ComfyUI editor**. The full connected
 frontend remains the graph editor, including its custom nodes, groups, subgraphs,
 previews, and Nodes 2.0 when that installation supports it. Omote does not maintain
 a competing implementation of the renderer.
+
+The canvas gets the workspace by default. **Workflow library** opens saved
+versions and API controls alongside it (as an overlay drawer on narrow screens).
+**Focus mode** fills the window; **Exit focus** or Escape in the Omote toolbar
+returns to the usual layout. Switching Generate/ComfyUI/library or opening the
+workflow drawer preserves the mounted editor and unsaved graph. Changing servers
+or reloading asks first because it replaces the editor document. **Connection
+options** contains refresh, reload and connection settings; **Open in tab** is
+available when a server blocks embedding. Loading status describes the frame,
+not a verified cross-origin application handshake.
+
+Generate has prompt starters that fill an editable draft without running it.
+Native workflow JSON imported from Generate opens in the workflow library with
+the complete graph retained; API prompts continue through the generation-template
+import path. On a phone the generation form and results use one vertical flow.
 
 The optional [bridge](../integrations/comfyui/README.md) is downloadable inside the
 workbench. Extract it into ComfyUI's `custom_nodes`, restart ComfyUI, and add the

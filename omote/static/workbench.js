@@ -199,10 +199,32 @@ async function refreshRuns() {
   }
   if (!data.runs.length) box.appendChild(el('p', 'meta', 'Runs queued from this workbench appear here and survive restarts.'));
 }
+
+export function showWorkflowLibrary() {
+  if ($('#comfy-tools').hidden) $('#comfy-library-toggle').click();
+}
+
+export async function importWorkbenchFile(file) {
+  try {
+    if (file.size > 4 * 1024 * 1024) throw new Error('Workflow exceeds 4 MB.');
+    if (dirty && !confirm('Replace the unsaved workflow draft?')) return false;
+    const data = JSON.parse(await file.text());
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Workflow JSON must be an object.');
+    const graph = Array.isArray(data.nodes) ? data : data.graph || data.workflow || null;
+    const prompt = graph === data ? null : data.prompt || (!graph ? data : null);
+    fill({ name: file.name.replace(/\.json$/i, ''), graph, prompt });
+    $('#wb-version').replaceChildren(); $('#wb-compare-version').replaceChildren();
+    note('Imported locally. Save a version before running.');
+    return true;
+  } catch (error) { note(error.message); return false; }
+}
+
 export function wireWorkbench() {
   const frame = $('#comfy-frame');
   const layout = el('div', 'comfy-layout');
   const aside = el('aside', 'workbench'); aside.id = 'comfy-tools';
+  aside.hidden = true;
+  aside.setAttribute('aria-label', 'Workflow library and version controls');
   aside.innerHTML = `<div class="creative-actions"><strong>Workflow workbench</strong><button id="wb-collapse" class="ghost small">Hide</button></div>
     <p id="wb-status" class="meta" role="status">Save versions, inspect inputs, and keep outputs with your characters.</p>
     <details open><summary>Saved workflows</summary><input id="wb-search" type="search" placeholder="Find a workflow…" aria-label="Find a workflow"><div id="wb-list"></div>
@@ -221,12 +243,23 @@ export function wireWorkbench() {
     <details><summary>Run history &amp; outputs</summary><button id="wb-refresh-runs" class="ghost small">Refresh runs</button><div id="wb-runs"></div></details>
     <details><summary>Connect editor bridge</summary><p class="meta">Install this optional extension in ComfyUI/custom_nodes. Restart ComfyUI, then add this exact origin to “Omote: trusted workspace origins” in its settings:</p><code id="wb-origin"></code>
     <div class="creative-actions"><a class="chip" href="/static/omote-comfyui-bridge.zip" download>Download bridge</a><button id="wb-bridge" class="ghost small">Connect bridge</button></div></details>`;
-  const editor = el('div', 'comfy-editor-stage');
-  const empty = el('div', 'comfy-editor-empty'); empty.append(el('h3', '', 'Your full ComfyUI canvas'), el('p', 'meta', 'Open a connection above. Save complete graphs and reusable API versions in the workbench beside it.'));
+  const editor = el('div', 'comfy-editor-stage'); editor.id = 'comfy-editor-stage';
+  const empty = el('div', 'comfy-editor-empty');
+  const canvasIcon = el('div', 'comfy-canvas-icon', '◇'); canvasIcon.setAttribute('aria-hidden', 'true');
+  const open = el('button', 'primary', 'Connect ComfyUI'); open.id = 'comfy-empty-action'; open.type = 'button';
+  empty.append(canvasIcon, el('p', 'comfy-eyebrow', 'COMFYUI · NATIVE EDITOR'),
+    el('h3', '', 'Room for your ideas.'),
+    el('p', 'meta', 'Your complete node canvas, custom nodes, model library and workflow tabs. Open your ComfyUI installation and keep creating here.'), open,
+    el('p', 'meta', 'Need saved versions or API inputs? Open Workflow library above.'));
+  const loading = el('div', 'comfy-loading', 'Opening your ComfyUI workspace…'); loading.setAttribute('role', 'status');
+  editor.appendChild(loading);
   frame.before(layout); editor.append(empty, frame); layout.append(aside, editor);
-  const show = el('button', 'ghost small', 'Workflow workbench'); $('#comfy-refresh').after(show);
-  show.onclick = () => { aside.hidden = !aside.hidden; };
-  $('#wb-collapse').onclick = () => { aside.hidden = true; };
+  const show = el('button', 'ghost small', 'Workflow library'); show.id = 'comfy-library-toggle';
+  show.setAttribute('aria-expanded', 'false'); show.setAttribute('aria-controls', 'comfy-tools');
+  $('#comfy-connect').after(show);
+  const toggle = (visible) => { aside.hidden = !visible; show.setAttribute('aria-expanded', String(visible)); };
+  show.onclick = () => { toggle(aside.hidden); if (!aside.hidden) list().catch((e) => note(e.message)); };
+  $('#wb-collapse').onclick = () => { toggle(false); show.focus(); };
   $('#wb-origin').textContent = location.origin;
   const action = (id, fn) => { $(id).onclick = async (event) => { const button = event.currentTarget; button.disabled = true; try { await fn(); } catch (error) { note(error.message); } finally { button.disabled = false; } }; };
   action('#wb-save', () => save()); action('#wb-copy', () => save(true)); action('#wb-capture', capture);
@@ -244,16 +277,7 @@ export function wireWorkbench() {
   $('#wb-name').oninput = markDirty; $('#wb-project').oninput = markDirty; $('#wb-notes').oninput = markDirty; $('#wb-node').onchange = fields;
   $('#wb-import').onchange = async (event) => {
     const file = event.target.files[0]; if (!file) return;
-    try {
-      if (file.size > 4 * 1024 * 1024) throw new Error('Workflow exceeds 4 MB.');
-      if (dirty && !confirm('Replace the unsaved workflow draft?')) return;
-      const data = JSON.parse(await file.text());
-      if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Workflow JSON must be an object.');
-      const graph = Array.isArray(data.nodes) ? data : data.graph || data.workflow || null;
-      const prompt = graph === data ? null : data.prompt || (!graph ? data : null);
-      fill({ name: file.name.replace(/\.json$/i, ''), graph, prompt });
-      $('#wb-version').replaceChildren(); $('#wb-compare-version').replaceChildren(); note('Imported locally. Save a version before running.');
-    } catch (error) { note(error.message); } finally { event.target.value = ''; }
+    try { await importWorkbenchFile(file); } finally { event.target.value = ''; }
   };
   $('#wb-version').onchange = async () => {
     if (!saved) return;
@@ -295,6 +319,7 @@ export function wireWorkbench() {
     note(`Compared saved versions ${result.before_revision} and ${result.after_revision}.`);
   });
   action('#wb-refresh-runs', refreshRuns);
-  $('#studio-graph').addEventListener('click', () => { list().catch((e) => note(e.message)); });
+  $('#studio-graph').addEventListener('click', () => { if (!aside.hidden) list().catch((e) => note(e.message)); });
+  document.addEventListener('omote:workflows-changed', () => list().catch((e) => note(e.message)));
   window.addEventListener('beforeunload', (event) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
 }

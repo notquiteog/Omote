@@ -5,6 +5,15 @@ import { showConnections } from './connections.js';
 
 let editors = [];
 let activeURL = '';
+let activeID = '';
+let refreshEpoch = 0;
+let loadingTimer = null;
+
+function focusMode(on) {
+  $('#pane-studio').classList.toggle('comfy-focus', on);
+  $('#comfy-focus').setAttribute('aria-pressed', String(on));
+  $('#comfy-focus').textContent = on ? 'Exit focus' : 'Focus mode';
+}
 
 function selected() {
   return editors.find((entry) => entry.id === $('#comfy-provider').value);
@@ -13,6 +22,7 @@ function selected() {
 function describe() {
   const entry = selected();
   $('#comfy-connect').disabled = !entry?.available;
+  $('#comfy-reload').disabled = !activeURL;
   const link = $('#comfy-external');
   link.hidden = !entry?.available;
   if (entry?.available) link.href = entry.url;
@@ -20,16 +30,21 @@ function describe() {
   $('#comfy-status').textContent = entry
     ? (entry.reason || 'Open your ComfyUI editor to edit graphs and run workflows. Sign in to ComfyUI there if required.')
     : 'Connect ComfyUI in Settings → Connections to use the full graph editor. You can still generate with other providers.';
+  $('#comfy-empty-action').textContent = entry?.available ? 'Open ComfyUI editor' : 'Connect ComfyUI';
 }
 
 async function refresh() {
+  const epoch = ++refreshEpoch;
   const res = await api('/api/media/comfyui/editors');
+  if (epoch !== refreshEpoch) return;
   if (!res?.ok) {
     $('#comfy-status').textContent = 'Could not load ComfyUI connections. Try Refresh connections.';
     return;
   }
   const previous = $('#comfy-provider').value;
-  editors = (await res.json()).editors;
+  const data = await res.json();
+  if (epoch !== refreshEpoch) return;
+  editors = data.editors;
   $('#comfy-provider').replaceChildren(...editors.map((entry) => {
     const option = el('option', '', entry.label);
     option.value = entry.id;
@@ -41,6 +56,9 @@ async function refresh() {
     $('#comfy-frame').removeAttribute('src');
     $('#comfy-frame').hidden = true;
     activeURL = '';
+    activeID = '';
+    clearTimeout(loadingTimer);
+    $('#comfy-editor-stage').classList.remove('editor-loading');
   }
   describe();
 }
@@ -57,11 +75,30 @@ function openEditor() {
     $('#comfy-status').textContent = 'This HTTPS page cannot embed an HTTP editor. Use Open in tab or give ComfyUI an HTTPS address.';
     return;
   }
-  if (activeURL && activeURL !== entry.url && !confirm('Switch editors? Save your current ComfyUI graph first.')) return;
-  if (activeURL !== entry.url) $('#comfy-frame').src = entry.url;
+  if (activeURL === entry.url) {
+    activeID = entry.id;
+    $('#comfy-frame').hidden = false;
+    $('#comfy-status').textContent = 'ComfyUI is already open. Use Focus mode for more canvas space.';
+    return;
+  }
+  if (activeURL && activeURL !== entry.url && !confirm('Switch editors? Save your current ComfyUI graph first.')) {
+    $('#comfy-provider').value = activeID;
+    return;
+  }
+  if (activeURL !== entry.url) {
+    $('#comfy-editor-stage').classList.add('editor-loading');
+    $('#comfy-frame').src = entry.url;
+    clearTimeout(loadingTimer);
+    loadingTimer = setTimeout(() => {
+      $('#comfy-editor-stage').classList.remove('editor-loading');
+      $('#comfy-status').textContent = 'The editor is taking longer to open. Check that ComfyUI is running, or use Open in tab if embedding is blocked.';
+    }, 12000);
+  }
   activeURL = entry.url;
+  activeID = entry.id;
+  $('#comfy-reload').disabled = false;
   $('#comfy-frame').hidden = false;
-  $('#comfy-status').textContent = 'ComfyUI editor opened below. If it stays blank or refuses to connect, use Open in tab.';
+  $('#comfy-status').textContent = 'Opening ComfyUI… Your native tools, nodes and workflow tabs are available inside the editor.';
 }
 
 export function wireComfyUI() {
@@ -72,6 +109,8 @@ export function wireComfyUI() {
       const libraryPane = $('#creative-workspace');
       if (libraryPane) libraryPane.hidden = !library;
       $('#comfy-workspace').hidden = !advanced;
+      if (!advanced) focusMode(false);
+      $('#studio-workspace-hint').textContent = advanced ? 'Your native ComfyUI workspace' : library ? 'Characters, references & finished work' : 'Describe it. Make it. Refine it.';
       for (const [button, on] of [['studio-simple', !advanced && !library], ['studio-graph', advanced], ['studio-library', library]]) {
         $(`#${button}`).classList.toggle('on', on);
         $(`#${button}`).setAttribute('aria-pressed', String(on));
@@ -79,8 +118,34 @@ export function wireComfyUI() {
       if (advanced) refresh();
     };
   }
-  $('#comfy-provider').onchange = describe;
+  $('#comfy-provider').onchange = () => {
+    if (activeURL && selected()?.available) openEditor();
+    // Keep the workbench's selected backend aligned with the visible graph.
+    else if (activeURL) $('#comfy-provider').value = activeID;
+    describe();
+  };
   $('#comfy-connect').onclick = openEditor;
   $('#comfy-refresh').onclick = refresh;
   $('#comfy-settings').onclick = showConnections;
+  $('#comfy-focus').onclick = () => focusMode(!$('#pane-studio').classList.contains('comfy-focus'));
+  $('#comfy-empty-action').onclick = () => selected()?.available ? openEditor() : showConnections();
+  $('#comfy-reload').onclick = () => {
+    if (!activeURL || !confirm('Reload ComfyUI? Save your graph in the editor first; unsaved editor changes may be lost.')) return;
+    const frame = $('#comfy-frame');
+    frame.src = activeURL;
+    $('#comfy-status').textContent = 'Reloading ComfyUI…';
+  };
+  $('#comfy-frame').addEventListener('load', () => {
+    clearTimeout(loadingTimer);
+    $('#comfy-editor-stage').classList.remove('editor-loading');
+    if (activeURL) $('#comfy-status').textContent = 'Editor frame loaded. If the canvas is blank, use Open in tab; some servers block embedding.';
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !document.querySelector('dialog[open]') && $('#pane-studio').classList.contains('comfy-focus')) {
+      focusMode(false); $('#comfy-focus').focus();
+    }
+  });
+  document.addEventListener('omote:providers-changed', () => {
+    if (!$('#comfy-workspace').hidden) refresh();
+  });
 }

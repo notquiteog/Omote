@@ -9,6 +9,7 @@ asking anyone.
 from __future__ import annotations
 
 from dataclasses import asdict
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -118,6 +119,8 @@ async def put_settings(body: SettingsBody) -> dict[str, object]:
 
 @router.get('')
 async def list_memories(kind: str | None = None, subject: str | None = None,
+                        q: str = Query('', max_length=500),
+                        scope: Literal['all', 'personal', 'projects'] = 'all',
                         limit: int = Query(200, ge=1, le=1000),
                         offset: int = Query(0, ge=0)) -> dict[str, object]:
     svc = _service()
@@ -132,9 +135,12 @@ async def list_memories(kind: str | None = None, subject: str | None = None,
                 'created_at': m.created_at,
                 'hits': m.hits,
             }
-            for m in svc.store.list(_user(), kind=kind, subject=subject, limit=limit, offset=offset)
+            for m in svc.store.list(_user(), kind=kind, subject=subject, q=q, scope=scope,
+                                    limit=limit, offset=offset)
         ],
         'total': svc.store.count(_user()),
+        'matched': svc.store.count(_user(), kind=kind, subject=subject, q=q, scope=scope),
+        'catalog': svc.store.catalog(_user()),
         'offset': offset,
     }
 
@@ -158,16 +164,20 @@ class AddBody(BaseModel):
             raise ValueError('kind cannot be blank')
         return value.strip()
 
+    @field_validator('subject')
+    @classmethod
+    def clean_subject(cls, value: str | None) -> str | None:
+        return (value.strip() or None) if value is not None else None
+
 
 @router.post('')
 async def add_memory(body: AddBody) -> dict[str, object]:
     svc = _service()
     if not svc.settings(_user()).enabled:
         raise HTTPException(status_code=409, detail='memory is switched off for this user')
-    memory = await svc.remember(_user(), body.text, kind=body.kind, subject=body.subject, source='user')
-    if memory is None:
-        raise HTTPException(status_code=503, detail='Could not embed this memory. Check the embedding connection.')
-    return asdict(memory)
+    memory = svc.store.add_pending(_user(), body.text, kind=body.kind, subject=body.subject, source='user')
+    indexed = await svc.index_memory(_user(), memory)
+    return {**asdict(memory), 'indexed': indexed}
 
 
 @router.get('/export')
@@ -188,21 +198,7 @@ async def edit_memory(memory_id: str, body: AddBody) -> dict[str, object]:
     memory = svc.store.update(_user(), memory_id, body.text, kind=body.kind, subject=body.subject)
     if memory is None:
         raise HTTPException(status_code=404, detail='no such memory')
-    indexed = False
-    # Pausing memory also pauses sending its text to the embedding provider.
-    if svc.settings(_user()).enabled:
-        try:
-            svc.sync_embedder()
-            embedding_name = svc.embedder()
-            vectors = await svc._embed([memory.text])
-            # A deletion or another edit may have arrived while embedding.
-            current = svc.store.get(_user(), memory_id)
-            if (current and current.text == memory.text and svc.settings(_user()).enabled
-                    and svc.embedder() == embedding_name):
-                indexed = svc.store.set_vector(memory_id, vectors[0], embedding_name)
-        except Exception:
-            # The correction was saved locally; retry from the index controls.
-            pass
+    indexed = await svc.index_memory(_user(), memory)
     return {'memory': asdict(memory), 'indexed': indexed}
 
 

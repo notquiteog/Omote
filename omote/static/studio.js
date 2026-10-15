@@ -38,6 +38,7 @@
 
 import { $, api, el, json, post } from './dom.js';
 import { showConnections } from './connections.js';
+import { wireComfyAssets } from './comfy-assets.js';
 
 let kind = 'image';
 let schema = [];
@@ -110,6 +111,7 @@ let filter = '';
 let search = '';
 let exhausted = false;
 let shown = -1;
+let galleryEpoch = 0;
 
 let jobTimer = null;
 const PAGE = 40;
@@ -782,16 +784,17 @@ function skeletons(count) {
 }
 
 async function loadGallery(reset = false) {
-  if (reset) {
-    shots = [];
-    exhausted = false;
-  }
-  const params = new URLSearchParams({ limit: String(PAGE), offset: String(shots.length) });
+  const epoch = reset ? ++galleryEpoch : galleryEpoch;
+  const params = new URLSearchParams({ limit: String(PAGE), offset: String(reset ? 0 : shots.length) });
   if (filter) params.set('kind', filter);
   if (search) params.set('q', search);
 
+  $('#studio-more').disabled = true;
   const data = await json(`/api/media?${params}`);
+  if (epoch !== galleryEpoch) return;
+  $('#studio-more').disabled = false;
   if (!data) return;
+  if (reset) shots = [];
   shots = shots.concat(data.media);
   exhausted = !data.more;
   paintGallery();
@@ -801,8 +804,25 @@ function paintGallery() {
   const box = $('#studio-gallery');
   box.textContent = '';
   if (!shots.length) {
-    box.appendChild(el('p', 'meta empty',
-      search || filter ? 'Nothing here matches that.' : 'Nothing made yet.'));
+    const empty = el('div', 'studio-gallery-empty empty');
+    empty.append(el('div', 'studio-empty-icon', '✧'),
+      el('h3', '', search || filter ? 'No matching creations' : 'Your creations start here'),
+      el('p', 'meta', search || filter ? 'Try a different prompt search or choose All.'
+        : 'Describe an image, video or song on the left. Your results and their recipes will appear here.'));
+    if (!search && !filter) {
+      const starters = el('div', 'studio-example-prompts');
+      for (const [label, prompt] of [
+        ['Product photo', 'A studio product photograph of a handmade ceramic cup, soft window light, warm neutral background'],
+        ['Illustration', 'A cozy illustrated bookshop on a rainy evening, warm lights, detailed hand-drawn style'],
+        ['Cinematic scene', 'A cinematic view of a mountain lake at dawn, mist over the water, natural colors'],
+      ]) {
+        const button = el('button', 'ghost small', label); button.type = 'button';
+        button.onclick = () => { $('#studio-prompt').value = prompt; $('#studio-prompt').focus(); markChanged(); };
+        starters.appendChild(button);
+      }
+      empty.appendChild(starters);
+    }
+    box.appendChild(empty);
   } else {
     shots.forEach((item, index) => box.appendChild(card(item, index)));
   }
@@ -1015,6 +1035,15 @@ async function importWorkflow(file) {
     graph = JSON.parse(await file.text());
   } catch {
     status('that is not JSON. Export it from ComfyUI with Save (API format).', 'bad');
+    return;
+  }
+  if (Array.isArray(graph?.nodes) || Array.isArray(graph?.graph?.nodes) || Array.isArray(graph?.workflow?.nodes)) {
+    // Native editor JSON is not an executable API prompt. Keep its complete
+    // graph in the workflow library instead of rejecting it or losing widgets.
+    $('#studio-graph').click();
+    const { importWorkbenchFile, showWorkflowLibrary } = await import('./workbench.js');
+    showWorkflowLibrary();
+    await importWorkbenchFile(file);
     return;
   }
   const name = file.name.replace(/\.json$/i, '');
@@ -1230,6 +1259,22 @@ async function startEdit(event) {
 }
 
 export function wireStudio(providers = []) {
+  wireComfyAssets({ onUse: async (result) => {
+    kind = result.kind || 'image';
+    values.clear();
+    for (const button of document.querySelectorAll('.studio-kind .seg')) {
+      button.classList.toggle('on', button.dataset.kind === kind);
+      button.setAttribute('aria-pressed', String(button.dataset.kind === kind));
+    }
+    const provider = $('#studio-provider');
+    if (![...provider.options].some(option => option.value === result.provider)) {
+      const option = el('option', '', result.provider); option.value = result.provider; provider.append(option);
+    }
+    provider.value = result.provider;
+    $('#studio-model').value = result.model;
+    await describe();
+    $('#studio-prompt').focus();
+  } });
   $('#studio-connect-provider').onclick = showConnections;
   $('#studio-retry').onclick = describe;
   known.providers = providers.filter((p) => !p.modalities || p.modalities.includes(kind));
@@ -1240,6 +1285,7 @@ export function wireStudio(providers = []) {
       kind = button.dataset.kind;
       for (const other of document.querySelectorAll('.studio-kind .seg')) {
         other.classList.toggle('on', other === button);
+        other.setAttribute('aria-pressed', String(other === button));
       }
       // The model box is the one thing that must not survive: `sora-2` is not
       // a model the image side has, and carrying it across produces a

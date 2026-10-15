@@ -349,6 +349,9 @@ class AgentSession:
         self.env = env or {}
 
         self.tools: dict[str, Tool] = {t.name: t for t in tools}
+        from omote.agent.tools.discovery import ToolDiscovery
+
+        self._discovery = ToolDiscovery(self._eligible_tools)
         self.messages: list[Message] = []
 
         # The kinds of agent the `agent` tool can start, and the skills `/name`
@@ -374,6 +377,12 @@ class AgentSession:
         # When to summarise the conversation to make room, in estimated tokens.
         # 0 is never, which is what a subagent gets: it lives for one task.
         self.compact_at = compact_at
+        # A managed local server has an enforced context size, often much
+        # smaller than the model family's advertised window. Keep its chats
+        # inside that actual budget and leave other providers' settings alone.
+        local_window = getattr(provider, 'managed_context_window', 0)
+        if isinstance(local_window, int) and local_window > 0 and parent is None:
+            self.compact_at = min(compact_at or int(local_window * .65), int(local_window * .65))
         # Called with the path a tool has just written; whatever comes back is
         # added to that tool's result. Today that is a language server saying
         # what the edit broke, which the model should hear before it moves on.
@@ -1222,6 +1231,13 @@ class AgentSession:
         if self._turn_context:
             system = f'{system}\n\n{self._turn_context}' if system else self._turn_context
 
+        visible = self._visible_tools()
+        if self._discovery in visible:
+            system += ('\n\nOnly core and recently selected tool schemas are shown. '
+                       'Use find_tools to discover and load other capabilities by keyword or exact name. '
+                       'A missing schema does not mean the capability is unavailable. '
+                       'Loading a schema does not authorize its execution.')
+
         req = ChatRequest(
             model=self.model,
             messages=self.messages,
@@ -1229,7 +1245,7 @@ class AgentSession:
             effort=self.effort,
             tools=[
                 ToolSpec(name=t.name, description=t.description, input_schema=t.input_schema)
-                for t in self._visible_tools()
+                for t in visible
             ],
         )
 
@@ -1279,7 +1295,7 @@ class AgentSession:
         else:
             self.messages.append(Message(role='user', content=[note]))
 
-    def _visible_tools(self) -> list[Tool]:
+    def _eligible_tools(self) -> list[Tool]:
         """The tools the model is shown on this request.
 
         Decided per request because the mode is live. While planning, the
@@ -1291,8 +1307,17 @@ class AgentSession:
         planning = self.policy.mode is Mode.PLAN
         return [
             t for t in self.tools.values()
-            if not (t.name == 'propose_plan' and not planning) and not (planning and t.name in FILE_WRITERS)
+            if t.available() and not (t.name == 'propose_plan' and not planning)
+            and not (planning and t.name in FILE_WRITERS)
         ]
+
+    def _visible_tools(self) -> list[Tool]:
+        from omote.agent.tools.discovery import CORE_TOOLS
+
+        eligible = self._eligible_tools()
+        optional = [tool for tool in eligible if tool.name not in CORE_TOOLS]
+        visible = [tool for tool in eligible if tool.name in CORE_TOOLS or tool.name in self._discovery.loaded]
+        return [*visible, self._discovery] if optional else visible
 
     async def _safe_learn(self, text: str) -> None:
         try:
@@ -1343,14 +1368,19 @@ class AgentSession:
         remembered approvals, the checkpoint and the events a UI renders are
         all the same code in both.
         """
-        tool = self.tools.get(call.name)
-        if tool is None:
+        tool = self._discovery if call.name == 'find_tools' else self.tools.get(call.name)
+        if tool is None or not tool.available():
             return ToolResultBlock(
                 tool_use_id=call.id,
-                content=f'No such tool: {call.name}. Available: {", ".join(sorted(self.tools))}',
+                content=f'No such tool: {call.name}. Available: '
+                        f'{", ".join(sorted(t.name for t in self._visible_tools()))}',
                 is_error=True,
             )
         self.tool_calls += 1
+        # Explicit tool calls from a resumed transcript or an upstream voice
+        # model still use the same policy checks and refresh the schema cache.
+        if tool is not self._discovery:
+            self._discovery.touch(tool.name)
 
         ctx = self._context(turn_id, call.id)
 
@@ -1609,7 +1639,7 @@ class AgentSession:
         return ContextUse(
             tokens=tokens,
             limit=self.compact_at,
-            window=windows.context_window(self.model),
+            window=getattr(self.provider, 'managed_context_window', None) or windows.context_window(self.model),
             total_in=int(getattr(self, '_total_in', 0)),
             total_out=int(getattr(self, '_total_out', 0)),
             exact=bool(self._last_input) and self._last_input >= estimate,
@@ -1624,7 +1654,7 @@ class AgentSession:
         conversation every time the agent looked at the screen.
         """
         chars = len(self.system_prompt)
-        chars += sum(len(t.description) + len(json.dumps(t.input_schema)) for t in self.tools.values())
+        chars += sum(len(t.description) + len(json.dumps(t.input_schema)) for t in self._visible_tools())
         images = 0
         for message in self.messages:
             for block in message.content:

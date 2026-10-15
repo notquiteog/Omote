@@ -92,7 +92,8 @@ async def realtime_socket(
     # nothing more, which is a perfectly reasonable thing to want and is also
     # the only form that is safe to leave running unattended.
     agent = manager.get(session) if session else None
-    tools = tool_specs(agent.tools) if agent is not None else []
+    offered = {tool.name: tool for tool in agent._visible_tools()} if agent is not None else {}
+    tools = tool_specs(offered)
 
     instructions = AUTOPILOT_PROMPT if agent is not None else (
         'You are omote, having a spoken conversation. Speak the way a person would: short '
@@ -127,7 +128,7 @@ async def realtime_socket(
             'model': live.config.model,
             'voice': live.config.voice,
             'session': agent.id if agent is not None else None,
-            'tools': sorted(agent.tools) if agent is not None else [],
+            'tools': sorted(offered),
             'policy': agent.policy.describe() if agent is not None else '',
         }
     )
@@ -159,6 +160,12 @@ async def realtime_socket(
             payload = f'FAILED: {exc}'
 
         try:
+            # Discovery changes the upstream voice model's callable schemas
+            # before response.create continues from this tool's result.
+            updated = tool_specs({tool.name: tool for tool in agent._visible_tools()})
+            if updated != live.config.tools:
+                live.config.tools = updated
+                await live.configure()
             await live.send_tool_result(call_id, payload)
         except RealtimeUnavailable:
             pass

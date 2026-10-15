@@ -58,6 +58,7 @@ const WORKING = new Set(['thinking', 'reading', 'writing', 'running', 'browsing'
    tool registry; anything unrecognised is treated as work rather than
    dropped, so a tool added later still moves the creature. */
 const TOOL_STATES = {
+  find_tools: 'thinking',
   read_file: 'reading',
   read_files: 'reading',
   outline: 'reading',
@@ -129,6 +130,8 @@ const TOOL_STATES = {
   // outside is thinking.
   trip: 'thinking',
   system_info: 'reading',
+  system_usage: 'reading',
+  local_models: 'running',
   display_info: 'reading',
   package_search: 'browsing',
   // Installing is a long wait on somebody else's servers and then a lot of

@@ -35,6 +35,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -216,6 +217,9 @@ def _elevation() -> tuple[str, str]:
         except (OSError, subprocess.SubprocessError):
             pass
 
+    if sys.platform == 'darwin' and Path('/usr/bin/osascript').exists():
+        return 'macos-auth', 'macOS can request administrator access through its native authentication dialog. Passwords stay with the OS.'
+
     if shutil.which('pkexec'):
         return 'pkexec', (
             'pkexec is available. It asks through the desktop, on the screen the person is '
@@ -273,14 +277,15 @@ def _detect() -> Platform:
         )
 
     if system == 'darwin':
+        how, why = _elevation()
         return Platform(
             system='darwin',
             version=platform.mac_ver()[0],
             desktop='aqua',
             session='quartz',
             managers=tuple(m for m in MAC_MANAGERS if shutil.which(m.name)),
-            elevation=_elevation()[0],
-            elevation_note=_elevation()[1],
+            elevation=how,
+            elevation_note=why,
         )
 
     release = _os_release()

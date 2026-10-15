@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import tempfile
 from pathlib import Path
 
@@ -35,9 +36,11 @@ class FakeEmbedder:
             raise RuntimeError('embedding backend is down')
         out = []
         for text in texts:
-            vec = np.zeros(64, dtype=np.float32)
+            vec = np.zeros(512, dtype=np.float32)
             for word in text.lower().split():
-                vec[hash(word) % 64] += 1.0
+                # Python's salted hash made recall rankings vary by test run.
+                slot = int.from_bytes(hashlib.sha256(word.encode()).digest()[:4]) % len(vec)
+                vec[slot] += 1.0
             out.append(vec.tolist())
         return out
 
@@ -182,6 +185,34 @@ async def test_capture_is_capped_per_message():
         assert len(await svc.capture('alice', text)) <= 3
 
 
+async def test_auto_capture_deduplicates_and_organizes_project_facts():
+    svc, embedder, tmp = build()
+    with tmp:
+        svc.set_settings('alice', enabled=True, auto_capture=True)
+        text = 'I prefer concise explanations. Our staging database runs on port 6543.'
+        first = await svc.capture('alice', text, subject='/projects/demo')
+        assert [(m.kind, m.subject) for m in first] == [('preference', None), ('project', '/projects/demo')]
+        calls = embedder.calls
+        assert await svc.capture('alice', text, subject='/projects/demo') == []
+        assert embedder.calls == calls
+        # The same fact in a different project must not disappear as a duplicate.
+        assert len(await svc.capture('alice', text, subject='/projects/other')) == 1
+
+
+async def test_disabling_automatic_capture_during_embedding_stops_the_write():
+    svc, embedder, tmp = build()
+    with tmp:
+        svc.set_settings('alice', enabled=True, auto_capture=True)
+
+        async def revoke(texts, model, **kwargs):
+            svc.set_settings('alice', enabled=True, auto_capture=False)
+            return [[1., .5, .25] for _ in texts]
+
+        embedder.embed = revoke
+        assert await svc.capture('alice', 'I always run the tests before pushing anything') == []
+        assert svc.store.count('alice') == 0
+
+
 # -- reaching the model -----------------------------------------------------
 
 
@@ -235,8 +266,43 @@ async def test_no_memory_tools_when_it_is_switched_off():
             root=root, provider=ScriptedProvider([[]]), model='x', mode=Mode.ASK,
             memory=svc, user_id='alice',
         )
-        assert 'remember' not in session.tools
-        assert 'recall' not in session.tools
+        assert 'remember' not in {t.name for t in session._visible_tools()}
+        assert 'recall' not in {t.name for t in session._visible_tools()}
+
+
+async def test_memory_switches_apply_to_an_existing_chat(tmp_path):
+    from omote.agent.runtime import build_session
+    from omote.protocol.agent import ToolCall
+    from omote.providers.base import StreamDone, StreamText
+    from tests.test_agent import ScriptedProvider
+
+    svc, embedder, tmp = build()
+    with tmp:
+        provider = ScriptedProvider([[StreamText(text='ok'), StreamDone()]])
+        session = build_session(root=tmp_path, provider=provider, model='x', memory=svc, user_id='alice')
+        # The chat was created before consent. Its hooks must still notice
+        # a later opt-in without rebuilding the session or losing the chat.
+        await session.on_user_text('I prefer concise explanations')
+        assert embedder.calls == 0
+        svc.set_settings('alice', enabled=True, auto_capture=True)
+        await session.on_user_text('I prefer concise explanations')
+        assert svc.store.list('alice')[0].kind == 'preference'
+        for name in ('remember', 'recall'):
+            await session.invoke(ToolCall(id=f'load-{name}', name='find_tools', arguments={'query': name}), 'load')
+        assert {'remember', 'recall'} <= {t.name for t in session._visible_tools()}
+        await session.start()
+        session.submit('I prefer concise explanations')
+        await asyncio.wait_for(session._turn, timeout=10)
+        assert 'concise explanations' in provider.seen[0].system
+        svc.set_settings('alice', enabled=False, auto_capture=False)
+        assert not {'remember', 'recall'} & {t.name for t in session._visible_tools()}
+        assert await session.context_provider('concise explanations') == ''
+        calls = embedder.calls
+        refused = await session.invoke(ToolCall(id='old-call', name='remember',
+                                               arguments={'text': 'A stale memory tool call'}), 'old-turn')
+        assert refused.is_error
+        assert embedder.calls == calls
+        assert svc.store.count('alice') == 1
 
 
 # -- the index, and a changed embedding model --------------------------------

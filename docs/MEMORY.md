@@ -22,18 +22,27 @@ data is gone.
 
 ## Inspecting and controlling saved information
 
-The Memory dialog is available by default. Set `OMOTE_MEMORY=false` to
+The **Brain** view in the sidebar is available by default. Set `OMOTE_MEMORY=false` to
 turn the feature off for the installation; otherwise each user still opts in.
 The dialog lists text, kind, project/subject, source, timestamp, and recall count,
 with pagination, corrections, a full JSON export, per-item deletion, and a wipe.
+Search covers all saved entries, including pages not yet loaded. Filter by
+personal/project scope, kind, or a saved project/subject. Browsing and text search
+are local: they work while paused, need no embedding connection, and do not
+increment recall counts. Search matches literal text and subject names; semantic
+recall remains a separate operation that needs an embedding model.
 Pausing does not hide existing entries. Corrections save locally even when the
 embedding provider is offline, invalidate the old vector immediately, and can be
 re-indexed later. Paused users' entries are not sent for re-embedding.
+Manual additions also save locally when the embedding connection is unavailable.
+They remain pending and appear in Brain immediately. Once a connection is ready,
+open **Memory settings & search connection → Index pending memories** to enable
+recall for those entries. New additions still require memory to be enabled.
 
 | Endpoint | Behavior |
 |---|---|
-| `GET /api/memory?limit=100&offset=0` | A page of entries; optional `kind` and `subject` filters. `total` counts all the user's entries. |
-| `POST /api/memory` | Add `text`, `kind`, and optional `subject` after consent; returns 503 if embedding fails. |
+| `GET /api/memory?limit=100&offset=0` | A page of entries; optional `q`, `scope` (`all`, `personal`, `projects`), `kind`, and `subject` filters. `total` counts all the user's entries; `matched` counts filtered entries. `catalog` contains user-scoped filter choices and counts. |
+| `POST /api/memory` | Save `text`, `kind`, and optional `subject` locally after consent; returns `indexed: false` if embedding is pending. |
 | `PUT /api/memory/{id}` | Correct an entry and invalidate its old vector; returns whether it was indexed. |
 | `GET /api/memory/export` | Export every saved entry and consent settings, including while paused. Excludes vectors and keys. |
 | `DELETE /api/memory/{id}` | Delete one entry and its search vector. |
@@ -63,6 +72,16 @@ Only sentences that read like a durable fact about you or your setup — "I
 always run the tests before pushing", "my deploy script lives in bin/release".
 At most three per message, so one conversation cannot fill memory with a single
 afternoon's opinion.
+Repeated facts with the same subject are skipped before embedding (case-insensitive
+exact matching after whitespace normalization). Disabling automatic learning also
+stops a pending capture from saving after its embedding request completes.
+Consent changes apply to existing chats on their next model request. Tools are
+hidden while paused, and execution rechecks availability if a model proposes an
+older memory tool call. A chat does not have to be restarted after opting in.
+Personal preferences are classified as preferences; clearly project-related
+statements are stored under the session's working folder. This conservative
+pattern-based capture does not summarize every model action or reconcile
+contradictions. The agent can also explicitly use `remember` while working.
 
 Anything transient is skipped: "today", "right now", "currently". A fact that
 was only true this afternoon is a liability next week, when it will be recalled

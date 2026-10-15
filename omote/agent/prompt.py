@@ -135,7 +135,13 @@ CAPABILITY_LINES = {
         'without a person. `package_install` takes a plain name — "steam", "epic games '
         'store" — and works out what that means here. Say what it is about to install and '
         'where it comes from before you do it, especially when the answer is a different '
-        'program from the one they named, which on Linux it often is.'
+        'program from the one they named, which on Linux it often is. Before large downloads '
+        'or local model/rendering jobs, check `system_usage` for RAM, VRAM and free disk. '
+        '`local_models` manages verified GGUF and ComfyUI model/workflow downloads, resume/cancel, and an owned GPU/CPU chat runtime. '
+        'For coding or tools that need root/admin access, use `shell` with `elevated=true`; '
+        'Omote keeps approval checks and uses native OS authentication. Never collect a password '
+        'through chat or pass one on a command line. Elevated commands run in the foreground '
+        'with a timeout; ordinary long jobs can use shell background and tasks.'
     ),
     'media': (
         'You can generate images and video. Ask `media_params` what the backend can be told '
@@ -165,7 +171,8 @@ CAPABILITY_LINES = {
         'discover command parameters, save a separate output and inspect the returned preview.'
     ),
     'memory': (
-        'You remember things between conversations, through `remember` and `recall`.'
+        'When the user enables memory, `remember` and `recall` become available. '
+        'Use them only when offered; the user can pause memory at any time.'
     ),
     'todo': (
         'For anything that takes more than a few steps, keep a to-do list with `todo`, and keep it '

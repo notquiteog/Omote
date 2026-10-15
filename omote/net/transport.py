@@ -48,14 +48,15 @@ class Transport:
     def proxy(self) -> tor_mod.TorProxy | None:
         return tor_mod.resolve(self.tor_host, self.tor_port) if self.tor else None
 
-    def session(self, timeout: float | None = None) -> aiohttp.ClientSession:
+    def session(self, timeout: float | None = None, *, resolver=None) -> aiohttp.ClientSession:
         """A session for one call. Closed by the caller, as `async with`."""
         total = float(timeout or self.timeout)
         if not self.tor:
+            connector = aiohttp.TCPConnector(resolver=resolver, use_dns_cache=False) if resolver is not None else None
             # transport-exempt: this module *is* the transport — the one place
             # a session is meant to be constructed, and what every adapter is
             # required to come through instead of doing this itself.
-            return aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=total))
+            return aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=total), connector=connector)
 
         proxy = self.proxy
         assert proxy is not None

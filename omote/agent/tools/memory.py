@@ -62,6 +62,9 @@ class RememberTool(Tool):
         self.service = service
         self.user_id = user_id
 
+    def available(self) -> bool:
+        return self.service.settings(self.user_id).enabled
+
     def assess(self, args: dict[str, Any], ctx: ToolContext) -> Assessment:
         text = (args.get('text') or '').strip()
         if not text:
@@ -130,6 +133,9 @@ class RecallTool(Tool):
     def __init__(self, service: Any, user_id: str) -> None:
         self.service = service
         self.user_id = user_id
+
+    def available(self) -> bool:
+        return self.service.settings(self.user_id).enabled
 
     def assess(self, args: dict[str, Any], ctx: ToolContext) -> Assessment:
         query = (args.get('query') or '').strip()

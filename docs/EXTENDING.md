@@ -30,6 +30,36 @@ unchanged:
 
 Tools arrive as `mcp__<server>__<tool>`.
 
+### Tools load as needed
+
+Model requests start with a small core (asking, reading, listing, searching,
+writing, shell and the to-do list; plan approval appears only in plan mode).
+`find_tools` searches the allowed catalog by capability or exact name and loads
+up to five matching schemas. An empty query browses names/descriptions without
+loading schemas, with `offset` pagination. A session keeps at most eight optional
+schemas active, evicting the least recently selected/used schema. Reopening a
+chat starts a fresh schema cache. No extra UI setting is needed.
+
+Toolset restrictions and live availability are applied before discovery. Finding
+a tool is a read operation; executing it still uses its original assessment,
+hooks and approval policy. Discovery cannot grant access to a tool excluded from
+the session. Existing transcript calls can load an allowed tool directly, with
+the same execution checks. Each subagent has its own discovery cache. Voice
+sessions update their upstream schemas before continuing from discovery results.
+
+PhotoCraft, scheduling and creative-library implementations use lightweight
+descriptors and instantiate on first schema request or execution. Other built-in
+tools may already have instances; their optional schemas are still deferred.
+Configured MCP servers still initialize at daemon startup to obtain their catalogs;
+their schemas are loaded into model requests only when selected. This does not
+yet defer the external servers' processes or network connections.
+
+The isolated default-session fixture measured 8 initial schemas / 5,982 serialized
+bytes versus 22 allowed schemas / 25,920 bytes (76.9% fewer schema bytes). This is
+a JSON-size measurement, not an exact tokenizer count or an inference-latency or
+task-success benchmark. `tests/test_tool_discovery.py` checks loading, cache bounds,
+permission isolation and schema-size reduction.
+
 ### Local and remote
 
 A server is a `command` to run or a `url` to reach. Remote ones speak one of
