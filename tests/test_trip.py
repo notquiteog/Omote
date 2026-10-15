@@ -458,6 +458,26 @@ def test_check_says_it_is_reporting_and_not_refusing(trips, tmp_path):
     assert 'browser task' in said.content, 'and it should say where booking happens'
 
 
+def test_booking_receipts_survive_and_false_clears_a_canceled_reservation(trips, tmp_path):
+    tool = TripTool(trips)
+    started = _run(tool, tmp_path, action='start')
+    ident = started.display['id']
+    for field, value in [('arrive', '2026-11-10'), ('leave', '2026-11-15')]:
+        _run(tool, tmp_path, action='set', trip_id=ident, field=field, value=value)
+    first = _run(tool, tmp_path, action='add_leg', trip_id=ident, kind='flight', what='Flight', booked=True,
+                 ref='CONFIRMED-001', note='Carry-on included; actual booking confirmation observed.')
+    second = _run(tool, tmp_path, action='add_leg', trip_id=ident, kind='flight', what='Flight')
+    with pytest.raises(ToolError, match='exact leg ID'):
+        _run(tool, tmp_path, action='update_leg', trip_id=ident, what='Flight', field='ref', value='wrong')
+    _run(tool, tmp_path, action='update_leg', trip_id=ident, leg=first.display['id'], field='booked', value='false')
+    again = trips.get(ident)
+    assert not again.leg(first.display['id']).booked
+    assert again.leg(first.display['id']).ref == 'CONFIRMED-001'
+    assert again.leg(second.display['id']).ref == ''
+    with pytest.raises(ToolError, match='true or false'):
+        _run(tool, tmp_path, action='update_leg', trip_id=ident, leg=first.display['id'], field='booked', value='maybe')
+
+
 def _run(tool, tmp_path, **args):
     import asyncio
 

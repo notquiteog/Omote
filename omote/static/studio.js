@@ -39,6 +39,7 @@
 import { $, api, el, json, post } from './dom.js';
 import { showConnections } from './connections.js';
 import { wireComfyAssets } from './comfy-assets.js';
+import { wireCreativeApps } from './creative-apps.js';
 
 let kind = 'image';
 let schema = [];
@@ -1259,6 +1260,7 @@ async function startEdit(event) {
 }
 
 export function wireStudio(providers = []) {
+  wireCreativeApps();
   wireComfyAssets({ onUse: async (result) => {
     kind = result.kind || 'image';
     values.clear();

@@ -166,6 +166,14 @@ CAPABILITY_LINES = {
         'book anything. Load world-travel, research current options, and confirm the final '
         'reservation in the browser with purchase intent.'
     ),
+    'career': (
+        'Use career to retain job searches by role/city, truthful resume drafts, and application records. '
+        'Load job-search for this workflow. Research current employer listings with web/browser tools, '
+        'save source URLs, and tailor only facts supplied or verified by the user. Export editable DOCX '
+        'and PDF resumes, inspect them, and use browser_upload for reviewed documents. Uploads may send '
+        'immediately and need message approval. Final application submission uses browser_click with '
+        'message intent. A ready draft is not submitted: verify the actual receipt/status before recording it.'
+    ),
     'photocraft': (
         'You can edit layered images with `photocraft` when its CLI is installed. Check status, '
         'discover command parameters, save a separate output and inspect the returned preview.'
@@ -173,6 +181,16 @@ CAPABILITY_LINES = {
     'memory': (
         'When the user enables memory, `remember` and `recall` become available. '
         'Use them only when offered; the user can pause memory at any time.'
+    ),
+    'creative': (
+        'Use creative_apps to discover installed ArtCraft engines and explicitly configured Adobe/creative MCP bridges. '
+        'Any tool-capable chat model can use them; visual review additionally needs image input. Never assume a named model '
+        'or app is installed: use the actual configured model and status results. Reuse the editor session ID across tool calls. '
+        'Read actual command/export schemas, inspect previews, save an editable native project and a delivery export separately, '
+        'then use inspect_export to check files, with decode=true for final video/audio delivery. Existence alone is not proof of correct layers, timeline, codec, alpha or audio. '
+        'Reopen native projects to verify editing fidelity. Some engines have folder confinement, others run with account permissions. '
+        'Use comfy_workflow for live node/model discovery, versioned graph edits, schema validation, exact-revision runs and output imports. '
+        'An API graph can be loaded and laid out by the connected official ComfyUI editor; never claim custom nodes are installed without checking.'
     ),
     'todo': (
         'For anything that takes more than a few steps, keep a to-do list with `todo`, and keep it '

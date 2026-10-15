@@ -23,11 +23,12 @@ costs one confirmation. A false negative costs money.
 
 from __future__ import annotations
 
+import mimetypes
 import re
 import unicodedata
 from typing import Any
 
-from omote.agent.tools.base import Assessment, Output, Tool, ToolContext, ToolError, truncate
+from omote.agent.tools.base import Assessment, Output, Tool, ToolContext, ToolError, resolve_in_root, truncate
 from omote.protocol.agent import Risk
 
 _CAMEL = re.compile(r'(?<=[a-z0-9])(?=[A-Z])')
@@ -95,6 +96,8 @@ _BUYING_LOCAL = re.compile(unicodedata.normalize('NFKC', (
 _SENDING = re.compile(unicodedata.normalize('NFKC', (
     r'\b(?:send(?:\s+(?:an?\s+)?(?:email|e mail|message|reply|invitation))?|reply|reply all|'
     r'publish|post comment|post message|submit (?:comment|message)|'
+    r'(?:submit|send|complete|confirm)\s+(?:my\s+|your\s+|the\s+|job\s+)?application|'
+    r'apply now|submit (?:my |your |the )?resume|'
     r'envoyer|répondre|publier|senden|abschicken|antworten|veröffentlichen|'
     r'enviar|responder|publicar|invia|pubblica|verzenden|отправить|ответить)\b|'
     r'送信|返信|投稿|公開する|发送|發送|发送邮件|發送郵件|回复|回覆|发布|發佈|'
@@ -346,6 +349,71 @@ class BrowserClickTool(_BrowserTool):
             content=f'Clicked. The page is now {page.url}\nRead it again before acting further.',
             display={'url': page.url},
         )
+
+
+class BrowserUploadTool(_BrowserTool):
+    name = 'browser_upload'
+    description = (
+        'Attach reviewed local documents (resume, cover letter, portfolio) to an observed file input '
+        'from browser_read. Use only files the user intends to share with this site. This can upload '
+        'immediately on selection, so it always needs external-message approval. Does not click the '
+        'application submit button. Up to 10 files / 20 MiB total within allowed workspace roots. '
+        'For a site with a hidden custom uploader, use browser_hand_over rather than guessing selectors.'
+    )
+    input_schema = {'type': 'object', 'additionalProperties': False, 'required': ['ref', 'paths'], 'properties': {
+        'ref': {'type': 'integer', 'description': 'Observed input/file reference from browser_read.'},
+        'paths': {'type': 'array', 'minItems': 1, 'maxItems': 10, 'items': {'type': 'string'}},
+    }}
+
+    def assess(self, args, ctx):
+        try:
+            if type(args.get('ref')) is not int:
+                raise ToolError('Use an input/file reference from browser_read.')
+            element = self.browser.last_elements.get(args['ref'])
+            if not element or element.get('tag') != 'input' or element.get('type') != 'file' or element.get('disabled'):
+                raise ToolError('Read the page and choose an enabled input/file element.')
+            paths = args.get('paths')
+            if not isinstance(paths, list) or not 1 <= len(paths) <= 10 or any(not isinstance(path, str) for path in paths):
+                raise ToolError('Choose 1–10 local files.')
+            if len(paths) > 1 and not element.get('multiple'):
+                raise ToolError('This uploader accepts one file at a time.')
+            resolved = [resolve_in_root(path, ctx) for path in paths]
+            if any(not path.is_file() or path.stat().st_size == 0 for path in resolved) or sum(path.stat().st_size for path in resolved) > 20 * 1024**2:
+                raise ToolError('Choose nonempty files totaling at most 20 MiB.')
+            accepted = [part.strip().lower() for part in element.get('accept', '').split(',') if part.strip()]
+            for path in resolved:
+                mime = mimetypes.guess_type(path.name)[0] or 'application/octet-stream'
+                if accepted and not any(part == '*/*' or (part.startswith('.') and path.name.lower().endswith(part)) or part == mime or (part.endswith('/*') and mime.startswith(part[:-1])) for part in accepted):
+                    raise ToolError(f'This uploader accepts {element["accept"]}; choose a compatible document.')
+            return Assessment(risk=Risk.MESSAGE, summary=f'Upload {", ".join(path.name for path in resolved)} to the open site')
+        except (ToolError, ValueError, TypeError, OSError) as error:
+            return Assessment(risk=Risk.MESSAGE, summary='Upload documents', invalid=str(error))
+
+    async def run(self, args, ctx):
+        check = self.assess(args, ctx)
+        if check.invalid:
+            raise ToolError(check.invalid)
+        try:
+            locator = await self.browser.find(args['ref'])
+            if await locator.get_attribute('type') != 'file' or await locator.is_disabled():
+                raise ToolError('The uploader changed. Read the page again.')
+            # Supply a snapshot, not filesystem paths that could change while
+            # Chromium opens them. Also recheck the actual payload size.
+            files = []
+            for name in args['paths']:
+                path = resolve_in_root(name, ctx)
+                with path.open('rb') as stream:
+                    data = stream.read(20 * 1024**2 + 1)
+                files.append({'name': path.name, 'mimeType': mimetypes.guess_type(path.name)[0] or 'application/octet-stream', 'buffer': data})
+            if sum(len(row['buffer']) for row in files) > 20 * 1024**2:
+                raise ToolError('Upload files changed size; review them again.')
+            await locator.set_input_files(files, timeout=15000)
+        except ToolError:
+            raise
+        except Exception as error:  # noqa: BLE001 — browser errors are actionable tool results
+            raise ToolError(f'Could not attach documents: {error}. Read the current page before retrying.') from error
+        return Output(content='Documents selected; the site may already have uploaded them. Read the page to verify filenames/status. No final application submit button was clicked.',
+                      display={'files': [row['name'] for row in files]})
 
 
 class BrowserTypeTool(_BrowserTool):

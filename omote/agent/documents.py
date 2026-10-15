@@ -333,6 +333,32 @@ def read_pdf(data: bytes, *, max_pages: int = MAX_PDF_PAGES, layout: bool = Fals
 # ---------------------------------------------------------------------------
 
 
+def read_docx(data: bytes) -> Read:
+    """Read bounded local OOXML text without executing macros or following links."""
+    namespace = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            names = ['word/document.xml']
+            names += sorted(name for name in archive.namelist() if re.fullmatch(r'word/(?:header|footer)\d+\.xml', name))
+            if len(names) > 100 or sum(archive.getinfo(name).file_size for name in names) > 16 * 1024**2:
+                raise DocumentError('Word document text exceeds the 16 MiB extraction limit.')
+            lines = []
+            for name in names:
+                blob = archive.read(name)
+                if b'<!DOCTYPE' in blob.upper() or b'<!ENTITY' in blob.upper():
+                    raise DocumentError('Word XML entity declarations are not supported.')
+                root = ElementTree.fromstring(blob)
+                for paragraph in root.iter(namespace + 'p'):
+                    text = ''.join(node.text or '' if node.tag == namespace + 't' else '\n' if node.tag == namespace + 'br' else '\t' if node.tag == namespace + 'tab' else '' for node in paragraph.iter())
+                    if text.strip():
+                        lines.append(text)
+            text = '\n\n'.join(lines)
+            return Read(text=text[:200000], kind='docx', truncated=len(text) > 200000,
+                        note='Word body/header/footer text; formatting, images and layout are not rendered.')
+    except (zipfile.BadZipFile, KeyError, ElementTree.ParseError, RuntimeError) as error:
+        raise DocumentError(f'This could not be opened as a Word document: {error}') from error
+
+
 def read_document(path: Path, *, layout: bool = False) -> Read | None:
     """Read a document by extension, or None when it is not one."""
     suffix = path.suffix.lower()
@@ -340,14 +366,16 @@ def read_document(path: Path, *, layout: bool = False) -> Read | None:
         return read_pdf(path.read_bytes(), layout=layout)
     if suffix in ('.xlsx', '.xlsm'):
         return read_xlsx(path.read_bytes())
+    if suffix == '.docx':
+        return read_docx(path.read_bytes())
     return None
 
 
 def is_document(path: Path) -> bool:
-    return path.suffix.lower() in ('.pdf', '.xlsx', '.xlsm')
+    return path.suffix.lower() in ('.pdf', '.xlsx', '.xlsm', '.docx')
 
 
 __all__ = [
     'DocumentError', 'MAX_PDF_PAGES', 'MAX_SHEET_ROWS', 'Read', 'is_document', 'pdf_available',
-    'read_document', 'read_pdf', 'read_xlsx',
+    'read_document', 'read_docx', 'read_pdf', 'read_xlsx',
 ]

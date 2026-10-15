@@ -194,6 +194,9 @@ impl Daemon {
             if let Some(path) = &path {
                 cmd.env("PATH", path);
             }
+            if std::env::var_os("APPIMAGE").is_some() {
+                cmd.env("OMOTE_INSTALL_KIND", "appimage");
+            }
             outside_appimage(&mut cmd);
             #[cfg(windows)]
             {
@@ -284,7 +287,7 @@ pub fn tail(path: &Path, lines: usize) -> Option<String> {
 /// data directories — for its own sake, and the daemon would pass them on to
 /// every program the agent runs. Those are the user's programs, which want
 /// the user's environment; and the mount is gone the moment the app quits.
-fn outside_appimage(cmd: &mut Command) {
+pub fn outside_appimage(cmd: &mut Command) {
     let Some(appdir) = std::env::var("APPDIR").ok().filter(|dir| !dir.is_empty()) else {
         return;
     };

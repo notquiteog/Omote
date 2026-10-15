@@ -161,7 +161,7 @@ def test_the_relationship_table_is_actually_read():
 
 def test_which_files_are_documents():
     assert is_document(Path('a.pdf')) and is_document(Path('a.xlsx')) and is_document(Path('a.XLSM'))
-    assert not is_document(Path('a.py')) and not is_document(Path('a.docx'))
+    assert not is_document(Path('a.py')) and is_document(Path('a.docx'))
 
 
 # --- pdf ----------------------------------------------------------------------

@@ -17,7 +17,7 @@ app.registerExtension({
       if (!origins.includes(event.origin) || event.origin === 'null') return;
       const reply = (payload) => event.source.postMessage({ channel: 'omote.comfy.v1', id: message.id, ...payload }, event.origin);
       try {
-        if (message.action === 'hello') return reply({ ok: true, capabilities: ['capture', 'load'] });
+        if (message.action === 'hello') return reply({ ok: true, capabilities: ['capture', 'load', 'load_api'] });
         if (message.action === 'capture') {
           const prompt = await app.graphToPrompt();
           return reply({ ok: true, graph: prompt.workflow, prompt: prompt.output });
@@ -27,6 +27,17 @@ app.registerExtension({
               || new TextEncoder().encode(JSON.stringify(message.graph)).byteLength > 4 * 1024 * 1024) throw new Error('Invalid workflow');
           await app.loadGraphData(message.graph);
           return reply({ ok: true });
+        }
+        if (message.action === 'load_api') {
+          const prompt = message.prompt;
+          const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+          if (!object(prompt) || !Object.keys(prompt).length || Object.keys(prompt).length > 5000
+              || Object.values(prompt).some(node => !object(node) || typeof node.class_type !== 'string' || !object(node.inputs))
+              || new TextEncoder().encode(JSON.stringify(prompt)).byteLength > 4 * 1024 * 1024) throw new Error('Invalid API workflow');
+          if (typeof app.loadApiJson !== 'function') throw new Error('Update the ComfyUI frontend to load API workflows, or import the JSON in the native editor.');
+          await app.loadApiJson(prompt, 'Omote workflow.json');
+          const captured = await app.graphToPrompt();
+          return reply({ ok: true, graph: captured.workflow, prompt: captured.output });
         }
         throw new Error('Unsupported bridge action');
       } catch (error) { reply({ ok: false, error: String(error.message || error).slice(0,500) }); }

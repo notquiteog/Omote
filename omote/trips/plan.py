@@ -331,8 +331,13 @@ class Trip:
 
     def leg(self, leg_id: str) -> Leg:
         for one in self.legs:
-            if one.id == leg_id or one.what == leg_id:
+            if one.id == leg_id:
                 return one
+        matches = [one for one in self.legs if one.what == leg_id]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise TripError(f'More than one leg is called {leg_id!r}. Use the exact leg ID from list_legs.')
         known = ', '.join(one.what for one in self.legs) or 'none yet'
         raise TripError(f'no leg called {leg_id!r}. It has: {known}')
 

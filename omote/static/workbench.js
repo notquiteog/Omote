@@ -233,7 +233,7 @@ export function wireWorkbench() {
     <label class="wb-field">Project<input id="wb-project" maxlength="300" placeholder="Story or project"></label>
     <label class="wb-field">Version note<input id="wb-notes" maxlength="4000" placeholder="What changed?"></label>
     <span id="wb-dirty" class="meta"></span>
-    <div class="creative-actions"><button id="wb-save" class="primary small">Save version</button><button id="wb-copy" class="ghost small">Save copy</button></div>
+    <div class="creative-actions"><button id="wb-save" class="primary small">Save version</button><button id="wb-copy" class="ghost small">Save copy</button><button id="wb-assistant" class="ghost small">Edit with chat</button></div>
     <label class="wb-field">Version<select id="wb-version" aria-label="Workflow version"></select></label>
     <div class="creative-actions"><button id="wb-load" class="ghost small">Load in editor</button><button id="wb-export" class="ghost small">Export JSON</button><button id="wb-delete" class="ghost small">Delete saved</button></div>
     <details><summary>Compare saved versions</summary><p class="meta">Review changes to the loaded saved version. Unsaved edits are excluded.</p><label class="wb-field">Compare from<select id="wb-compare-version" aria-label="Comparison baseline"></select></label><button id="wb-compare" class="ghost small">Compare versions</button><div id="wb-comparison" aria-live="polite"></div></details>
@@ -285,9 +285,22 @@ export function wireWorkbench() {
     try { fill(await request(`/workflows/${saved.id}?revision=${$('#wb-version').value}`)); } catch (error) { note(error.message); }
   };
   action('#wb-load', async () => {
-    if (!draft?.graph) throw new Error('This version has API data only. Import an editor workflow or capture one first.');
+    if (!draft?.graph && !draft?.prompt) throw new Error('Load or save a workflow first.');
     if (!confirm('Replace the graph currently open in ComfyUI? Capture it first to keep it.')) return;
-    await bridge('load', { graph: draft.graph }); note('Loaded in the native editor.');
+    if (draft.graph) await bridge('load', { graph: draft.graph });
+    else {
+      const captured = await bridge('load_api', { prompt: draft.prompt });
+      const canonical = checkedDraft(captured);
+      draft.graph = canonical.graph;
+      draft.prompt = canonical.prompt;
+      markDirty();
+      inspect();
+    }
+    note('Loaded in the native editor. Save this version to retain its current layout.');
+  });
+  action('#wb-assistant', () => {
+    if (!saved || dirty) throw new Error('Save this version first so the chat edits the same workflow you see.');
+    document.dispatchEvent(new CustomEvent('omote:edit-workflow', { detail: { id: saved.id, revision: saved.revision, name: saved.name } }));
   });
   action('#wb-export', () => { if (!draft) throw new Error('Select a workflow first.'); jsonDownload(draft.graph || draft.prompt, `${$('#wb-name').value || 'workflow'}.json`); });
   action('#wb-delete', async () => { if (!saved || !confirm('Delete this saved workflow and every local version?')) return; await request(`/workflows/${saved.id}`, 'DELETE'); saved = null; draft = null; dirty = false; for (const id of ['#wb-name', '#wb-project', '#wb-notes']) $(id).value = ''; $('#wb-version').replaceChildren(); $('#wb-compare-version').replaceChildren(); $('#wb-comparison').replaceChildren(); $('#wb-dirty').textContent = ''; inspect(); await list(); note('Saved workflow and its versions deleted.'); });

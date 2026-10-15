@@ -25,6 +25,15 @@ and explicit UTC offsets for itinerary legs and include place/time-zone names in
 notes; check overnight travel and daylight-saving changes. Use `trip check` for
 schedule/budget conflicts, and update the plan from verified results.
 
+For flights, compare the actual airports (not just city names), local departure
+and arrival dates with offsets, overnight arrivals, stops and connection time,
+fare class, carry-on/checked baggage, seat fees, change/refund terms and total for
+all travelers. Keep separate tickets and self-transfers explicit. For hotels,
+check the exact room, guest count, bed configuration, number of nights, mandatory
+taxes/resort fees/deposits and the cancellation deadline in the property's time
+zone. Recheck live availability and the final price at checkout; search results
+are not a reservation or a guaranteed quote.
+
 Before a booking, show the final provider, dates, traveller/room details, currency,
 full amount payable now/later, cancellation terms and charge responsibility.
 Ask missing traveller questions without inventing details. Let the user complete
@@ -37,3 +46,8 @@ After submission, inspect the confirmation number and status. Mark a leg booked
 only after that evidence exists. Save or send a receipt only if requested. If the
 page fails after submission, check booking history before retrying. A plan,
 pre-filled form or approval prompt is not a completed booking.
+
+Record the observed booking reference and cancellation/change details on the
+matching trip leg. Mark canceled reservations unbooked only after confirmation;
+cancellation may involve fees and uses the same commitment review. Do not store
+card, passport or identity-document numbers in itinerary notes or vector memory.

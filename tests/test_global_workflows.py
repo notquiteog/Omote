@@ -62,6 +62,14 @@ def test_mcp_cannot_declare_a_send_readonly():
     assert tool.assess({}, None).risk is Risk.MESSAGE
 
 
+@pytest.mark.parametrize('label', ['Submit application', 'Submit my resume', 'Complete your application', 'Apply now'])
+def test_job_application_buttons_and_enter_need_message_review(label):
+    browser = SimpleNamespace(last_elements={1: {'tag': 'button', 'label': label},
+                                             2: {'tag': 'input', 'submit_label': label}})
+    assert BrowserClickTool(browser).assess({'ref': 1}, None).risk is Risk.MESSAGE
+    assert BrowserTypeTool(browser).assess({'ref': 2, 'text': 'Alex', 'submit': True}, None).risk is Risk.MESSAGE
+
+
 def test_cc_and_bcc_are_visible_before_native_mail_send():
     tool = MailTool(None)
     assessment = tool.assess({'action': 'send', 'to': ['a@example.test'],

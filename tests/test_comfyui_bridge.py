@@ -35,6 +35,7 @@ globalThis.appFixture = {
             output: {'1': {class_type: 'CustomNode', inputs: {prompt: '京都'}}}};
   },
   async loadGraphData(graph) { calls.push({op: 'load', graph}); },
+  async loadApiJson(prompt) { calls.push({op: 'load_api', prompt}); },
 };
 if (plan.legacy) delete globalThis.appFixture.extensionManager;
 await import(pathToFileURL(process.argv[2]).href);
@@ -103,7 +104,7 @@ def test_unconfigured_and_wildcard_origins_do_not_grant_access(bridge):
 def test_handshake_has_exact_origin_and_matching_request_id(bridge):
     result = bridge([{'message': message('hello')}])
     assert result['replies'] == [{'origin': 'https://omote.example', 'message': {
-        'channel': 'omote.comfy.v1', 'id': 'req-123', 'ok': True, 'capabilities': ['capture', 'load'],
+        'channel': 'omote.comfy.v1', 'id': 'req-123', 'ok': True, 'capabilities': ['capture', 'load', 'load_api'],
     }}]
     assert len(result['calls']) == 1
 
@@ -125,6 +126,21 @@ def test_loading_preserves_native_graph_without_executing_it(bridge):
     assert result['calls'][-1] == {'op': 'load', 'graph': graph}
     assert result['replies'][0]['message']['ok']
     assert [call['op'] for call in result['calls']] == ['register', 'load']
+
+
+def test_api_workflows_load_through_official_editor_and_capture_layout_without_queueing(bridge):
+    prompt = {'1': {'class_type': 'KSampler', 'inputs': {'steps': 4}}}
+    result = bridge([{'message': message('load_api', prompt=prompt)}])
+    assert [call['op'] for call in result['calls']] == ['register', 'load_api', 'capture']
+    assert result['calls'][1]['prompt'] == prompt
+    assert result['replies'][0]['message']['graph']['nodes']
+
+
+@pytest.mark.parametrize('prompt', [None, [], {}, {'1': {}}, {'1': {'class_type': 'KSampler', 'inputs': []}}])
+def test_malformed_api_loads_do_not_mutate_editor(bridge, prompt):
+    result = bridge([{'message': message('load_api', prompt=prompt)}])
+    assert [call['op'] for call in result['calls']] == ['register']
+    assert not result['replies'][0]['message']['ok']
 
 
 @pytest.mark.parametrize('entry', [

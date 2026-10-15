@@ -64,6 +64,9 @@ class ServerConfig:
     # a server that can declare itself harmless is a server that can opt out
     # of the approval it most needs.
     trust_hints: bool = False
+    # Explicitly expose this operator-configured connector in Studio's creative
+    # app interface. Narrow creative toolsets must not reach unrelated services.
+    creative: bool = False
 
     def resolved_transport(self) -> str:
         """How to reach this server, with the guesswork done once, here.
@@ -146,6 +149,7 @@ def load_config(path: Path) -> list[ServerConfig]:
                 headers=dict(entry.get('headers') or {}),
                 enabled=entry.get('enabled', True),
                 trust_hints=bool(entry.get('trustHints', False)),
+                creative=bool(entry.get('creative', False)),
             )
         )
     return servers

@@ -220,7 +220,7 @@ def test_the_update_button_can_still_be_pressed_once_something_is_staged():
     """
     updates = (STATIC / 'updates.js').read_text()
     assert "onclick = install;" in updates, 'the button must dispatch to install, not only to download'
-    assert '$(\'#update-apply\').disabled = Boolean(info.downloading);' in updates, (
+    assert '$(\'#update-apply\').disabled = Boolean(info.downloading || state.installing);' in updates, (
         'a staged download must not disable the button that installs it'
     )
     assert "Boolean(info.staged) || Boolean(info.downloading)" not in updates

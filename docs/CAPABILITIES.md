@@ -12,15 +12,16 @@ completed.
 | Local execution and resources | Package installation, shell/background work, per-command root/admin access, live System panel, managed GGUF and ComfyUI safetensors/workflow downloads with cancel/resume/checksums, disk/memory preflight, live ComfyUI node/model compatibility, owned llama.cpp runtime start/stop and local chat | One transfer per library and one chat runtime; Vulkan/Metal need OS drivers. Linux NVIDIA Qwen chat and Studio SD Turbo image generation tested. ComfyUI uses an existing installation plus managed model paths. Native Mac/Windows GPU runs and admin dialogs need verification; automatic multi-file diffusion packages and other runtime adapters remain future work. |
 | Continuing responsibilities | Durable local scheduled tasks, recurring civil times, run history, visible approvals, cancellation and background-worker follow-through | Computer and daemon must remain available. No hosted wake-ups, event-triggered jobs or cross-channel delivery. See [Scheduled tasks](SCHEDULES.md). |
 | Business and personal workflows | Browser-driven employee portals, email tools, travel planning, calendar and ledger tools, user questions and MCP integration | Connect each service; authentication, purchases and outbound communication still need the appropriate user action/approval. No universal EMS or booking API. |
+| Jobs and resumes | Role/city/work-mode search records, source-linked job shortlist, application tracking, base/tailored resumes, DOCX/PDF/HTML/TXT exports, DOCX reading and approved browser uploads | Live listings use web/browser tools. PDF creation needs Chromium; PDF reading needs the docs extra. Local-fixture search/upload/application receipt tested; no live employer submission. See [Personal assistant map](PERSONAL-ASSISTANT.md). |
 | Browser and computer use | Playwright browser sessions, page inspection, screenshots, desktop stages and input tools | Browser runtime, desktop platform support and app permissions are required. Website restrictions and inaccessible UI remain limitations. |
 | Team interaction | Browser and configured MCP connections can reach supported communication services | No native Slack/Teams bot identity, channel listener, channel-level policy store or enterprise team account service is bundled. |
 | Voice | LLM + STT + TTS pipeline and OpenAI Realtime integration with agent tools | Requires compatible services, microphone permission and audio hardware. This is not a login to the ChatGPT Instant consumer application. |
 | Memory / Brain | Opt-in vector memory, personal/project filters, local text search across pages, offline manual saves, correction, export and deletion; deduplicated automatic fact capture | Connect a compatible embedding model for semantic recall. Automatic capture uses conservative patterns; no background model-led reconciliation of contradictions or hierarchical memory browser. |
-| Tool/context efficiency | Small core plus searchable on-demand schemas, bounded optional-schema cache, deferred PhotoCraft/scheduling/creative-library implementations, toolset narrowing, skill loading, compaction, batched reads and quantized vector search | MCP servers still initialize at startup. The default fixture carries 76.9% fewer schema bytes; latency/task-success and comparative oh-my-pi benchmarks remain unmeasured. See [Tool loading](EXTENDING.md#tools-load-as-needed). |
+| Tool/context efficiency | Small core plus searchable on-demand schemas, bounded optional-schema cache, deferred creative/scheduling implementations, selected native creative engines start on demand, toolset narrowing, skill loading, compaction, batched reads and quantized vector search | Operator-configured MCP servers still initialize at startup. Latency/task-success and comparative oh-my-pi benchmarks remain unmeasured. See [Tool loading](EXTENDING.md#tools-load-as-needed). |
 | Images and video | Provider-specific generation forms, references, job progress/cancellation and media gallery | Model/account availability, supported parameters, costs and regional access depend on providers. |
-| ComfyUI | Full connected native editor, Nodes 2.0 when installed, bridge capture/load, immutable versions, comparison, schema validation and owned run/output history | Requires ComfyUI, relevant weights and custom nodes. Omote adds a workbench around its native renderer. Compatibility with every extension has not been established. |
+| ComfyUI | Full connected native editor, Nodes 2.0 when installed, API-to-native graph import, agent authoring/atomic patches, immutable versions, comparison, live schema validation, exact-revision runs and output history | Requires ComfyUI, relevant weights and custom nodes. Real agent-authored graph/native-editor/GPU roundtrip verified on Linux. Compatibility with every extension has not been established. |
 | Characters and 3D | Reusable descriptions/reference images, generation recipes, asset associations, import/export and interactive previews | References do not guarantee identity consistency. 3D generation depends on connected models/workflows; the viewer is not a full 3D authoring application. |
-| Creative applications | PhotoCraft integration, media-editing tools, desktop control and configurable MCP tools | PhotoCraft/Adobe/GIMP and their supported automation interfaces must be installed or connected. |
+| Creative applications | Stateful access to all 13 native ArtCraft engines' actual MCP catalogs, creative MCP connectors, native editing/export tools, image/SVG checks and FFmpeg media inspection/full decoding | Engines/apps must be installed; Adobe needs a supported bridge or desktop control and its license. All 13 engine connections tested; Photo/Vector/Film/Effect real edit/save/reopen/export tested. Every format, command and model has not been verified. See [Creative apps](CREATIVE.md#creative-apps-and-export-checks). |
 | Companions and onboarding | Animated companions with distinct reactions, optional tour, provider setup, responsive workspace, accessible companion menu | Behavior and accessibility have automated browser coverage, not comprehensive user research across every platform and assistive technology. |
 
 ## Verification map
@@ -45,8 +46,24 @@ completed.
 - Creative workspace and node metadata: `tests/test_workbench.py`,
   `tests/test_workbench_review.py`, `tests/test_workflow_diff.py`,
   `tests/test_creative_browser.py` and the ComfyUI bridge tests.
+- Creative engines and agent authoring: `tests/test_creative_apps.py`,
+  `tests/test_creative_exports.py`, `tests/test_comfy_workflow_tool.py`,
+  `tests/test_creative_apps_browser.py` and `tests/test_mcp_creative_cancellation.py`
+  cover persistent sessions, permissions, lazy cleanup, atomic edits, export
+  fidelity checks, mobile layout, preserved drafts and actual RPC cancellation.
+  Separate live tests connected 13 native engines, edited/reopened/exported with
+  four, and authored/edited/captured a seven-node graph in ComfyUI's official
+  frontend before generating and retaining an SD Turbo image on an RTX 5060 Ti.
+  No live Adobe bridge or model-specific creative benchmark was performed.
 - User flows: `tests/test_onboarding_browser.py`, `tests/test_workspace_browser.py`,
   `tests/test_companion_browser.py`.
+- Personal workflows: `tests/test_career.py`, `tests/test_personal_workflows_browser.py`
+  and `tests/test_personal_starters_browser.py` verify revision-safe records,
+  project/user isolation, actual resume exports, browser uploads, application and
+  flight receipts, final-action review, mobile starters and draft preservation.
+  The exported DOCX also reopened/rendered in a real WordCraft engine. Native
+  Android device services and full Android/Gemini feature parity are not implemented;
+  the [comparison map](PERSONAL-ASSISTANT.md) records those gaps explicitly.
 - Service boundaries: mail, trip, memory, PhotoCraft, voice and Realtime suites.
   Local fakes and transport fixtures avoid sending real mail or paying for test
   generations; live account verification remains separate.

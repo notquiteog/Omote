@@ -13,6 +13,11 @@ by your own frontend; the extension calls its public `graphToPrompt`/`loadGraphD
 APIs and does not patch a renderer. Without the extension, JSON import/export and
 the full native editor remain available.
 
+API-only workflows use the frontend's `loadApiJson` importer, then capture its
+generated native graph and canonical prompt. Save the result as a new version to
+retain both. If a frontend lacks that importer, the bridge reports it explicitly;
+update that installation or import/capture the workflow in its own interface.
+
 The bridge does not execute workflows or expose filesystem/network endpoints.
 Execution uses the configured server connection and the explicit workbench Run
 button, with its own validation and run history. Stored workflows may contain

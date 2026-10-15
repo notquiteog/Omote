@@ -1,5 +1,9 @@
 #local-models-dialog { width: min(780px, calc(100vw - 28px)); min-width: 0; max-height: calc(100dvh - 28px); box-sizing: border-box; overflow-y: auto; }
 #comfy-assets-dialog { width: min(780px, calc(100vw - 28px)); min-width: 0; max-height: calc(100dvh - 28px); box-sizing: border-box; overflow-y: auto; }
+#creative-apps-dialog { width: min(680px, calc(100vw - 28px)); min-width: 0; max-height: calc(100dvh - 28px); box-sizing: border-box; overflow-y: auto; }
+#creative-apps-dialog .meta { color: var(--dim); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+#creative-apps-dialog .lm-toolbar { flex-wrap: wrap; }
+#creative-apps-choice { max-width: min(300px, 68vw); }
 #comfy-assets-dialog .meta { color: var(--dim); font-size: 12px; line-height: 1.6; }
 #comfy-assets-dialog .lm-toolbar { flex-wrap: wrap; }
 #ca-provider { max-width: 250px; }

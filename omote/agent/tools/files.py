@@ -122,7 +122,8 @@ class ReadTool(Tool):
         'them back to the person — if they ask what a line says, answer with the line, not with '
         'the number and a tab in front of it. Use offset and limit for a file too large to read '
         'at once. A Jupyter notebook is shown as its cells and their outputs, pictures included; '
-        'change one with notebook_edit.'
+        'change one with notebook_edit. Word DOCX and spreadsheets are extracted as text; PDF text '
+        'needs the docs extra. These text views do not verify document layout.'
     )
     input_schema = {
         'type': 'object',

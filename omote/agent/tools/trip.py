@@ -111,6 +111,9 @@ class TripTool(Tool):
             'value': {'type': 'string', 'description': 'The value, as a string.'},
             'kind': {'type': 'string', 'enum': list(KINDS), 'description': 'For add_leg.'},
             'what': {'type': 'string', 'description': 'For add_leg: the name of it. "Flight to Tbilisi".'},
+            'leg': {'type': 'string', 'description': 'Exact leg ID from add_leg/list_legs for update_leg/remove_leg; use IDs when names repeat.'},
+            'ref': {'type': 'string', 'description': 'Observed booking confirmation reference, never card/passport numbers.'},
+            'note': {'type': 'string', 'description': 'Source URL, fare/room/baggage details and cancellation terms; no payment or identity secrets.'},
             'where': {'type': 'string', 'description': 'For add_leg: the place it happens.'},
             'start': {'type': 'string', 'description': 'ISO with an offset: 2026-10-14T09:30+04:00'},
             'end': {'type': 'string', 'description': 'ISO with an offset.'},
@@ -263,6 +266,8 @@ class TripTool(Tool):
             end=str(args.get('end') or ''),
             cost=args.get('cost'),
             booked=bool(args.get('booked')),
+            ref=str(args.get('ref') or ''),
+            note=str(args.get('note') or ''),
         )
         self.trips.save(trip)
         _, _, _ = trip.total()
@@ -279,7 +284,12 @@ class TripTool(Tool):
         leg = trip.leg(str(args.get('leg') or args.get('what') or ''))
         field = str(args.get('field') or '').strip()
         if field == 'booked':
-            leg.booked = bool(args.get('value') or args.get('booked'))
+            value = args.get('value') if 'value' in args else args.get('booked')
+            if isinstance(value, str) and value.strip().lower() in ('true', 'false'):
+                value = value.strip().lower() == 'true'
+            if type(value) is not bool:
+                raise TripError('booked needs true or false; mark it true only after booking confirmation.')
+            leg.booked = value
         elif field in ('start', 'end'):
             setattr(leg, field, str(args.get('value') or ''))
             moment(getattr(leg, field), what=f'{field} of "{leg.what}"')

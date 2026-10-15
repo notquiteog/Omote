@@ -13,6 +13,7 @@
 import { caption, companion } from './companions/index.js';
 
 const shell = window.__TAURI__;
+const invoke = shell?.core?.invoke || shell?.invoke;
 
 if (shell && shell.notification) {
   let was = companion.state;
@@ -48,9 +49,9 @@ async function notify(api) {
  * a better answer than an exception, and the person still has to do the last
  * step themselves. */
 export async function installUpdate(path) {
-  if (!shell || !shell.invoke) return 'saved';
+  if (!invoke) return 'saved';
   try {
-    return await shell.invoke('apply_update', { path });
+    return await invoke('apply_update', { path });
   } catch (err) {
     console.warn('omote: could not start the update', err);
     return `saved, but it could not be started: ${err}`;
@@ -59,4 +60,4 @@ export async function installUpdate(path) {
 
 /* Whether this page is inside the desktop app, which decides whether an
    update can be installed or only downloaded. */
-export const isDesktop = Boolean(shell && shell.invoke);
+export const isDesktop = typeof invoke === 'function';

@@ -10,8 +10,17 @@ versions, version comparison, schema validation, run history, and output imports
 keeps reusable character references, generation recipes, and interactive 3D previews.
 The canvas fills the workspace; **Workflow library** opens optional version and
 API controls, and **Focus mode** gives the native editor the full window.
-PhotoCraft, email, and browser-based employee portals are available to the agent;
+**Creative apps** connects installed ArtCraft engines and configured creative MCP
+bridges. The agent can preserve native projects, export delivery files and check
+their contents. **Edit with chat** lets it author or revise ComfyUI flows using
+live node schemas and saved versions. Email and browser-based employee portals
+are also available to the agent;
 see [Creative workspace](docs/CREATIVE.md) and [Business workflows](docs/BUSINESS.md).
+**Find jobs & build a résumé** and **Plan & book travel** prepare personal tasks
+in chat. Job searches, tailored resumes and application records persist per project;
+resumes export as DOCX/PDF/HTML/TXT, and reviewed documents can be uploaded to actual
+application forms. Flights/hotels use the browser and durable trip planner. See
+the [personal assistant capability map](docs/PERSONAL-ASSISTANT.md).
 **Brain** lets you search, filter, add,
 correct, export, or delete remembered user and project information. Inspection and
 corrections work while memory is paused. Manual additions save locally even when

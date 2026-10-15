@@ -23,7 +23,11 @@ if getattr(sys, 'frozen', False) and sys.platform.startswith('linux'):
         os.environ['LD_LIBRARY_PATH'] = original
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] == '--elevated-worker':
+    if len(sys.argv) == 3 and sys.argv[1] == '--install-update':
+        from omote.update_install import main
+
+        raise SystemExit(main(sys.argv[2]))
+    elif len(sys.argv) == 4 and sys.argv[1] == '--elevated-worker':
         from omote.elevation import worker_main
 
         worker_main(sys.argv[2], sys.argv[3])

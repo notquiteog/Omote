@@ -241,6 +241,15 @@ reduced independently of the system preference.
 
 ## Agent, code, browser, and desktop work
 
+For personal tasks, the chat starters **Find jobs & build a résumé** and
+**Plan & book travel** prepare requests without sending them. You can also ask
+naturally for specific roles in a city, attach an existing resume's path, or
+specify flight/hotel dates and budget. The agent can retain career search/resume/
+application records, export editable DOCX/PDF/HTML/TXT, and use reviewed document
+uploads. Bookings and final applications use the actual site and its confirmation
+steps. See [Jobs and travel](BUSINESS.md) and the
+[Android/Gemini comparison map](PERSONAL-ASSISTANT.md) for setup and remaining gaps.
+
 Create a chat session against a tool-capable model and the desired working folder.
 The existing agent tools cover file editing, patching, shell commands, tests, Git,
 review, language servers, browser search and navigation, desktop screenshots/input,
@@ -260,6 +269,17 @@ its installed CLI, with verified separate outputs and image previews. General
 browser-based EMS, email and travel workflows use real pages and configured
 accounts. See [Personal and business work](BUSINESS.md) for setup and examples.
 Use the model's visible tool results to verify each task's outcome.
+
+**Studio → Creative apps** offers the complete native ArtCraft engine catalog
+and explicitly configured creative MCP bridges, including Adobe bridges when
+installed. Choose an app to prepare a chat request; no engine starts until the
+agent discovers its tools. Stateful sessions preserve documents across edits,
+and the agent can save native projects, export delivery copies and verify them
+with `inspect_export`. **Edit with chat** in the ComfyUI workflow library prepares
+a request for the exact saved graph and revision. The `comfy_workflow` tool can
+author, patch, validate and run workflows using the connected server's real
+schemas; API-only drafts can be loaded into the full native editor. See
+[Creative workspace](CREATIVE.md) for installation, file access and export checks.
 
 ## Voice
 

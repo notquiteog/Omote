@@ -113,6 +113,8 @@ INTERACTIVE_JS = """
       secret: isSecret,
       checked: el.checked === true,
       disabled: el.disabled === true,
+      accept: el.type === 'file' ? el.accept : undefined,
+      multiple: el.type === 'file' ? el.multiple : undefined,
       inViewport: r.top >= 0 && r.top < innerHeight,
     });
     if (n >= 300) break;

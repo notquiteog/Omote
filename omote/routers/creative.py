@@ -119,6 +119,13 @@ async def prepare_character(ident: str):
     return _require(_call(_store().prepare, _user(), ident, media_store))
 
 
+@router.get('/apps')
+async def creative_apps():
+    from omote.creative.apps import catalog
+
+    return catalog()
+
+
 @router.get('/assets')
 async def assets(q: str = Query('', max_length=500), project: str = Query('', max_length=500),
                  kind: Literal['', 'image', 'video', 'model'] = '', character_id: str = '',

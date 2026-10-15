@@ -13,6 +13,9 @@ parity with every commercial agent product.
 | Read, search, draft, send and reply to email | Native mail tool; browser webmail | Configure an account in Mail settings, or sign into webmail. Native tool does not attach files. Sends require final confirmation. |
 | Employee management and administration | Playwright browser workflow, configured MCP connectors, local HR ledger | `business-admin` skill uses the actual portal; there is no bundled vendor-specific EMS connector. Local HR records do not update an employer's system. |
 | Hotel research and reservations | Web research + browser + durable trip planner | Inventory, checkout and cancellation terms belong to the actual provider. Final reservations require confirmation, including pay-at-property. |
+| Flights | Live airline/agent pages + browser + trip legs/booking references | Compare airports, time zones, fare class, baggage and the final total. Final checkout requires purchase confirmation; a quoted fare is not a ticket. |
+| Job search and applications | `career` records, `job-search` workflow, web research, document exports and browser uploads | Save role/city/work-mode criteria and actual employer URLs. Review documents and screening answers before sharing; record submitted only after an observed receipt. |
+| Resumes | Project-scoped base/tailored records; editable DOCX, PDF, HTML and TXT export; DOCX/PDF text reading | Preserve user-provided facts. PDF creation requires Chromium; PDF reading uses the docs extra. No guaranteed ATS score, interview or offer. |
 | Vacation and business-trip plans | Trip intake, itinerary, budgets and calendar conflicts | Times use explicit offsets. Separate currencies stay separate unless a sourced conversion is supplied. |
 | Read and operate a screen | Desktop screenshot and pointer/keyboard tools | Needs desktop dependencies, an available screen and a model that can interpret images. |
 | Drive websites | Real Playwright browser and numbered live page elements | Install browser dependencies/Chromium. Native dropdowns accept exact option values or labels. Custom widgets use their observed visible controls. |
@@ -21,8 +24,79 @@ parity with every commercial agent product.
 
 Bundled skills are loaded by the agent when relevant and are also available as
 slash commands: `/global-assistant`, `/business-admin`, `/email`, `/world-travel`,
-`/photocraft` and `/photoshop`. They contain concrete preparation, inspection,
+`/job-search`, `/photocraft` and `/photoshop`. They contain concrete preparation, inspection,
 review and verification steps, not promises that an account is already connected.
+
+## Jobs, resumes and applications
+
+Choose **Find jobs & build a résumé** in a new chat, or ask naturally: “Find
+technical support jobs in Chicago within 30 km, hybrid preferred, and help me
+apply using my experience.” The starter prepares an editable request and preserves
+an existing draft. The agent can load `job-search` and discover the lazy `career`
+tool. Use a browser-capable installation and current web sources for live listings;
+the local record tool does not invent job inventory or submit applications.
+
+Career records retain the search criteria, resume variants and a shortlist with
+source URLs, notes, document paths and application status. Updates require the
+current revision, so two chats cannot silently overwrite each other. Tracking
+parameters and fragments are removed for duplicate detection; job identifiers in
+the query remain. `ready` means prepared. `submitted` and other external outcomes
+need confirmation evidence from the actual page or the user's verified report.
+The record is evidence supplied to Omote, not an independent check of an employer's
+database. Check the source again if a result is stale or the submission response
+was lost.
+
+Example `career` calls:
+
+```json
+{"action":"save","kind":"search","fields":{"roles":["Technical support","Customer support"],"city":"Chicago, IL","work_mode":"hybrid","radius_km":30}}
+```
+
+```json
+{"action":"save","kind":"resume","fields":{"name":"Your name","contact":["City","email@example.com"],"sections":[{"name":"Experience","entries":[{"title":"Your actual role","subtitle":"Actual employer","dates":"Actual dates","bullets":["A responsibility or result you can substantiate."]}]}]}}
+```
+
+Use `export` with that resume ID and a separate `.docx`, `.pdf`, `.html` or `.txt`
+path. DOCX/HTML/TXT need only the base install. PDF needs the browser extra and
+`python -m playwright install chromium`; HTML can also be printed to PDF manually.
+The layout is single-column with selectable text; retain the editable DOCX and
+check long sections, page breaks and fonts before sending. Original resume sources
+are retained as private record notes, not printed. Tailor a separate record for a
+job rather than replacing the base resume. Word imports read bounded local OOXML
+body/header/footer text without running macros or fetching external resources.
+
+`browser_upload` attaches selected files to an enabled file input observed by
+`browser_read`. It confines files to allowed directories, checks nonempty files,
+20 MiB total, multiple-file support and the observed accepted extensions/MIME types.
+Selecting a file can send it immediately, so upload requires message approval
+even before final submission. The tool never clicks Submit. Custom hidden inputs
+need the browser handoff. Final application buttons and Enter-to-submit are graded
+as messages; the model also supplies explicit message intent for unfamiliar labels.
+Login, CAPTCHA and sensitive identity steps can be completed by the user in the
+browser. No step guesses eligibility, identity details or optional demographic answers.
+
+Records live under `career/<user-and-project hash>/records.sqlite3` in the Omote
+data directory. They are local, readable and separate from vector memory. Inspect
+them with `list`/`get`, export resume documents, and remove records with `delete` plus
+the current revision. Exported files and documents already sent elsewhere are
+independent copies; deleting a record does not remove those copies.
+
+## Booking flights and hotels
+
+Choose **Plan & book travel**, or specify origin, destination, dates, travelers,
+budget and preferences in chat. `world-travel` and `trip` retain details across
+turns. Search/inspect the current provider, compare complete costs and terms, then
+prepare checkout. Flights retain airport codes, offset-aware local times, fare and
+baggage details; hotel comparisons include actual room occupancy, nights, mandatory
+fees, deposits and cancellation deadlines. Save observed booking references and
+terms on itinerary legs. Use exact leg IDs when names repeat.
+
+Final reservation and payment actions require purchase confirmation in every
+mode. After approval, inspect the receipt and only then mark booked. A failed
+response needs a booking-history check before retrying. Cancellations can incur
+fees; inspect terms and verify cancellation before clearing booked status. The
+trip tool stores the plan and evidence; actual bookings use the selected provider's
+browser interface or an explicitly configured connector.
 
 ## Browser EMS workflow
 
@@ -147,3 +221,11 @@ command, file format, platform or live desktop bridge.
 
 No test sends real mail, changes an employer record or books travel. Those require
 configured accounts, live availability and user confirmation at the final step.
+
+Career tests also render a real selectable-text PDF, reopen DOCX text, check revision
+conflicts/project isolation/deduplication and run a real Chromium job-search →
+document-upload → application-receipt walkthrough against a local fixture. A flight
+fixture verifies fare details, final purchase review and receipt inspection. These
+fixtures make no external job applications or purchases and do not establish every
+vendor's compatibility. A separate real WordCraft test reopens the exported DOCX
+and renders its page to verify an independent editor can read it.

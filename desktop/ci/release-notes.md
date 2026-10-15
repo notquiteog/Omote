@@ -1,46 +1,43 @@
-## Omote 0.9.0
+## Omote 0.10.0
 
-### Managed local models
+### In-app update fixes
 
-- Download verified GGUF chat models with persistent cancel/resume, SHA-256 checks,
-  disk/RAM/VRAM preflight, and explicit GPU or CPU mode.
-- Install a pinned llama.cpp runtime, start or stop an owned local server, and use
-  a downloaded model directly in chat. Private runtime credentials, process recovery
-  and actual context-window limits keep local sessions predictable.
-- Studio’s Models & workflows library manages ComfyUI safetensors and JSON workflow
-  downloads, live node/model compatibility checks, native workflow exports and
-  Workbench imports. An SD Turbo starter recipe preserves its sampling defaults.
-- ComfyUI needs an existing installation and the one-time managed model-path setup
-  shown in Studio. Downloads use the network; inference stays on the selected backend.
+- Fixed the Tauri 2 desktop bridge: Install now reaches the native installer.
+- Linux downloads match Debian/RPM/AppImage installations. Debian and RPM updates
+  use the system authentication prompt and package manager.
+- A detached, checksum-verifying worker waits for the old app to exit, installs,
+  then reopens the installed path. AppImage updates replace the original file.
+- Installer/download failures remain visible, including after restarting.
+- macOS opens the disk image for the existing Finder replacement step.
+- **Older affected installs need this installer once to bootstrap the fix.**
+  Subsequent updates use Settings → Updates → Download → Install.
 
-### Workspace improvements
+### Creative and personal workflows
 
-- Lazy tool discovery loads optional schemas only when needed, with a bounded cache
-  that preserves toolset restrictions and approval rules.
-- A simpler Brain interface for viewing, creating, editing, deleting and exporting
-  memories, with improved automatic capture, filtering and duplicate handling.
-- Live CPU, RAM, disk and supported GPU monitoring, plus per-command root/admin
-  access through native Linux, macOS and Windows authentication paths.
-- More space for the native ComfyUI editor, a collapsible workbench, focus mode,
-  responsive Studio controls, and connection, voice and provider fixes.
+- Stateful, on-demand access to all 13 installed ArtCraft engines and configured
+  creative MCP bridges; native projects, delivery exports and export verification.
+- Agent ComfyUI workflow authoring, atomic edits, live schema validation, versioned
+  execution and API-to-native editor loading.
+- Job searches by role/city, persistent application tracking, truthful resume
+  variants, DOCX/PDF/HTML/TXT exports, DOCX reading and reviewed browser uploads.
+- Simple job/travel starters, stronger flight/hotel comparisons, booking references
+  and confirmation checks. Final applications and purchases remain reviewed.
 
 ### Verification and setup
 
-The local regression suite passed 2,716 tests with five skipped, followed by
-focused checks for final workflow defaults and exports. Real Linux RTX 5060 Ti
-checks covered Qwen chat, interrupted/resumed model downloads and 512 × 512 image
-creation through Studio and ComfyUI. Native macOS/Windows GPU inference and admin
-prompts still need verification on user hardware; installer smoke tests run in CI.
+The preceding full suite passed 2,756 tests; focused updater checks passed 74 tests.
+Real Linux checks covered 13 native creative engine connections, image/vector/video/
+motion exports, editable DOCX reopening, and ComfyUI image generation on an RTX 5060 Ti.
+The release pipeline verifies installers and native update IPC on Linux, Windows
+and both Mac architectures before publication. Live employer submissions, purchases,
+Adobe bridges and native Android phone services are not claimed as verified.
 
-Model weights, ComfyUI/custom nodes, PhotoCraft and external provider accounts are
-separate downloads or services. SD Turbo is labeled for non-commercial research;
-review each model publisher’s license. Automatic multi-file diffusion dependency
-installation is not included. Optional native browser automation needs a separately
-installed `omote[browser]` daemon and `playwright install chromium`.
+Editors, weights, ComfyUI, provider accounts and optional browser dependencies are
+separate installations. PDF generation and browser workflows need Chromium.
 
-See [Workspace setup](https://github.com/notquiteog/Omote/blob/v0.9.0/docs/WORKSPACE.md),
-[Creative workspace](https://github.com/notquiteog/Omote/blob/v0.9.0/docs/CREATIVE.md),
-and [Capability audit](https://github.com/notquiteog/Omote/blob/v0.9.0/docs/CAPABILITIES.md).
+See [Workspace setup](https://github.com/notquiteog/Omote/blob/v0.10.0/docs/WORKSPACE.md),
+[Creative workspace](https://github.com/notquiteog/Omote/blob/v0.10.0/docs/CREATIVE.md),
+and [Personal assistant capabilities](https://github.com/notquiteog/Omote/blob/v0.10.0/docs/PERSONAL-ASSISTANT.md).
 
 Each installer contains the Omote app and its daemon, with its own Python runtime. Optional tools and services have the setup requirements above. It keeps its data, its logs and an optional `.env` in `~/.omote`. If a daemon is already running on port 8477, one you started yourself, the app uses that one and leaves it running when it quits.
 

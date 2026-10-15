@@ -278,7 +278,7 @@ class Release:
         }
 
     def pick(self) -> Asset | None:
-        return pick_asset(self.assets)
+        return pick_asset(self.assets, kind=installation_kind())
 
 
 def _release_from(raw: dict[str, Any]) -> Release:
@@ -358,7 +358,26 @@ PREFERRED: dict[str, tuple[str, ...]] = {
 }
 
 
-def pick_asset(assets: list[Asset], *, key: str | None = None) -> Asset | None:
+def installation_kind() -> str:
+    explicit = os.environ.get('OMOTE_INSTALL_KIND', '')
+    if explicit in ('deb', 'rpm', 'appimage'):
+        return explicit
+    if os.environ.get('APPIMAGE'):
+        return 'appimage'
+    if platform.system() == 'Linux':
+        try:
+            distro = platform.freedesktop_os_release()
+            family = f'{distro.get("ID", "")} {distro.get("ID_LIKE", "")}'.split()
+            if any(name in family for name in ('debian', 'ubuntu', 'pop')):
+                return 'deb'
+            if any(name in family for name in ('fedora', 'rhel', 'suse', 'opensuse', 'centos')):
+                return 'rpm'
+        except OSError:
+            pass
+    return ''
+
+
+def pick_asset(assets: list[Asset], *, key: str | None = None, kind: str = '') -> Asset | None:
     """The installer for this machine, or None.
 
     Matching is by extension and architecture rather than by filename, because
@@ -368,6 +387,8 @@ def pick_asset(assets: list[Asset], *, key: str | None = None) -> Asset | None:
     `omote_amd64.AppImage` on the next.
     """
     wanted = PREFERRED.get(key or platform_key())
+    if (key or platform_key()).startswith('linux-') and kind in ('deb', 'rpm', 'appimage'):
+        wanted = ('.' + kind,)
     if not wanted:
         return None
     for suffix in wanted:
@@ -442,6 +463,7 @@ class UpdateState:
     progress: int = 0
     downloaded: int = 0
     staged: str = ''
+    installation: dict[str, Any] = field(default_factory=dict)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
 
     def public(self) -> dict[str, Any]:
@@ -457,6 +479,7 @@ class UpdateState:
             'progress': self.progress,
             'downloaded': self.downloaded,
             'staged': self.staged,
+            'installation': self.installation,
             'enabled': config.update_check_enabled and not config.local_only,
             'platform': platform_key(),
             'managed': config.is_frozen,
@@ -467,6 +490,19 @@ class Updates:
     def __init__(self, current: str, staging: Path) -> None:
         self.state = UpdateState(current=current)
         self.staging = Path(staging)
+        self.refresh_installation()
+
+    def refresh_installation(self):
+        import json
+
+        try:
+            path = self.staging / 'install-result.json'
+            if path.stat().st_size <= 32768:
+                value = json.loads(path.read_text())
+                if isinstance(value, dict) and value.get('status') in ('installing', 'complete', 'error'):
+                    self.state.installation = value
+        except (OSError, ValueError):
+            pass
 
     # -- checking ---------------------------------------------------------
 
@@ -668,6 +704,11 @@ class Updates:
                 )
             partial.replace(target)
             _make_runnable(target)
+            if expected:
+                import json
+
+                proof = target.with_name(target.name + '.verified.json')
+                proof.write_text(json.dumps({'name': target.name, 'sha256': actual, 'version': str(release.version), 'bytes': self.state.downloaded}))
             self.state.staged = str(target)
             self.state.progress = 100
             return {

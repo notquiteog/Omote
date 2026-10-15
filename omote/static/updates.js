@@ -21,7 +21,7 @@
 import { $, el, json, send } from './dom.js';
 import { installUpdate, isDesktop } from './native.js';
 
-const state = { last: null, poll: null, dismissing: false };
+const state = { last: null, poll: null, dismissing: false, installing: false, operationError: '' };
 
 function ago(stamp) {
   if (!stamp) return '';
@@ -45,7 +45,9 @@ export function renderUpdate(info) {
   const box = $('#update-state');
   box.textContent = '';
 
-  if (info.error) box.appendChild(el('p', 'update-error', info.error));
+  const error = state.operationError || info.error || (info.installation?.status === 'error' ? info.installation.message : '');
+  if (error) box.appendChild(el('p', 'update-error', error));
+  if (info.installation?.status === 'complete') box.appendChild(el('p', 'meta', info.installation.message));
 
   if (info.available && info.latest) {
     const release = info.latest;
@@ -94,8 +96,8 @@ export function renderUpdate(info) {
      nothing runs it for you, because `installUpdate` is a no-op off the
      desktop — was a dead end. The staged file stays where it is and the
      button stays live; what is disabled is only the work in progress. */
-  $('#update-apply').disabled = Boolean(info.downloading);
-  $('#update-check').disabled = Boolean(info.downloading);
+  $('#update-apply').disabled = Boolean(info.downloading || state.installing);
+  $('#update-check').disabled = Boolean(info.downloading || state.installing);
   $('#update-check').textContent = info.downloading ? 'Working…' : 'Check now';
   $('#update-current').title = info.enabled
     ? ''
@@ -130,6 +132,7 @@ function setProgress(info) {
 }
 
 async function check(force = true) {
+  state.operationError = '';
   renderUpdate(state.last);
   /* `send`, not `post`, and that distinction was the whole feature being
      broken. `post` resolves with a `Response`, which has no `.data` — so
@@ -156,74 +159,40 @@ async function check(force = true) {
    "Install", permanently unpressable, with `download()` as its only handler and
    no way to trigger one. Split, and each half is the thing its label says. */
 async function install() {
-  const path = state.last && state.last.staged;
+  const path = state.last?.staged;
   if (!path) return download();
-
-  $('#update-apply').disabled = true;
-  const box = $('#update-state');
+  if (state.installing) return;
+  state.operationError = '';
+  state.installing = true;
+  renderUpdate(state.last);
   const said = await installUpdate(path);
-  box.textContent = '';
-
-  if (!isDesktop) {
-    /* A tab cannot replace a binary. It says where the file is and what to
-       type, which is the honest answer rather than a button that does
-       nothing. */
-    box.appendChild(el('p', 'update-available', `${state.last.latest.version} is downloaded and checked.`));
-    box.appendChild(el('p', 'meta', said));
-    $('#update-apply').disabled = false;
-    return;
+  state.installing = false;
+  const failed = String(said).startsWith('saved,');
+  if (failed) state.operationError = String(said);
+  renderUpdate(state.last);
+  const box = $('#update-state');
+  if (!failed) {
+    box.appendChild(el('p', 'meta', isDesktop ? said : `The verified file is at ${path}. Open it with your system installer.`));
   }
-
-  // The app runs the installer and restarts. On Windows and for an
-  // AppImage it comes straight back up; on macOS and a .deb the person
-  // finishes, and quitting under them would look like a crash — so the app
-  // only relaunches where it can.
-  box.appendChild(el('p', 'update-available', 'Starting it…'));
-  if (!String(said).startsWith('saved')) {
-    box.textContent = '';
-    box.appendChild(el('p', 'update-available', `${state.last.latest.version} is installing.`));
-    box.appendChild(el('p', 'meta', said));
-    return;
-  }
-  box.appendChild(el('p', 'meta', 'It is on disk and ready to run.'));
-  $('#update-apply').disabled = false;
 }
 
 async function download() {
+  state.operationError = '';
   $('#update-apply').disabled = true;
-  $('#update-apply').textContent = 'Working…';
+  $('#update-apply').textContent = 'Downloading…';
   const res = await send('/api/update/apply', {}, { timeout: 600_000 });
   const body = res.data || {};
-  const box = $('#update-state');
-  box.textContent = '';
   if (body.path) {
-    box.appendChild(el('p', 'update-available', `${body.version} is downloaded.`));
-    box.appendChild(el('p', 'meta', body.verified
-      ? `Checked against the published SHA256. ${(body.bytes / 1048576).toFixed(1)}MB at ${body.path}`
-      : `NOT verified — this release published no checksums. ${(body.bytes / 1048576).toFixed(1)}MB at ${body.path}`));
-    setProgress({ downloading: false, staged: body.path, downloaded: body.bytes, progress: 100 });
-    if (state.last) renderUpdate({ ...state.last, staged: body.path, downloading: false, progress: 100 });
-
-    if (isDesktop) {
-      // The app runs the installer and restarts. On Windows and for an
-      // AppImage it comes straight back up; on macOS and a .deb the person
-      // finishes, and quitting under them would look like a crash — so the
-      // app only relaunches where it can.
-      box.appendChild(el('p', 'update-available', 'Starting it…'));
-      const said = await installUpdate(body.path);
-      if (!String(said).startsWith('saved')) {
-        box.textContent = '';
-        box.appendChild(el('p', 'update-available', `${body.version} is installing.`));
-        box.appendChild(el('p', 'meta', said));
-      } else {
-        box.appendChild(el('p', 'meta', 'It is on disk and ready to run.'));
-      }
-    } else {
-      box.appendChild(el('p', 'meta', body.next));
-    }
+    const info = { ...(state.last || {}), staged: body.path, downloading: false,
+      downloaded: body.bytes, progress: 100 };
+    renderUpdate(info);
+    setProgress(info);
+    $('#update-state').append(el('p', 'meta', body.verified
+      ? 'Downloaded and checked against the published SHA-256. Choose Install when ready.'
+      : 'Downloaded without published checksums. Open the release page for manual installation.'));
   } else {
-    box.appendChild(el('p', 'update-error', body.detail || res.detail || 'it did not download'));
-    if (state.last) renderUpdate(state.last);
+    state.operationError = body.detail || res.detail || 'The download did not finish. Try again.';
+    renderUpdate({ ...(state.last || {}), downloading: false });
   }
 }
 

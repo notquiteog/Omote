@@ -30,6 +30,14 @@ unchanged:
 
 Tools arrive as `mcp__<server>__<tool>`.
 
+Creative app bridges can additionally set `"creative": true` in their server
+configuration. This opts that server into **Studio → Creative apps** and the
+stateful `creative_apps` discovery tool. It does not grant new permissions, trust
+MCP hints, or make unrelated servers accessible through the creative toolset.
+Closing a creative session does not stop an operator's shared MCP server. See
+[Creative apps](CREATIVE.md#creative-apps-and-export-checks) for native ArtCraft
+engines and Adobe bridge setup.
+
 ### Tools load as needed
 
 Model requests start with a small core (asking, reading, listing, searching,
@@ -47,15 +55,20 @@ the session. Existing transcript calls can load an allowed tool directly, with
 the same execution checks. Each subagent has its own discovery cache. Voice
 sessions update their upstream schemas before continuing from discovery results.
 
-PhotoCraft, scheduling and creative-library implementations use lightweight
+Career, PhotoCraft, scheduling, creative-library, creative-app, export-inspection and
+ComfyUI-workflow implementations use lightweight
 descriptors and instantiate on first schema request or execution. Other built-in
 tools may already have instances; their optional schemas are still deferred.
 Configured MCP servers still initialize at daemon startup to obtain their catalogs;
 their schemas are loaded into model requests only when selected. This does not
-yet defer the external servers' processes or network connections.
+yet defer those configured servers' processes or network connections. The native
+ArtCraft engines managed by `creative_apps` start only on explicit discovery of
+the selected app, and stop when their session/chat closes. Catalog checks never
+launch all 13 engines. Their actual schemas are separately searched/paginated
+instead of adding hundreds of app commands to every model request.
 
-The isolated default-session fixture measured 8 initial schemas / 5,982 serialized
-bytes versus 22 allowed schemas / 25,920 bytes (76.9% fewer schema bytes). This is
+The isolated default-session fixture measured 8 initial schemas / 6,591 serialized
+bytes versus 26 allowed schemas / 29,659 bytes (77.8% fewer schema bytes). This is
 a JSON-size measurement, not an exact tokenizer count or an inference-latency or
 task-success benchmark. `tests/test_tool_discovery.py` checks loading, cache bounds,
 permission isolation and schema-size reduction.

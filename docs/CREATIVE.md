@@ -12,6 +12,60 @@ See [managed ComfyUI assets](WORKSPACE.md#managed-comfyui-assets) for setup and 
 GPU verification. API recipes keep their original defaults; native editor JSON
 can be saved to the workbench or exported into the full editor.
 
+## Creative apps and export checks
+
+**Studio → Creative apps** shows detected engines and configured creative MCP
+connectors. Choose an app and **Use in chat** to prepare a request without sending
+it. Setup instructions and connector configuration stay under expandable details.
+Existing chat drafts are preserved. Use a configured chat model with tool calling;
+image input is also needed for visual review. Model names are supplied by the
+configured provider, rather than a separate creative-model allowlist.
+
+The lazy `creative_apps` tool supports all 13 native ArtCraft engines: PhotoCraft,
+VectorCraft, FilmCraft, EffectCraft, LightCraft, PdfCraft, DesignCraft, FigCraft,
+WordCraft, SoundCraft, DeckCraft, CADCraft and GridCraft. `status` checks availability
+without starting an engine. `tools` connects only the selected app and returns its
+actual schemas with search and pagination. `call` invokes a discovered tool with
+its original arguments, including the app's editing, rendering and export tools.
+Keep the returned session ID across edits so documents, layers and timelines stay
+open. Save before closing the session or chat; up to four editor sessions can be
+open, and opening another never silently discards an unsaved document.
+
+Install each engine's official CLI on PATH, set `OMOTE_PHOTOCRAFT_BIN` (or the
+equivalent uppercase app ID), or put the executable at
+`<Omote data directory>/creative-apps/<app-id>/bin/<app-id>-cli` (`.exe` on Windows).
+CLI programs and weights are not bundled with Omote. Native engine discovery also
+checks standard application locations on macOS/Windows. Engines launch in the
+chat's selected project folder. PhotoCraft, VectorCraft and EffectCraft receive
+their automation read/write roots; other released engines have different scoping
+interfaces and are reported as running with account permissions. Ordinary tool
+approvals still apply. A working directory alone is not an OS sandbox.
+
+Adobe applications and other creative applications can use an operator-installed
+MCP bridge: add `"creative": true` to that server's `.mcp.json` configuration and
+reconnect it. It then appears in the same picker and discovery interface. Install
+the application and a bridge it actually supports; Omote does not provide an
+Adobe license or claim that every Adobe app has an official MCP server. The main
+ArtCraft web/3D studio is separate from the 13 native engines and requires its
+own supported connection or browser workflow.
+
+Ask the agent to save both an editable native project and a delivery export,
+inspect the app's preview, then use `inspect_export`. This tool confines files to
+the chat's allowed roots, checks nonempty output and SHA-256, decodes raster images,
+and reads SVG canvas dimensions without resolving external entities. With FFmpeg
+installed it checks video/audio codecs, dimensions, duration, frame rate and audio
+presence; `decode: true` decodes the complete media file before delivery. Expected
+properties produce explicit failures instead of a successful filename alone.
+Native project hashes do not prove layer/timeline fidelity: reopen them in the app.
+
+Live Linux verification connected all 13 released engines and discovered their
+actual MCP catalogs. PhotoCraft saved/reopened a five-layer PSD and exported PNG;
+VectorCraft saved/reopened editable artwork and exported SVG/PNG; FilmCraft saved
+and reopened a timeline, exported FCPXML and a 48-frame H.264 video; EffectCraft
+saved/reopened motion graphics, edited keyframes and exported PNG/Lottie. The video
+passed a complete FFmpeg decode. This does not establish every engine command,
+format, platform, Adobe bridge, or individual model's task success.
+
 ## From a character to a scene
 
 1. Open **Studio → Characters & assets → New character**. Give the character a
@@ -64,6 +118,24 @@ exact Omote origin in **Omote: trusted workspace origins**. **Connect bridge**, 
 **Capture editor** to retrieve both native JSON and the executable API prompt.
 The bridge can read and replace the current graph; it cannot queue execution.
 The allowlist is empty until configured and accepts no wildcard origins.
+
+**Load in editor** also accepts an API-only draft. The bridge uses the connected
+frontend's native API importer, then captures both the generated editor layout
+and canonical executable prompt. Save that paired result as a new version.
+**Edit with chat** prepares a request referencing the exact saved workflow and
+revision; save pending edits first. It does not submit the request or run a graph.
+
+The lazy `comfy_workflow` tool uses this same version library and run history.
+Models can discover the live server's node/model schemas, inspect subsets of large
+graphs, create workflows, atomically patch inputs/nodes, compare versions, validate,
+export API/editor JSON, run an exact saved revision and keep outputs in Studio.
+Updates require `base_revision`; stale edits fail without partial changes. API
+patches to a paired editor graph require explicitly dropping its current layout
+or saving both updated representations, while earlier versions retain their
+layout. Load and capture the patched API graph to rebuild a native editor layout.
+Linux verification authored a seven-node SD Turbo graph through the agent tool,
+edited it, imported it into the official frontend, saved its layout, and generated
+and retained a real image on an RTX 5060 Ti.
 
 **Save version** keeps immutable graph/API snapshots, notes and project labels in
 Omote. **Save copy** starts a separate history. Select an earlier version to export,
@@ -127,6 +199,5 @@ bundled. The original remains downloadable when a preview is unsupported.
 
 Omote can retain 3D output from a configured ComfyUI workflow or import a model
 created elsewhere; the viewer is not itself a mesh-generation model. Generated
-images and videos continue to use the configured image/video providers. Layered
-2D editing is available through the installed [PhotoCraft integration](BUSINESS.md#photocraft)
-or desktop applications.
+images and videos continue to use the configured image/video providers. Native
+editing uses the Creative apps integration above or installed desktop applications.

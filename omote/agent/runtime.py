@@ -55,8 +55,11 @@ TOOLSETS: dict[str, tuple[str, ...]] = {
     'hr': ('hr',),
     'finance': ('finance',),
     'trip': ('trip',),
+    'career': ('career',),
     'photocraft': ('photocraft',),
-    'creative': ('creative_library',),
+    'creative': ('creative_library', 'creative_apps', 'inspect_export', 'comfy_workflow'),
+    'artcraft': ('creative_apps', 'inspect_export'),
+    'comfyui': ('comfy_workflow', 'inspect_export'),
     'todo': ('todo',),
     'schedules': ('schedule',),
     'agents': ('agent',),
@@ -64,13 +67,13 @@ TOOLSETS: dict[str, tuple[str, ...]] = {
     'ask': ('ask_user',),
     'web': ('web_search', 'web_fetch', 'research'),
     'browser': ('browser_navigate', 'browser_read', 'browser_click', 'browser_type',
-                'browser_screenshot', 'browser_hand_over'),
+                'browser_upload', 'browser_screenshot', 'browser_hand_over'),
     'desktop': ('desktop_screenshot', 'desktop_click', 'desktop_type', 'desktop_key',
                 'desktop_scroll'),
     'system': ('system_info', 'system_usage', 'local_models', 'package_search', 'package_install', 'package_remove',
                'display_info', 'display_hdr'),
     'media': ('media_params', 'generate_image', 'generate_video', 'generate_music',
-              'media_job', 'import_workflow', 'edit_media', 'photocraft', 'creative_library'),
+              'media_job', 'import_workflow', 'edit_media', 'photocraft', 'creative_library', 'creative_apps', 'inspect_export', 'comfy_workflow'),
     'memory': ('remember', 'recall'),
     # Working unattended. Its own group rather than part of `desktop` because
     # the tool is offered whether or not a screen is available — so the model
@@ -101,8 +104,16 @@ def default_tools() -> list[Tool]:
     from omote.agent.tools.discovery import LazyTool
 
     return [
+        LazyTool('career', 'Save job searches by role and city, build resumes, export editable DOCX/PDF/HTML/TXT, and track application evidence.',
+                 'omote.agent.tools.career', 'CareerTool'),
         LazyTool('photocraft', 'Edit layered images and inspect PhotoCraft installation and commands.',
                  'omote.agent.tools.photocraft', 'PhotoCraftTool'),
+        LazyTool('creative_apps', 'Use all ArtCraft native tools: PhotoCraft images, VectorCraft vectors, FilmCraft video, EffectCraft VFX and the full Craft suite; connected Adobe MCP apps and native exports.',
+                 'omote.agent.tools.creative_apps', 'CreativeAppsTool'),
+        LazyTool('inspect_export', 'Verify image/video/audio exports: dimensions, alpha, codec, frame rate, duration, audio, colors and checksums.',
+                 'omote.agent.tools.inspect_export', 'InspectExportTool'),
+        LazyTool('comfy_workflow', 'Create, edit, save, export, validate and run ComfyUI workflows using live node/model schemas and version history.',
+                 'omote.agent.tools.comfy_workflow', 'ComfyWorkflowTool'),
         LazyTool('schedule', 'Create, list, update, pause or cancel recurring scheduled tasks and automations.',
                  'omote.agent.tools.schedule', 'ScheduleTool'),
         LazyTool('creative_library', 'Manage characters, reference images, creative assets and saved recipes.',
@@ -290,6 +301,7 @@ def browser_tools(browser: Any) -> list[Tool]:
         BrowserReadTool,
         BrowserScreenshotTool,
         BrowserTypeTool,
+        BrowserUploadTool,
     )
 
     return [
@@ -297,6 +309,7 @@ def browser_tools(browser: Any) -> list[Tool]:
         BrowserReadTool(browser),
         BrowserClickTool(browser),
         BrowserTypeTool(browser),
+        BrowserUploadTool(browser),
         BrowserScreenshotTool(browser),
         BrowserAskHumanTool(browser),
     ]
@@ -520,6 +533,8 @@ def build_session(
             ('mail', 'mail'),
             ('trip', 'trip'),
             ('photocraft', 'photocraft'),
+            ('creative', 'creative_apps'),
+            ('career', 'career'),
             ('calendar', 'calendar'),
             ('hr', 'hr'),
             ('finance', 'finance'),

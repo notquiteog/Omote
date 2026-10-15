@@ -276,8 +276,8 @@ class ImportWorkflowTool(_MediaTool):
 
     async def run(self, args: dict[str, Any], ctx: ToolContext) -> Output:
         from omote.agent.tools.base import resolve_in_root
-        from omote.media.workflow import install
-        from omote.providers.comfyui import WORKFLOW_DIR
+        from omote.media.workflow import install, user_directory
+        from omote.routers.workbench import validate_prompt_shape
 
         graph = args.get('graph')
         if not graph:
@@ -289,7 +289,11 @@ class ImportWorkflowTool(_MediaTool):
 
         # A file operation, so no connection is constructed for it — see
         # `workflow.install`.
-        result = install(WORKFLOW_DIR, args['name'], graph)
+        try:
+            validate_prompt_shape(graph)
+        except ValueError as error:
+            raise ToolError(str(error)) from error
+        result = install(user_directory(), args['name'], graph)
         tokens = ', '.join(result['tokens']) or 'none'
         warning = (
             ''
@@ -537,10 +541,14 @@ def media_tools(service: Any) -> list[Tool]:
     if 'music' in kinds:
         tools.append(GenerateMusicTool(service))
     if 'video' in kinds:
-        # The other three only mean anything with video: a video is a job, so
-        # it needs something to check on, and a job needs a workflow template
-        # to run — which `import_workflow` is how you get.
-        tools += [GenerateVideoTool(service), MediaJobTool(service), ImportWorkflowTool(service)]
+        tools.append(GenerateVideoTool(service))
+
+    # Image and music providers can return asynchronous jobs too. ComfyUI
+    # templates are useful on image-only installations as well as video ones.
+    if kinds:
+        tools.append(MediaJobTool(service))
+    if 'image' in kinds or 'video' in kinds:
+        tools.append(ImportWorkflowTool(service))
 
     tools.append(ComposeMusicTool(service))
     # Editing is offered when there is something here that can edit, which is

@@ -548,7 +548,16 @@ class StdioServer(MCPServer):
             return await asyncio.wait_for(future, timeout=self.timeout)
         except TimeoutError as exc:
             self._pending.pop(msg_id, None)
+            if method == 'tools/call':
+                with contextlib.suppress(MCPError, OSError, TimeoutError):
+                    await asyncio.wait_for(self._notify('notifications/cancelled', {'requestId': msg_id, 'reason': 'Client timeout'}), 1)
             raise MCPError(f'{self.name}: {method} timed out after {self.timeout:.0f}s') from exc
+        except asyncio.CancelledError:
+            self._pending.pop(msg_id, None)
+            if method == 'tools/call':
+                with contextlib.suppress(MCPError, OSError, TimeoutError):
+                    await asyncio.wait_for(self._notify('notifications/cancelled', {'requestId': msg_id, 'reason': 'User interrupted'}), 1)
+            raise
 
     async def _notify(self, method: str, params: dict[str, Any]) -> None:
         await self._send({'jsonrpc': '2.0', 'method': method, 'params': params})

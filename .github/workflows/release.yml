@@ -281,7 +281,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: desktop/ci
+          sparse-checkout: |
+            desktop/ci
+            omote/static
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -305,6 +307,12 @@ jobs:
             -- /usr/bin/omote-desktop > smoke.log 2>&1 || status=$?
           cat smoke.log
           exit $status
+      - name: Native update bridge
+        run: |
+          status=0
+          dbus-run-session -- xvfb-run -a python desktop/ci/update_bridge.py /usr/bin/omote-desktop --static omote/static > update-bridge.log 2>&1 || status=$?
+          cat update-bridge.log
+          exit $status
       - name: The AppImage, the same way
         run: |
           chmod +x out/*.AppImage
@@ -325,7 +333,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: desktop/ci
+          sparse-checkout: |
+            desktop/ci
+            omote/static
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -344,6 +354,8 @@ jobs:
           "APP=$($app.FullName)" >> $env:GITHUB_ENV
       - name: Run it, start a second copy, then kill it
         run: python desktop/ci/smoke.py app --stop kill:omote-desktop --again -- "$env:APP"
+      - name: Native update bridge
+        run: python desktop/ci/update_bridge.py "$env:APP" --static omote/static
       - name: The .msi installs too
         run: |
           $msi = Get-ChildItem out\*.msi | Select-Object -First 1
@@ -381,7 +393,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: desktop/ci
+          sparse-checkout: |
+            desktop/ci
+            omote/static
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -401,6 +415,8 @@ jobs:
           # What a download meets. An ad-hoc build is expected to be refused
           # here, which is what the release notes are about; shown, not failed.
           spctl --assess --type execute --verbose /Applications/Omote.app || true
+      - name: Native update bridge
+        run: python desktop/ci/update_bridge.py /Applications/Omote.app/Contents/MacOS/omote-desktop --static omote/static
       - name: Open it, then quit it
         run: python desktop/ci/smoke.py app --stop quit:Omote -- open -n /Applications/Omote.app
       - name: Open it, then kill it
@@ -417,7 +433,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: desktop/ci
+          sparse-checkout: |
+            desktop/ci
+            omote/static
       - uses: actions/download-artifact@v4
         with:
           pattern: installers-*

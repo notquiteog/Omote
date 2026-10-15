@@ -2391,9 +2391,10 @@ dependencies = [
 
 [[package]]
 name = "omote-desktop"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-notification",

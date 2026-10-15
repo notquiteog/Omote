@@ -109,9 +109,10 @@ class ApplyBody(BaseModel):
 async def status() -> dict[str, Any]:
     """What is known, without asking GitHub anything.
 
-    This is what the interface polls, so it has to be free: no network, no
-    disk, and a byte small enough to ask about every few seconds.
+    This polls no network. A bounded local installer receipt carries failures
+    across an app restart; the remaining state is held in memory.
     """
+    updates.refresh_installation()
     return updates.state.public()
 
 
@@ -142,6 +143,8 @@ async def apply(body: ApplyBody) -> dict[str, Any]:
     replaces a binary belongs to the OS and to a person. The response says
     what to do with the file, and on a frozen install the app does that.
     """
+    if _busy():
+        raise HTTPException(status_code=409, detail='An agent is working. Finish or stop it before downloading an update.')
     release = updates.state.latest
     if release is None or (body.tag and body.tag != release.tag):
         # Somebody named a tag we have not fetched. Check first, so the answer

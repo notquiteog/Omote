@@ -45,7 +45,7 @@ PAGE = ['/static/brand/omote-32.png', '/static/brand/omote-64.png', '/', '/stati
         '/static/workspace.css', '/static/comfyui.js', '/static/memory.js',
         '/static/comfy-assets.js', '/static/local-models.js', '/static/local-models.css',
         '/static/system.js', '/static/system.css',
-        '/static/workbench.js', '/static/creative.js', '/static/creative.css', '/static/model-viewer.js',
+        '/static/workbench.js', '/static/creative.js', '/static/creative-apps.js', '/static/creative.css', '/static/model-viewer.js',
         '/static/vendor/three/three.module.js', '/static/vendor/three/three.core.min.js',
         '/static/vendor/three/GLTFLoader.js', '/static/vendor/three/OrbitControls.js',
         '/static/vendor/three/OBJLoader.js', '/static/vendor/three/STLLoader.js',

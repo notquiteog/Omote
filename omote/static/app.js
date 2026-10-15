@@ -445,6 +445,11 @@ const VERBS = {
   edit_media: 'Edited',
   photocraft: 'Editing in PhotoCraft',
   creative_library: 'Organizing creative assets',
+  creative_apps: 'Working in a creative app',
+  inspect_export: 'Checking exported files',
+  comfy_workflow: 'Editing a ComfyUI workflow',
+  career: 'Preparing career documents and applications',
+  browser_upload: 'Uploading reviewed documents',
   media_edit_params: 'Asked what can be edited',
   agent: 'Delegated',
   skill: 'Used the skill',
@@ -2418,6 +2423,21 @@ function wireModeLifecycle() {
 wire();
 wireMobileNavigation();
 wireMemory();
+document.addEventListener('omote:creative-app', (event) => {
+  const app = event.detail;
+  go('chat');
+  if (!$('#input').value.trim()) $('#input').value = app.available
+    ? `Use creative_apps with ${app.id}. Discover its real tools and export options, then help me create or edit a project. Save an editable native copy, export a delivery copy, inspect the preview, and verify the exported files.`
+    : `Help me set up ${app.label} for creative_apps. Check my operating system and resources, use the app’s official installation documentation, and configure its CLI or supported MCP bridge. Then verify a real edit and export.`;
+  $('#input').dispatchEvent(new Event('input', { bubbles: true }));
+  $('#input').focus();
+});
+document.addEventListener('omote:edit-workflow', (event) => {
+  go('chat');
+  if (!$('#input').value.trim()) $('#input').value = `Help me edit ComfyUI workflow ${event.detail.id}, revision ${event.detail.revision} (${event.detail.name}). Use comfy_workflow to inspect the saved graph, discover the selected server’s live node/model schemas, and make a new version using base_revision. Validate the new graph and preserve the original version. Let me describe the change before running it.`;
+  $('#input').dispatchEvent(new Event('input', { bubbles: true }));
+  $('#input').focus();
+});
 wireLocalModels({ onUse: async (provider, model, label) => {
   const response = await api('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ provider, model, title: label, mode: 'ask', effort: preferredEffort() }) });
@@ -2441,7 +2461,7 @@ wireComfyUI();
 wireCreative();
 for (const starter of document.querySelectorAll('[data-start]')) {
   starter.onclick = () => {
-    $('#input').value = starter.dataset.start;
+    if (!$('#input').value.trim()) $('#input').value = starter.dataset.start;
     if (!state.sessionId && !chatReady) openSetup();
     $('#input').dispatchEvent(new Event('input', { bubbles: true }));
     $('#input').focus();

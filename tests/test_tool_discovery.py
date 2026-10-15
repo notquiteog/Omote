@@ -115,7 +115,7 @@ async def test_toolsets_and_live_plan_mode_filter_discovery(tmp_path):
 def test_default_optional_implementations_and_schemas_stay_unloaded(tmp_path):
     tools = default_tools()
     lazy = [tool for tool in tools if isinstance(tool, LazyTool)]
-    assert {tool.name for tool in lazy} == {'schedule', 'photocraft', 'creative_library'}
+    assert {tool.name for tool in lazy} == {'career', 'schedule', 'photocraft', 'creative_library', 'creative_apps', 'inspect_export', 'comfy_workflow'}
     agent = session(tmp_path, tools)
     agent.context_report()
     assert not any(tool.loaded for tool in lazy)
