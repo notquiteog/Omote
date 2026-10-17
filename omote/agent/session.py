@@ -1158,19 +1158,24 @@ class AgentSession:
                 self.messages.append(Message(role='assistant', content=assistant_blocks))
 
             said = any(isinstance(b, TextBlock) and b.text.strip() for b in assistant_blocks)
-            if not calls and not said and not nudged and len(self.messages) > 1:
+            if not calls and not said and not nudged:
                 # A reply with nothing in it — no words, no call, sometimes a
                 # little reasoning and then nothing. Measured on gemma4:12b,
                 # twice in one live run: straight after a plan was approved,
                 # and halfway down a to-do list, each time ending the turn in
                 # silence with the work not done. Silence is never the answer
                 # a person wanted, so the model is told once and asked again;
-                # a second silence is taken as the end.
+                # a second silence is reported so a stopped turn cannot look
+                # like a message that was never sent.
                 nudged = True
                 self._nudge()
                 continue
 
             if not calls:
+                if not said:
+                    raise RuntimeError(
+                        'The model returned no answer after a retry. Try again or choose another model in Settings → Connections.'
+                    )
                 return 'end_turn'
 
             self._pending_images = []

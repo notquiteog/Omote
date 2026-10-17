@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import sys
 from pathlib import Path
 
@@ -286,6 +287,88 @@ async def test_a_download_that_matches_its_checksum_is_staged(tmp_path: Path, se
     assert await asyncio.to_thread(staged.read_bytes) == payload
     assert staged.parent == tmp_path
     assert held.state.progress == 100
+
+
+async def test_retry_reuses_the_verified_download_without_another_asset_request(tmp_path, server):
+    server.body = b'an installer that was downloaded before authentication was canceled'
+    asset = asset_for(server)
+    sums = {asset.name: hashlib.sha256(server.body).hexdigest()}
+    first = await Updates('0.1.0', tmp_path).download(Release('v0.2.0'), asset, sums=sums)
+    restarted = Updates('0.1.0', tmp_path)
+    second = await restarted.download(Release('v0.2.0'), asset, sums=sums)
+    assert first == second
+    assert server.hits == [asset.name]
+    assert restarted.state.staged == first['path']
+    assert restarted.state.progress == 100
+
+
+@pytest.mark.parametrize(
+    'change', ['none', 'tampered', 'missing-proof', 'wrong-version', 'new-checksum', 'no-checksums']
+)
+async def test_restart_restores_only_a_download_verified_for_the_selected_release(
+    tmp_path, server, monkeypatch, change
+):
+    from omote.config import config
+
+    monkeypatch.setattr(config, 'local_only', False)
+    monkeypatch.setattr(config, 'update_check_enabled', True)
+    monkeypatch.setenv('OMOTE_INSTALL_KIND', 'appimage')
+    monkeypatch.setattr('omote.update.platform_key', lambda: 'linux-x64')
+    server.body = b'verified installer'
+    asset = asset_for(server)
+    digest = hashlib.sha256(server.body).hexdigest()
+    server.sums = f'{digest}  {asset.name}\n'
+    downloaded = await Updates('0.1.0', tmp_path).download(Release('v0.2.0'), asset, sums={asset.name: digest})
+    target = Path(downloaded['path'])
+    proof = target.with_name(target.name + '.verified.json')
+    if change == 'tampered':
+        await asyncio.to_thread(target.write_bytes, b'x' * len(server.body))
+    elif change == 'missing-proof':
+        proof.unlink()
+    elif change == 'wrong-version':
+        value = json.loads(proof.read_text())
+        value['version'] = '0.1.9'
+        proof.write_text(json.dumps(value))
+    elif change == 'new-checksum':
+        server.sums = f'{"f" * 64}  {asset.name}\n'
+    elif change == 'no-checksums':
+        server.sums = ''
+    (tmp_path / 'install-result.json').write_text(json.dumps({'status': 'error', 'message': 'Authentication canceled'}))
+    restarted = Updates('0.1.0', tmp_path)
+
+    async def releases(*args):
+        return [
+            raw(
+                'v0.2.0',
+                assets=[
+                    {'name': asset.name, 'browser_download_url': asset.url, 'size': asset.size},
+                    {
+                        'name': 'SHA256SUMS.txt',
+                        'browser_download_url': f'http://127.0.0.1:{server.port}/SHA256SUMS.txt',
+                    },
+                ],
+            )
+        ]
+
+    restarted._fetch = releases
+    state = await restarted.check(force=True)
+    assert state['available'] is True
+    assert state['installation']['message'] == 'Authentication canceled'
+    assert state['staged'] == (str(target) if change == 'none' else '')
+    assert server.hits == [asset.name], 'Checking must not start another installer download.'
+
+
+async def test_unverified_replacement_cannot_inherit_an_older_downloads_proof(tmp_path, server):
+    server.body = b'original verified installer'
+    asset = asset_for(server)
+    held = Updates('0.1.0', tmp_path)
+    got = await held.download(Release('v0.2.0'), asset, sums={asset.name: hashlib.sha256(server.body).hexdigest()})
+    proof = Path(got['path'] + '.verified.json')
+    assert await asyncio.to_thread(proof.is_file)
+    server.body = b'replacement without a checksum'
+    got = await held.download(Release('v0.2.0'), asset_for(server), sums={})
+    assert got['verified'] is False
+    assert not await asyncio.to_thread(proof.exists)
 
 
 async def test_a_download_that_does_not_match_is_refused_and_leaves_nothing(

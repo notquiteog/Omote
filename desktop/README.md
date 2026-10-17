@@ -165,3 +165,29 @@ the hardened runtime, which is what `Entitlements.plist` is for, and the frozen
 daemon is where it would fail first.
 
 Windows builds are not signed either; SmartScreen warns once.
+
+## Testing updates
+
+Settings offers **Download**, then **Install**. If an installer is canceled,
+the next release check revalidates the saved download against its published
+checksum and offers **Install** again. Changed or unverified files need a new
+download.
+
+Release tests exercise the native update bridge on every platform. On Linux,
+they also run the installed app's bundled worker through exit, file replacement
+and relaunch, using a temporary executable as the replacement payload:
+
+```bash
+dbus-run-session -- xvfb-run -a python desktop/ci/update_bridge.py /usr/bin/omote-desktop --static omote/static --handoff
+```
+
+This isolates the test from the user's install and data. It covers the AppImage
+replacement path; package-manager authentication and an actual package upgrade
+still need a separate interactive check.
+
+Every frozen daemon also runs `desktop/ci/chat_smoke.py` before packaging on
+Linux, Windows, Apple Silicon and Intel macOS. It exercises real HTTP/SSE and
+websocket connections, a UTF-8 file tool, final replies and visible failures.
+The default upstream is a local fixture. To test a currently free OpenRouter
+model with a configured `OPENROUTER_API_KEY`, pass `--live-model openrouter/free`
+before the daemon path; only synthetic prompts and a temporary workspace are used.

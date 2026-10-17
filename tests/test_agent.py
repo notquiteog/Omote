@@ -414,7 +414,7 @@ async def test_a_silent_reply_is_nudged_once_rather_than_ending_the_turn():
 
 
 @pytest.mark.asyncio
-async def test_a_second_silence_is_taken_as_the_end():
+async def test_a_second_silence_is_reported_as_an_error():
     with tempfile.TemporaryDirectory() as tmp:
         provider = ScriptedProvider([
             [StreamToolUse(id='c1', name='list_dir', input={}), StreamDone(stop_reason='tool_use')],
@@ -422,8 +422,22 @@ async def test_a_second_silence_is_taken_as_the_end():
         ])
         session = build_session(root=Path(tmp), provider=provider, model='x', mode=Mode.ASK)
         await session.start()
-        await turn(session, 'list it')
-    assert provider.calls == 3, 'nudged once, then taken at its word'
+        events = await turn(session, 'list it')
+    assert provider.calls == 3, 'retry once, then report the failure'
+    assert [e for e in events if isinstance(e, TurnCompleted)][0].stop_reason == 'error'
+    assert any(e.type == 'error' and 'no answer after a retry' in e.message for e in events)
+
+
+@pytest.mark.asyncio
+async def test_a_blank_first_reply_is_retried_and_never_silently_completed():
+    with tempfile.TemporaryDirectory() as tmp:
+        provider = ScriptedProvider([[StreamDone()]])
+        session = build_session(root=Path(tmp), provider=provider, model='x', mode=Mode.ASK)
+        await session.start()
+        events = await turn(session, 'hello')
+    assert provider.calls == 2
+    assert any(e.type == 'error' and 'no answer after a retry' in e.message for e in events)
+    assert [e for e in events if isinstance(e, TurnCompleted)][0].stop_reason == 'error'
 
 
 @pytest.mark.asyncio

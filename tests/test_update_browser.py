@@ -78,3 +78,29 @@ def test_completed_install_or_native_failure_survives_app_restart(workspace):
     page.reload()
     open_updates(page)
     expect(page.locator('#update-state')).to_contain_text('package installer was canceled')
+
+
+def test_restored_verified_download_offers_install_without_downloading_again(workspace):
+    page, _ = workspace
+    current = update_state()
+    current.update(staged='/tmp/updates/Omote_0.10.0_amd64.deb', progress=100, downloaded=12345)
+    current['installation'] = {'status': 'error', 'message': 'The package installer was canceled.'}
+    downloads = []
+    page.add_init_script("""window.updateCalls=[]; window.__TAURI__={core:{invoke:async(command,args)=>{
+      window.updateCalls.push({command,args}); throw new Error('Test install handoff reached');
+    }}};""")
+    page.route('**/api/update/status', lambda route: route.fulfill(json=current))
+
+    def download(route):
+        downloads.append(True)
+        route.fulfill(status=500, json={'detail': 'Unnecessary download'})
+
+    page.route('**/api/update/apply', download)
+    page.reload()
+    open_updates(page)
+    expect(page.locator('#update-apply')).to_have_text('Install')
+    expect(page.locator('#update-state')).to_contain_text('package installer was canceled')
+    page.locator('#update-apply').click()
+    expect(page.locator('#update-state')).to_contain_text('Test install handoff reached')
+    assert page.evaluate('window.updateCalls') == [{'command': 'apply_update', 'args': {'path': current['staged']}}]
+    assert downloads == []

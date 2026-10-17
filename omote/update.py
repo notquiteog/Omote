@@ -541,6 +541,7 @@ class Updates:
                 self.state.checked_at = _now()
                 self.state.error = ''
                 self.state.latest = None
+                self.state.staged = ''
                 return self.state.public()
             except (aiohttp.ClientError, TimeoutError) as exc:
                 # `TimeoutError` is in this tuple because on 3.11+
@@ -559,7 +560,66 @@ class Updates:
             self.state.checked_at = _now()
             self.state.error = ''
             self.state.latest = _newest(releases, self.state.current, allow_prerelease)
+            self.state.staged = ''
+            if self.state.latest:
+                asset = self.state.latest.pick()
+                if asset and (self.staging / asset.name).is_file():
+                    sums = await self.fetch_checksums(self.state.latest)
+                    cached = await asyncio.to_thread(self._verified_download, self.state.latest, asset, sums)
+                    if cached:
+                        self._use_download(cached)
             return self.state.public()
+
+    def _verified_download(self, release: Release, asset: Asset, sums: dict[str, str]) -> dict[str, Any] | None:
+        """Reuse only the selected release's file, rehashed against published sums.
+
+        The local proof alone is insufficient: a canceled installer can leave
+        a download behind for days, or a different release may now be selected.
+        Hash on a worker thread so Settings remains responsive with large files.
+        """
+        import json
+
+        expected = sums.get(asset.name, '').lower()
+        if not expected:
+            return None
+        target = self.staging / asset.name
+        proof = target.with_name(target.name + '.verified.json')
+        try:
+            if (
+                target.is_symlink()
+                or not target.is_file()
+                or target.resolve().parent != self.staging.resolve()
+                or proof.is_symlink()
+                or proof.stat().st_size > 32768
+            ):
+                return None
+            value = json.loads(proof.read_text())
+            size = target.stat().st_size
+            if (
+                not isinstance(value, dict)
+                or value.get('name') != asset.name
+                or value.get('version') != str(release.version)
+                or value.get('bytes') != size
+                or value.get('sha256') != expected
+                or (asset.size and asset.size != size)
+                or size > MAX_ASSET
+                or sha256_file(target) != expected
+            ):
+                return None
+        except (OSError, ValueError):
+            return None
+        return {
+            'path': str(target.resolve()),
+            'bytes': size,
+            'sha256': expected,
+            'expected': expected,
+            'verified': True,
+        }
+
+    def _use_download(self, download: dict[str, Any]) -> None:
+        self.state.staged = download['path']
+        self.state.downloaded = download['bytes']
+        self.state.progress = 100
 
     async def _fetch(self, url: str, headers: dict[str, str], *, seconds: int = 20) -> Any:
         # transport-exempt: not a model server, and not a provider. This asks
@@ -629,6 +689,10 @@ class Updates:
             headers['Authorization'] = f'Bearer {token}'
 
         async with self.state._lock:
+            cached = await asyncio.to_thread(self._verified_download, release, asset, sums or {})
+            if cached:
+                self._use_download(cached)
+                return cached
             self.state.downloading = True
             self.state.progress = 0
             self.state.downloaded = 0
@@ -702,13 +766,25 @@ class Updates:
                     f'{asset.name} does not match the checksum published with it. It has been deleted and '
                     f'not installed. If this persists the release was cut badly — check the release page.'
                 )
+            proof = target.with_name(target.name + '.verified.json')
+            proof.unlink(missing_ok=True)
             partial.replace(target)
             _make_runnable(target)
             if expected:
                 import json
 
-                proof = target.with_name(target.name + '.verified.json')
-                proof.write_text(json.dumps({'name': target.name, 'sha256': actual, 'version': str(release.version), 'bytes': self.state.downloaded}))
+                temporary_proof = proof.with_suffix('.tmp')
+                temporary_proof.write_text(
+                    json.dumps(
+                        {
+                            'name': target.name,
+                            'sha256': actual,
+                            'version': str(release.version),
+                            'bytes': self.state.downloaded,
+                        }
+                    )
+                )
+                temporary_proof.replace(proof)
             self.state.staged = str(target)
             self.state.progress = 100
             return {

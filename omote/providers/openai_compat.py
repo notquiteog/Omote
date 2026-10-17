@@ -275,6 +275,20 @@ class OpenAICompatProvider(ChatProvider, EmbeddingProvider, STTProvider, TTSProv
                     except json.JSONDecodeError:
                         continue
 
+                    # Gateways can accept HTTP, then fail upstream after the
+                    # stream opens. Treat that as a failed turn, not an empty
+                    # successful answer that leaves the user guessing.
+                    if chunk.get('error'):
+                        error = chunk['error']
+                        message = (
+                            error.get('message', 'The provider could not finish the request.')
+                            if isinstance(error, dict) else str(error)
+                        )
+                        message = str(message)
+                        if self.api_key:
+                            message = message.replace(self.api_key, '[redacted]')
+                        raise RuntimeError(f'{self.provider_id}: {message[:500]}')
+
                     if chunk.get('usage'):
                         u = chunk['usage']
                         usage = {
@@ -310,6 +324,11 @@ class OpenAICompatProvider(ChatProvider, EmbeddingProvider, STTProvider, TTSProv
                                 slot['args'] += fn['arguments']
 
                         if choice.get('finish_reason'):
+                            if choice['finish_reason'] == 'error':
+                                raise RuntimeError(
+                                    f'{self.provider_id}: The provider stopped with an error. '
+                                    'Try again or choose another model.'
+                                )
                             stop_reason = {
                                 'stop': 'end_turn',
                                 'length': 'max_tokens',

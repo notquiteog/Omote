@@ -1,43 +1,28 @@
-## Omote 0.10.0
+## Omote 0.10.1
 
-### In-app update fixes
+### Update reliability
 
-- Fixed the Tauri 2 desktop bridge: Install now reaches the native installer.
-- Linux downloads match Debian/RPM/AppImage installations. Debian and RPM updates
-  use the system authentication prompt and package manager.
-- A detached, checksum-verifying worker waits for the old app to exit, installs,
-  then reopens the installed path. AppImage updates replace the original file.
-- Installer/download failures remain visible, including after restarting.
-- macOS opens the disk image for the existing Finder replacement step.
-- **Older affected installs need this installer once to bootstrap the fix.**
-  Subsequent updates use Settings → Updates → Download → Install.
+- Canceled installs recover their verified download after restart and a release
+  check, so Install can be retried without downloading the installer again.
+- Reused downloads are rehashed against the selected release's published
+  checksum. Missing, modified or mismatched downloads fall back to Download.
+- Replacing an unverified download clears any older verification record.
+- Linux release tests now exercise native update handoff, old-app exit,
+  replacement and relaunch with an isolated executable payload.
 
-### Creative and personal workflows
+### Chat reliability on every desktop
 
-- Stateful, on-demand access to all 13 installed ArtCraft engines and configured
-  creative MCP bridges; native projects, delivery exports and export verification.
-- Agent ComfyUI workflow authoring, atomic edits, live schema validation, versioned
-  execution and API-to-native editor loading.
-- Job searches by role/city, persistent application tracking, truthful resume
-  variants, DOCX/PDF/HTML/TXT exports, DOCX reading and reviewed browser uploads.
-- Simple job/travel starters, stronger flight/hotel comparisons, booking references
-  and confirmation checks. Final applications and purchases remain reviewed.
+- Provider errors sent inside an HTTP-success stream are now visible failures.
+- A model that returns no answer is retried once, including on the first
+  message, then reports a clear error instead of silently ending the turn.
+- Packaged-daemon checks on Linux, Windows and both Mac architectures now send
+  a chat message, stream a reply, execute a file tool with UTF-8 content, and
+  verify that upstream errors and repeated empty replies reach the client.
 
-### Verification and setup
-
-The preceding full suite passed 2,756 tests; focused updater checks passed 74 tests.
-Real Linux checks covered 13 native creative engine connections, image/vector/video/
-motion exports, editable DOCX reopening, and ComfyUI image generation on an RTX 5060 Ti.
-The release pipeline verifies installers and native update IPC on Linux, Windows
-and both Mac architectures before publication. Live employer submissions, purchases,
-Adobe bridges and native Android phone services are not claimed as verified.
-
-Editors, weights, ComfyUI, provider accounts and optional browser dependencies are
-separate installations. PDF generation and browser workflows need Chromium.
-
-See [Workspace setup](https://github.com/notquiteog/Omote/blob/v0.10.0/docs/WORKSPACE.md),
-[Creative workspace](https://github.com/notquiteog/Omote/blob/v0.10.0/docs/CREATIVE.md),
-and [Personal assistant capabilities](https://github.com/notquiteog/Omote/blob/v0.10.0/docs/PERSONAL-ASSISTANT.md).
+Real OpenRouter free-model checks use synthetic prompts and temporary files.
+Free endpoints may be rate limited; errors are reported without claiming the
+request succeeded. macOS updates still open the disk image for Finder replacement.
+Older installs affected by the pre-0.10.0 native bridge bug need one manual update.
 
 Each installer contains the Omote app and its daemon, with its own Python runtime. Optional tools and services have the setup requirements above. It keeps its data, its logs and an optional `.env` in `~/.omote`. If a daemon is already running on port 8477, one you started yourself, the app uses that one and leaves it running when it quits.
 
