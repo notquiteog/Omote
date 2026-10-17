@@ -1,7 +1,7 @@
 # Updates
 
-Omote checks GitHub for a newer release and tells you. That is the whole
-feature, and the rest of this page is about why it stops there.
+Omote checks GitHub for a newer release, downloads it when asked, and hands
+installation to the desktop app and the operating system.
 
 ## What happens, in order
 
@@ -10,8 +10,10 @@ feature, and the rest of this page is about why it stops there.
 2. **Download.** You press the button. The installer is fetched to
    `data/updates/` and checked against the SHA256 published in the same
    release.
-3. **Install.** The desktop app starts the installer and restarts, or the
-   message tells you the command to run.
+3. **Install.** A detached worker verifies the file again, waits for the old
+   app to exit, runs the system installer, then reopens Omote. AppImage installs
+   replace the original AppImage. On macOS, the disk image opens for the Finder
+   replacement step.
 
 Nothing else happens. No step runs on its own, and the two that change
 anything need a person.
@@ -46,8 +48,9 @@ and there is one place to change.
 * **The daemon does not run it.** Replacing a running binary is the OS's
   problem, not this process's: on Windows a running `.exe` cannot be
   overwritten at all, and on macOS an `.app` bundle cannot be moved while it
-  is open. The desktop app's `apply_update` command starts the installer and
-  then quits, which is the only ordering that works on all three.
+  is open. The desktop app's `apply_update` command starts a worker outside
+  the installation directory. It quits only after that worker is ready;
+  the worker waits for exit before replacing anything.
 
 ## What you get offered
 
@@ -56,7 +59,8 @@ architecture, with a preference order that encodes a real difference:
 
 | platform | preferred | because |
 |---|---|---|
-| Linux | `.AppImage`, then `.deb`, `.rpm` | an AppImage runs without a package manager |
+| Linux package install | matching `.deb` or `.rpm` | preserves the package manager's installation |
+| Linux AppImage | `.AppImage` | replaces the original AppImage file |
 | Windows | `-setup.exe`, then `.msi` | NSIS does not want an administrator to uninstall |
 | macOS | `.dmg` | there is nothing else |
 
@@ -64,6 +68,23 @@ A model this project does not recognise gets no installer rather than the
 nearest one, and the reason is on the message: downloading 120MB of the wrong
 architecture and then failing is worse than being told the release has nothing
 for you.
+
+## If installation fails
+
+An installer failure is saved locally and shown after restart. The downloaded
+file remains available. Press **Check now** to revalidate it against the selected
+release's published checksum; a valid download offers **Install** again without
+another asset download. A modified file, missing verification record, different
+version or different published checksum requires a new download.
+
+Debian and RPM installations use the OS authentication prompt. Canceling that
+prompt leaves the current app installed. Do not enter an administrator password
+in chat. The installer log and `install-result.json` are in the update staging
+directory.
+
+Versions before 0.10.0 affected by the native bridge bug need one manual update
+from the release page. After that bootstrap, Settings supports the separate
+Download and Install steps.
 
 ## Pre-releases
 

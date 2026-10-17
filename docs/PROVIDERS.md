@@ -316,6 +316,29 @@ Nothing is encrypted. Anything that can read the file can read the key,
 exactly as with `.env`, and pretending otherwise would be worse than saying
 so.
 
+## When chat does not answer
+
+1. Open **Settings → AI providers** and test the connection. A working model
+   catalog proves connectivity, but the selected model may still be unavailable
+   or require account credit.
+2. Check the chat's model name. For OpenRouter free testing, select a model
+   currently listed as free, or `openrouter/free` when the catalog offers it.
+   A valid OpenRouter key alone does not make paid models free.
+3. Look for the error in the conversation. Omote reports both HTTP failures
+   and errors received after a stream opens. An empty answer is retried once;
+   another empty answer produces a visible failure. Rate-limited free models
+   can be retried later or changed explicitly.
+4. If a new chat cannot start, the composer keeps the draft and shows the
+   server error. The desktop tray's **Open the logs folder** provides the
+   daemon log for diagnosis. Remove API keys before sharing logs.
+
+Packaged chat tests run on Linux, Windows, Apple Silicon and Intel macOS.
+They cover streaming, websocket delivery, UTF-8 file tools and visible failures
+against a local upstream fixture. `desktop/ci/chat_smoke.py --live-model
+openrouter/free /path/to/omote-daemon` also exercises a currently zero-priced
+OpenRouter model using `OPENROUTER_API_KEY`, with synthetic prompts and an
+isolated temporary workspace.
+
 ---
 
 ## Editing, which is not a provider
