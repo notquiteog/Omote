@@ -187,6 +187,8 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix='omote-chat-smoke-') as temporary:
             root = Path(temporary)
+            home = root / 'home'
+            home.mkdir()
             with socket.socket() as listener:
                 listener.bind(('127.0.0.1', 0))
                 port = listener.getsockname()[1]
@@ -210,6 +212,8 @@ def main():
                 }
             }
             env.update(
+                HOME=str(home),
+                USERPROFILE=str(home),
                 OMOTE_ENV=os.devnull,
                 OMOTE_PORT=str(port),
                 OMOTE_DATA_DIR=str(root / 'data'),

@@ -90,6 +90,34 @@ def test_key_only_setup_bad_key_retry_and_first_message(workspace, chat_provider
     expect(page.locator('#rewind-list')).to_contain_text('Nothing to undo')
 
 
+@pytest.mark.parametrize('status,body,expected', [
+    (500, 'Internal Server Error', 'Could not start the chat (HTTP 500)'),
+    (200, '{}', 'The server did not return a chat'),
+])
+def test_first_message_server_failure_is_visible_and_preserves_the_draft(workspace, chat_provider, status, body, expected):
+    page, url = workspace
+    response = page.request.put(url + '/api/providers/connections', data={
+        'host_id': 'openrouter', 'api_key': KEY, 'base_url': chat_provider.base, 'configure_chat': True,
+    })
+    assert response.ok
+    page.reload()
+    expect(page.locator('#input')).to_be_enabled()
+
+    def fail_create(route):
+        if route.request.method == 'POST':
+            route.fulfill(status=status, body=body, content_type='text/plain')
+        else:
+            route.continue_()
+
+    page.route('**/api/sessions', fail_create)
+    page.locator('#input').fill('Keep my first message')
+    page.locator('#input').press('Enter')
+    expect(page.locator('#transcript')).to_contain_text(expected)
+    expect(page.locator('#input')).to_have_value('Keep my first message')
+    expect(page.locator('#input')).to_be_enabled()
+    expect(page.locator('#send')).to_be_enabled()
+
+
 def test_setup_can_be_skipped_and_tour_is_replayable(workspace):
     page, _ = workspace
     # The fixture skips welcome for other workspace regression tests. Open it

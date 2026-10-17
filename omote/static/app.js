@@ -2101,11 +2101,16 @@ async function createSession(form = null) {
     notice('The daemon is not reachable.', 'error');
     return;
   }
+  let session = null;
+  try { session = await res.json(); } catch { /* A plain server error still needs visible feedback. */ }
   if (!res.ok) {
-    notice((await res.json()).detail || 'could not create the session', 'error');
+    notice(session?.detail || `Could not start the chat (HTTP ${res.status}). Try again.`, 'error');
     return;
   }
-  const session = await res.json();
+  if (!session || typeof session.id !== 'string' || !session.id) {
+    notice('The server did not return a chat. Try again.', 'error');
+    return;
+  }
   openSession({ ...session, policy: body.mode });
   return session;
 }
