@@ -36,6 +36,9 @@ env:
   TAURI_CLI_VERSION: '2.11.4'
 
 jobs:
+  chat-ui:
+    uses: ./.github/workflows/ui.yml
+
   check:
     name: check
     runs-on: ubuntu-22.04
@@ -439,7 +442,7 @@ jobs:
   release:
     name: release
     if: github.ref_type == 'tag'
-    needs: [check, ide, test-linux, test-windows, test-macos]
+    needs: [check, ide, chat-ui, test-linux, test-windows, test-macos]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

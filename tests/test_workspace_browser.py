@@ -26,7 +26,10 @@ def workspace(tmp_path):
     with socket.socket() as port_socket:
         port_socket.bind(('127.0.0.1', 0))
         port = port_socket.getsockname()[1]
-    env = {key: os.environ[key] for key in ('PATH', 'HOME', 'SYSTEMROOT', 'TMPDIR') if key in os.environ}
+    env = {key: os.environ[key] for key in (
+        'PATH', 'HOME', 'SYSTEMROOT', 'WINDIR', 'TMPDIR', 'TEMP', 'TMP', 'APPDATA', 'LOCALAPPDATA',
+        'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH',
+    ) if key in os.environ}
     env.update(OMOTE_ENV=os.devnull, OMOTE_DATA_DIR=str(tmp_path), OMOTE_UPDATE_CHECK='false')
     process = subprocess.Popen(
         [sys.executable, '-m', 'uvicorn', 'omote.main:app', '--host', '127.0.0.1', '--port', str(port)],
@@ -45,8 +48,11 @@ def workspace(tmp_path):
                 time.sleep(.05)
         with playwright.sync_playwright() as engine:
             try:
-                browser = engine.chromium.launch(headless=True)
+                browser_engine = os.getenv('OMOTE_TEST_BROWSER', 'chromium')
+                browser = getattr(engine, browser_engine).launch(headless=True)
             except playwright.Error as exc:
+                if os.getenv('OMOTE_TEST_BROWSER_REQUIRED'):
+                    pytest.fail(f'Required browser is unavailable: {exc}')
                 pytest.skip(f'Chromium is unavailable: {exc}')
             page = browser.new_page(viewport={'width': 1440, 'height': 1000}, color_scheme='dark')
             errors = []
