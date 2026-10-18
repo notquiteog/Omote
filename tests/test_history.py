@@ -478,10 +478,13 @@ def test_the_json_export_is_exactly_what_the_store_holds(store):
     through this route is a session the store can load again. The raw encoded
     blocks are in it, which is the point — this is the transcript itself, not a
     rendering of it."""
-    write(store, 'aaa111', ['a retry here'], title='Retry work')
+    saved = write(store, 'aaa111', ['a retry here'], title='Retry work')
+    saved.effort = 'high'
+    store.save(saved)
     body = as_json(store.load('aaa111'))
     assert set(body) == {
-        'id', 'title', 'root', 'model', 'provider', 'policy', 'toolset', 'messages', 'created', 'updated', 'unfinished',
+        'id', 'title', 'root', 'model', 'provider', 'policy', 'effort', 'toolset', 'messages', 'created', 'updated', 'unfinished',
     }
     assert body['id'] == 'aaa111' and body['title'] == 'Retry work'
+    assert body['effort'] == 'high'
     assert body['messages'] == [{'role': 'user', 'content': [{'type': 'text', 'text': 'a retry here'}]}]
