@@ -422,6 +422,7 @@ def reasoning_control(model: str, *, adapter: str = 'openai', base_url: str = ''
     """
     row = row or {}
     off = True
+    empty_off = False
     if adapter == 'openrouter':
         info = row.get('reasoning') or {}
         supported = info.get('supported_efforts')
@@ -432,6 +433,7 @@ def reasoning_control(model: str, *, adapter: str = 'openai', base_url: str = ''
         fam = anthropic_family(model)
         fam.update(anthropic_capabilities(row.get('reasoning_capabilities')) or {})
         off = not fam.get('adaptive') and not fam.get('always_thinks')
+        empty_off = off and bool(fam.get('budget'))
         def translate(lv):
             return anthropic_reasoning(
                 model, lv, capabilities=row.get('reasoning_capabilities'), max_tokens=128000)['body']
@@ -458,22 +460,35 @@ def reasoning_control(model: str, *, adapter: str = 'openai', base_url: str = ''
             off = False
     levels = []
     seen = []
+    names = {}
     for lv in LEVELS:
         body = translate(lv)
-        if (lv == 'off' and not off) or not body or body == {'think': None} or body in seen:
+        if ((lv == 'off' and not off) or (not body and not (lv == 'off' and empty_off))
+                or body == {'think': None} or body in seen):
             continue
         seen.append(body)
-        levels.append(lv)
+        actual = (body.get('reasoning_effort') or (body.get('output_config') or {}).get('effort')
+                  or (body.get('reasoning') or {}).get('effort') or body.get('think'))
+        rung = actual if isinstance(actual, str) and actual in LEVELS else lv
+        if rung not in levels:
+            levels.append(rung)
+        if actual == 'minimal' and rung != 'off':
+            names[rung] = 'Minimum'
     note = 'Auto uses the model default. Only supported reasoning settings are shown.' if levels else (
         'This model manages reasoning automatically; there is no adjustable reasoning setting.')
     control: dict[str, Any] = {'levels': levels, 'note': note}
-    if levels in (['off', 'low'], ['low']):
-        control['labels'] = {'low': 'On'}
+    enabled = translate('low')
+    binary = (enabled.get('think') is True or (enabled.get('reasoning') or {}).get('enabled') is True
+              or enabled.get('reasoning_effort') == 'default')
+    if binary and 'low' in levels:
+        names['low'] = 'On'
         control['note'] = 'This model supports reasoning on or off.' if off else 'This model keeps reasoning on.'
     if adapter == 'openai' and dialect_for(base_url) == 'openai':
         ladder = openai_ladder(model) or ()
         if 'minimal' in ladder and 'none' not in ladder:
-            control['labels'] = {'off': 'Minimum'}
+            names['off'] = 'Minimum'
+    if names:
+        control['labels'] = names
     return control
 
 

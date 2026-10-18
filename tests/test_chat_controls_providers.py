@@ -157,6 +157,7 @@ def test_slider_only_offers_distinct_supported_settings():
         'capabilities': ['completion', 'thinking'], 'thinking': {'values': [True, False]},
     })['levels'] == ['off', 'low']
     assert R.reasoning_control('claude-sonnet-4-6', adapter='anthropic')['levels'] == ['low', 'medium', 'high', 'max']
+    assert R.reasoning_control('claude-haiku-4-5', adapter='anthropic')['levels'][0] == 'off'
     assert R.reasoning_control('vendor/reasoner', adapter='openrouter', row={
         'reasoning': {'supported_efforts': ['high', 'medium', 'low'], 'mandatory': True},
     })['levels'] == ['low', 'medium', 'high']
@@ -202,12 +203,20 @@ async def test_anthropic_capability_tree_does_not_hide_models_from_chat_routing(
     ('grok-4.7', 'https://api.x.ai/v1', ['low', 'medium', 'high', 'xhigh']),
     ('grok-4.5', 'https://api.x.ai/v1', ['low', 'medium', 'high']),
     ('grok-4.3', 'https://api.x.ai/v1', ['off', 'low', 'medium', 'high']),
-    ('mistral-medium-3-5', 'https://api.mistral.ai/v1', ['off', 'low']),
+    ('mistral-medium-3-5', 'https://api.mistral.ai/v1', ['off', 'high']),
     ('zai-glm-5-3', 'https://api.mistral.ai/v1', ['low', 'high', 'max']),
     ('deepseek-flash', 'https://api.deepseek.com/v1', ['off', 'low', 'high', 'max']),
 ])
 def test_additional_official_provider_ladders(model, host, expected):
     assert R.reasoning_control(model, base_url=host)['levels'] == expected
+
+
+def test_a_model_with_one_fixed_effort_displays_its_actual_level():
+    control = R.reasoning_control('gpt-5-pro', base_url='https://api.openai.com/v1')
+    assert control['levels'] == ['high']
+    assert 'labels' not in control
+    control = R.reasoning_control('custom:7b', adapter='ollama', row={'thinking': {'values': ['high']}})
+    assert control['levels'] == ['high']
 
 
 def test_deepseek_off_and_legacy_models_use_different_protocol_controls():
