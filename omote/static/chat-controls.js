@@ -10,6 +10,7 @@ let selected = readPreference();
 let changing = false;
 let busy = false;
 let hooks;
+const currentSession = () => hooks?.sessionId();
 
 function readPreference() {
   try {
@@ -35,7 +36,7 @@ function renderModels() {
   picker.textContent = '';
   const fallback = el('option', '', 'Default model');
   fallback.value = '';
-  fallback.disabled = Boolean(hooks?.sessionId());
+  fallback.disabled = Boolean(currentSession());
   picker.append(fallback);
   let found = false;
   for (const provider of providers) {
@@ -58,13 +59,13 @@ function renderModels() {
   picker.value = key(selected);
   picker.disabled = busy || changing;
   $('#model-chip').hidden = !providers.length && !selected;
-  $('#effort-wrap').hidden = !providers.length && !hooks?.sessionId();
+  $('#effort-wrap').hidden = !providers.length && !currentSession();
 }
 
 export function configureChatControls(data) {
   const allowed = new Set(data.capabilities?.chat || []);
   providers = (data.providers || []).filter(provider => allowed.has(provider.id));
-  if (!hooks?.sessionId() && selected && !allowed.has(selected.provider)) rememberModel(null);
+  if (!currentSession() && selected && !allowed.has(selected.provider)) rememberModel(null);
   renderModels();
   for (const provider of providers) {
     if (loading.has(provider.id)) continue;
@@ -114,7 +115,7 @@ export function wireChatControls(callbacks) {
     const raw = $('#chat-model').value;
     const pair = raw ? JSON.parse(raw) : null;
     const choice = pair ? { provider: pair[0], model: pair[1] } : null;
-    const id = hooks.sessionId();
+    const id = currentSession();
     if (!id) { rememberModel(choice); return; }
     if (!choice) return;
     const previous = selected;
@@ -129,7 +130,7 @@ export function wireChatControls(callbacks) {
       if (!response?.ok || !result?.model) {
         hooks.onError(result?.detail || 'Could not change the model. Try again.');
         selected = previous;
-      } else if (hooks.sessionId() === id) {
+      } else if (currentSession() === id) {
         rememberModel({ provider: result.provider, model: result.model });
         hooks.onModel(result);
       }

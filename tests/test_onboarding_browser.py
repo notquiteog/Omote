@@ -155,6 +155,10 @@ def test_model_dropdown_and_reasoning_slider_apply_to_new_and_existing_chats(wor
     sent = chat_provider.bodies('POST', '/api/v1/chat/completions')[-1]
     assert sent['model'] == 'vendor/second'
     assert any('First message with my choices' in str(message) for message in sent['messages'])
+    assert page.request.delete(url + '/api/sessions/' + sid).ok
+    assert page.request.post(url + '/api/sessions/' + sid + '/resume').ok
+    reopened = page.request.get(url + '/api/sessions').json()['sessions'][0]
+    assert reopened['model'] == 'vendor/second' and reopened['effort'] == 'low'
     page.reload()
     expect(page.locator('#chat-model')).to_have_value(json.dumps(['work-router', 'vendor/second'], separators=(',', ':')))
     expect(page.locator('#effort-value')).to_have_text('Low')
@@ -272,6 +276,24 @@ def test_chat_creation_failure_preserves_draft(workspace, chat_provider):
     page.unroute('**/api/sessions')
     page.locator('#send').click()
     expect(page.locator('#transcript')).to_contain_text('Ready to help with your first task.')
+
+
+def test_key_entry_waits_for_provider_catalog_to_finish(workspace, chat_provider):
+    page, url = workspace
+    use_fake(page, chat_provider)
+    held = []
+    page.route('**/api/providers/catalog', lambda route: held.append(route))
+    page.locator('#setup-connect').click()
+    expect(page.locator('#welcome-key')).to_be_disabled()
+    expect(page.locator('#welcome-submit')).to_be_disabled()
+    page.wait_for_timeout(100)
+    assert held
+    catalog = page.request.get(url + '/api/providers/catalog').json()
+    held[0].fulfill(json=catalog)
+    expect(page.locator('#welcome-key')).to_be_enabled()
+    page.locator('#welcome-key').fill(KEY)
+    page.locator('#welcome-submit').click()
+    expect(page.locator('#welcome-ready-panel')).to_be_visible()
 
 
 def test_explore_does_not_force_tutorial_and_studio_has_setup_action(workspace):

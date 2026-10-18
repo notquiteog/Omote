@@ -337,6 +337,23 @@ def test_a_session_that_has_not_changed_writes_nothing(tmp_path):
     assert len(path.read_text().splitlines()) == 3      # a header and two messages
 
 
+def test_changed_model_and_effort_survive_reopening_without_repeating_messages(tmp_path):
+    store = SessionStore(tmp_path / 's')
+    first = stored(provider='old-host', effort='medium')
+    store.save(first)
+    changed = stored(model='vendor/new-model', provider='new-host', effort='low')
+    store.save(changed)
+    reopened = SessionStore(store.root).load(first.id)
+    assert reopened.model == 'vendor/new-model'
+    assert reopened.provider == 'new-host'
+    assert reopened.effort == 'low'
+    assert reopened.messages == first.messages
+    assert reopened.created == first.created
+    before = store.path_for(first.id).read_bytes()
+    store.save(changed)
+    assert store.path_for(first.id).read_bytes() == before
+
+
 def test_a_line_cut_off_mid_write_does_not_cost_the_turns_before_it(tmp_path):
     """The realistic way to find a short line is a daemon that stopped while
     writing, and a transcript that refused to open because its *last* turn was

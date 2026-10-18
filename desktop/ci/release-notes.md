@@ -7,6 +7,10 @@
   model while preserving its history and reasoning setting.
 - Remember model/effort choices, show the active selection after reload, and
   preserve the draft and current model when a switch fails.
+- Keep model and reasoning settings when reopening a stored conversation after
+  restarting the app, without duplicating messages.
+- Wait for provider setup to finish loading before accepting an API key, so a
+  late catalog response cannot clear a key that was just entered.
 - Keep controls usable on narrow screens. Model catalogs load in the background.
 - Require real first-message, model-control and update UI tests on Windows,
   macOS WebKit and Linux before publishing future releases.

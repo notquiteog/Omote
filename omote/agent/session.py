@@ -498,6 +498,7 @@ class AgentSession:
             id=self.id, title=self.title, root=str(self.root), model=self.model,
             provider=str(getattr(self.provider, 'provider_id', '') or ''),
             toolset=list(self.toolset),
+            effort=self.effort,
             messages=[
                 {'role': message.role, 'content': [encode_block(b) for b in message.content]}
                 for message in self.messages
@@ -851,6 +852,7 @@ class AgentSession:
         await self._emit(PolicyChanged(
             session_id=self.id, mode=self.policy.mode.value, policy=self.policy.describe(), effort=self.effort,
         ))
+        await self._persist()
 
     # -- /model, /undo, /redo, /context, /status ----------------------------
 

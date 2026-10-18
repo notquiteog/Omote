@@ -318,6 +318,13 @@ so.
 
 ## When chat does not answer
 
+Choose the chat model from the dropdown beneath the composer. Models are grouped
+by connected provider. The reasoning slider offers Auto, Off, Low, Medium, High,
+Extra high and Max; Auto uses the model's default, and other levels map to what
+the model supports. New chats remember your choices. An idle chat can switch
+models while keeping its history, and its model and reasoning setting are saved
+when the conversation is reopened.
+
 1. Open **Settings → AI providers** and test the connection. A working model
    catalog proves connectivity, but the selected model may still be unavailable
    or require account credit.

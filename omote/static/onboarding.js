@@ -78,9 +78,14 @@ export async function openSetup() {
   $('#welcome-dialog').setAttribute('aria-labelledby', 'welcome-title');
   if (!$('#welcome-dialog').open) $('#welcome-dialog').showModal();
   $('#welcome-submit').disabled = true;
-  try { await loadHosts(); $('#welcome-key').focus(); }
+  $('#welcome-key').disabled = true;
+  try { await loadHosts(); }
   catch (error) { status(error.message, true); }
-  finally { $('#welcome-submit').disabled = false; }
+  finally {
+    $('#welcome-submit').disabled = false;
+    $('#welcome-key').disabled = false;
+    $('#welcome-key').focus();
+  }
 }
 export function updateSetup(data) {
   ready = Boolean(data.capabilities?.chat?.length);

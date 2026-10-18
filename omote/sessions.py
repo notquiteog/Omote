@@ -164,6 +164,7 @@ class Stored:
     model: str = ''
     policy: str = ''
     provider: str = ''
+    effort: str | None = None
     toolset: list[str] = field(default_factory=list)
     messages: list[dict[str, Any]] = field(default_factory=list)
     created: float = field(default_factory=time.time)
@@ -178,6 +179,8 @@ class Stored:
             'title': self.title,
             'root': self.root,
             'model': self.model,
+            'provider': self.provider,
+            'effort': self.effort,
             'created': self.created,
             'updated': self.updated,
             'turns': sum(1 for m in self.messages if m.get('role') == 'user'),
@@ -222,11 +225,28 @@ class SessionStore:
         knows the same thing the last one knew. A number in memory would be
         wrong after a restart and the first append would duplicate a turn.
         """
+        return self._records(session_id)[0]
+
+    def _records(self, session_id: str) -> tuple[int, dict[str, Any]]:
+        count, header = 0, {}
         try:
             with self.path_for(session_id).open('r', encoding='utf-8', errors='replace') as handle:
-                return max(0, sum(1 for line in handle if line.strip() and '"message"' in line))
+                for line in handle:
+                    if line.lstrip().startswith(('{"type": "message",', '{"type":"message",')):
+                        count += 1
+                        continue
+                    try:
+                        record = json.loads(line)
+                        if isinstance(record, dict):
+                            if record.get('type') == 'session':
+                                header = record
+                            elif record.get('type') == 'message':
+                                count += 1
+                    except ValueError:
+                        pass
         except OSError:
-            return 0
+            pass
+        return count, header
 
     def save(self, stored: Stored) -> Path | None:
         """Append whatever is new, and nothing else.
@@ -237,8 +257,17 @@ class SessionStore:
         """
         stored.updated = time.time()
         target = self.path_for(stored.id)
-        already = self._written(stored.id)
-        if already >= len(stored.messages):
+        already, previous = self._records(stored.id)
+        stored.created = previous.get('created', stored.created)
+        header = {
+            'type': 'session', 'id': stored.id, 'title': stored.title, 'root': stored.root,
+            'model': stored.model, 'provider': stored.provider, 'policy': stored.policy, 'toolset': stored.toolset,
+            'effort': stored.effort, 'created': stored.created, 'unfinished': stored.unfinished,
+        }
+        # Metadata changes append a small header, preserving old messages and
+        # allowing a changed model/effort to survive a new daemon process.
+        metadata_changed = any(previous.get(key) != value for key, value in header.items())
+        if already >= len(stored.messages) and not metadata_changed:
             self._reindex(stored)
             return target
         if target.exists() and target.stat().st_size > MAX_TRANSCRIPT_BYTES:
@@ -247,14 +276,9 @@ class SessionStore:
 
         try:
             fresh = stored.messages[already:]
-            header = json.dumps({
-                'type': 'session', 'id': stored.id, 'title': stored.title, 'root': stored.root,
-                'model': stored.model, 'provider': stored.provider, 'policy': stored.policy, 'toolset': stored.toolset,
-                'created': stored.created, 'unfinished': stored.unfinished,
-            }, ensure_ascii=False)
             with target.open('a', encoding='utf-8') as handle:
-                if already == 0:
-                    handle.write(header + '\n')
+                if metadata_changed:
+                    handle.write(json.dumps(header, ensure_ascii=False) + '\n')
                 for message in fresh:
                     handle.write(json.dumps({'type': 'message', **message}, ensure_ascii=False) + '\n')
         except (OSError, TypeError, ValueError) as exc:
@@ -313,6 +337,7 @@ class SessionStore:
             root=str(header.get('root') or ''),
             model=str(header.get('model') or ''),
             provider=str(header.get('provider') or ''),
+            effort=header.get('effort') if header.get('effort') in ('off', 'low', 'medium', 'high', 'xhigh', 'max') else None,
             policy=str(header.get('policy') or ''),
             toolset=[str(t) for t in (header.get('toolset') or [])],
             messages=messages,

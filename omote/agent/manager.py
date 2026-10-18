@@ -97,6 +97,7 @@ class SessionManager:
         mode = kwargs.pop('mode', Mode.ASK)
         model = stored.model or kwargs.pop('model', '')
         toolset = list(stored.toolset) or kwargs.pop('toolset', None)
+        effort = kwargs.pop('effort', stored.effort)
         kwargs.pop('model', None)
         kwargs.pop('toolset', None)
         return await self.create(
@@ -107,6 +108,7 @@ class SessionManager:
             session_id=stored.id,
             title=stored.title,
             toolset=toolset,
+            effort=effort,
             **kwargs,
         )
 
