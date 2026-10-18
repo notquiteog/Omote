@@ -285,7 +285,14 @@
           </select>
         </label>
         <div class="spacer"></div>
-        <span id="model-chip" class="chip flat" hidden></span>
+        <label id="effort-wrap" class="chip" hidden title="Auto uses the model default. Off uses its lowest supported reasoning level.">
+          <span>Reasoning</span>
+          <input id="effort" type="range" min="0" max="6" step="1" value="0" aria-label="Reasoning effort" aria-valuetext="Auto">
+          <output id="effort-value" for="effort">Auto</output>
+        </label>
+        <label id="model-chip" class="chip" hidden>
+          <select id="chat-model" aria-label="Chat model"><option value="">Default model</option></select>
+        </label>
         <button id="attach" type="button" class="icon" title="Attach a picture (or just paste one)">
           <svg class="ic"><use href="#i-clip"></use></svg>
         </button>

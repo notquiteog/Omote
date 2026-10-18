@@ -1,28 +1,19 @@
-## Omote 0.10.1
+## Omote 0.10.2
 
-### Update reliability
+- Choose a connected provider and model from the dropdown beside the chat composer.
+- Adjust reasoning with an accessible slider: Auto, Off, Low, Medium, High,
+  Extra high and Max. Adapters translate the level to what each model supports.
+- Set model and effort before the first message; switch an idle conversation's
+  model while preserving its history and reasoning setting.
+- Remember model/effort choices, show the active selection after reload, and
+  preserve the draft and current model when a switch fails.
+- Keep controls usable on narrow screens. Model catalogs load in the background.
+- Require real first-message, model-control and update UI tests on Windows,
+  macOS WebKit and Linux before publishing future releases.
 
-- Canceled installs recover their verified download after restart and a release
-  check, so Install can be retried without downloading the installer again.
-- Reused downloads are rehashed against the selected release's published
-  checksum. Missing, modified or mismatched downloads fall back to Download.
-- Replacing an unverified download clears any older verification record.
-- Linux release tests now exercise native update handoff, old-app exit,
-  replacement and relaunch with an isolated executable payload.
-
-### Chat reliability on every desktop
-
-- Provider errors sent inside an HTTP-success stream are now visible failures.
-- A model that returns no answer is retried once, including on the first
-  message, then reports a clear error instead of silently ending the turn.
-- Packaged-daemon checks on Linux, Windows and both Mac architectures now send
-  a chat message, stream a reply, execute a file tool with UTF-8 content, and
-  verify that upstream errors and repeated empty replies reach the client.
-
-Real OpenRouter free-model checks use synthetic prompts and temporary files.
-Free endpoints may be rate limited; errors are reported without claiming the
-request succeeded. macOS updates still open the disk image for Finder replacement.
-Older installs affected by the pre-0.10.0 native bridge bug need one manual update.
+Includes 0.10.1's update recovery and visible chat failures. Real free-model
+checks covered streaming, file tools, lazy discovery, system telemetry and the
+new composer controls. Local in-app installation from 0.10.0 to 0.10.1 was verified.
 
 Each installer contains the Omote app and its daemon, with its own Python runtime. Optional tools and services have the setup requirements above. It keeps its data, its logs and an optional `.env` in `~/.omote`. If a daemon is already running on port 8477, one you started yourself, the app uses that one and leaves it running when it quits.
 

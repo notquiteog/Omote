@@ -67,6 +67,25 @@ class CreateSession(BaseModel):
     effort: str | None = None
 
 
+class ChangeModel(BaseModel):
+    provider: str
+    model: str
+
+
+@http.put('/{session_id}/model')
+async def change_model(session_id: str, body: ChangeModel) -> dict[str, object]:
+    session = manager.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail='no such session')
+    if session.busy:
+        raise HTTPException(status_code=409, detail='Finish or stop the current reply before changing models.')
+    try:
+        provider, model = await session.set_model(body.model, provider=body.provider)
+    except (NoProviderError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {'provider': provider, 'model': model, 'effort': session.effort}
+
+
 @http.post('')
 async def create_session(body: CreateSession) -> dict[str, object]:
     # Refused rather than dropped: a level that is not one would otherwise

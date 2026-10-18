@@ -24,6 +24,7 @@ import { clear as clearAttachments, pending as pendingAttachments, wireAttachmen
 import { active as searchActive, wireHistory } from './history.js';
 import { setCommitRoot, wireCommit } from './commit.js';
 import { $, api, el, icon, json, onReachable, socket, took } from './dom.js';
+import { wireChatControls, configureChatControls, syncChatControls, chatControlsBusy, preferredModel } from './chat-controls.js';
 import { wireLive } from './live.js';
 import { mailCard } from './mail.js';
 import { go, mode, onEnter, onLeave, wireModes } from './modes.js';
@@ -1126,6 +1127,7 @@ function flushOutbox(reconnected = false) {
 
 function setBusy(busy) {
   state.busy = busy;
+  chatControlsBusy(busy);
   /* Both buttons, and they do different things. This used to hide send and
      leave only stop, which is the honest layout for a client that cannot
      queue — and it made the queue unreachable, since a hidden button cannot be
@@ -1241,7 +1243,7 @@ function handleAgentEvent(ev) {
       // same facts, so repeating the model here would only crowd the title.
       $('#session-meta').textContent = ev.policy;
       $('#mode-wrap').title = ev.policy;
-      dressChips({ model: ev.model, root: ev.cwd, effort: ev.effort ?? null });
+      dressChips({ model: ev.model, provider: ev.provider, root: ev.cwd, effort: ev.effort ?? null });
       break;
 
     case 'policy.changed': {
@@ -1257,7 +1259,8 @@ function handleAgentEvent(ev) {
       if (ev.model && before.model !== ev.model) {
         notice(`Answering with ${ev.model}${ev.provider ? ` on ${ev.provider}` : ''} from now on.`);
       }
-      dressChips({ policy: ev.mode, effort: ev.effort ?? null, model: ev.model ?? undefined });
+      dressChips({ policy: ev.mode, effort: ev.effort ?? null,
+        ...(ev.model ? { model: ev.model, provider: ev.provider } : {}) });
       break;
     }
 
@@ -1896,6 +1899,7 @@ function basename(path) {
    under the composer, and its socket attached. */
 function openSession(summary) {
   $('#session-title').textContent = summary.title || summary.id;
+  setBusy(Boolean(summary.busy));
   dressChips(summary);
   selectSession(summary.id);
 }
@@ -1909,12 +1913,6 @@ function dressChips(patch) {
 
   $('#mode-wrap').hidden = false;
   if (info.policy) $('#mode').value = info.policy;
-  const effortWrap = $('#effort-wrap');
-  if (effortWrap) {
-    effortWrap.hidden = false;
-    if ('effort' in info) $('#effort').value = info.effort || '';
-  }
-
   const root = $('#root-chip');
   if (info.root) {
     root.hidden = false;
@@ -1927,18 +1925,7 @@ function dressChips(patch) {
   // the ones that arrive on the socket.
   setCommitRoot(info.root);
 
-  const model = $('#model-chip');
-  if (info.model) {
-    model.hidden = false;
-    // The provider rides along once it is known, because a chip saying
-    // "claude-sonnet-5" next to a provider chip saying "anthropic" is two
-    // facts about one thing, and after a `/model` switch the session's
-    // provider is the one that moved — not the install-wide route the other
-    // chip was filled from.
-    const where = info.provider ? ` on ${info.provider}` : '';
-    model.textContent = info.model + where;
-    model.title = `answering with ${info.model}${where}`;
-  }
+  syncChatControls(info);
   dressHero();
 }
 
@@ -1969,6 +1956,7 @@ async function loadProviders() {
   const chat = (data.capabilities || {}).chat || [];
   chatReady = chat.length > 0;
   updateSetup(data);
+  configureChatControls(data);
   $('#input').placeholder = chatReady || state.sessionId ? 'Ask Omote anything…' : 'Connect an AI provider to start chatting';
   if (!state.sessionId) {
     $('#input').disabled = !chatReady;
@@ -2084,14 +2072,15 @@ function rememberEffort(value) {
 }
 
 async function createSession(form = null) {
+  const preferred = preferredModel();
   const body = form ? {
     root: form.root.value.trim() || null,
-    model: form.model.value.trim() || null,
-    provider: form.provider.value || null,
+    model: form.model.value.trim() || (!form.provider.value ? preferred.model : null) || null,
+    provider: form.provider.value || preferred.provider || null,
     mode: form.mode.value,
     tools: form.tools.value ? form.tools.value.split(',') : [],
     effort: preferredEffort(),
-  } : { mode: 'ask', effort: preferredEffort() };
+  } : { mode: 'ask', effort: preferredEffort(), ...preferred };
   const res = await api('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2227,38 +2216,15 @@ function wire() {
     send({ type: 'policy.set', mode: e.target.value });
   };
 
-  // How hard the model thinks — beside the approval mode because it is the
-  // other live control, and for the same reason: whether a problem deserves
-  // deliberation is learned while watching the model work on it. Built here
-  // rather than in the page's markup; the levels are the six the server
-  // takes, plus "default", which hands the choice back to the model. `/think`
-  // in the composer does the same from the keyboard.
-  const effortWrap = document.createElement('label');
-  effortWrap.id = 'effort-wrap';
-  effortWrap.className = 'chip';
-  effortWrap.hidden = true;
-  effortWrap.title = 'How hard the model thinks before answering. xhigh and max only differ on frontier '
-    + 'models; a smaller model uses its hardest setting instead.';
-  const effortSelect = document.createElement('select');
-  effortSelect.id = 'effort';
-  effortSelect.setAttribute('aria-label', 'Thinking effort');
-  for (const [value, label] of [
-    ['', 'think: default'], ['off', 'think: off'], ['low', 'think: low'], ['medium', 'think: medium'],
-    ['high', 'think: high'], ['xhigh', 'think: xhigh'], ['max', 'think: max'],
-  ]) {
-    const option = document.createElement('option');
-    option.value = value;
-    option.textContent = label;
-    effortSelect.append(option);
-  }
-  effortWrap.append(effortSelect);
-  $('#mode-wrap').after(effortWrap);
-  effortSelect.value = preferredEffort() || '';
-  effortSelect.onchange = (e) => {
-    rememberEffort(e.target.value);
-    if (!state.sessionId) return;
-    send({ type: 'policy.set', effort: e.target.value || 'default' });
-  };
+  wireChatControls({
+    sessionId: () => state.sessionId,
+    onModel: info => { dressChips(info); refreshSessionsSoon(); },
+    onError: message => notice(message, 'error'),
+    onEffort: value => {
+      rememberEffort(value);
+      if (state.sessionId) send({ type: 'policy.set', effort: value || 'default' });
+    },
+  });
 
   // The provider list is long on a well-configured machine and irrelevant
   // most of the time, so it starts folded.

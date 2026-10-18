@@ -304,6 +304,8 @@ class SessionManager:
                 'title': s.title,
                 'root': str(s.root),
                 'model': s.model,
+                'provider': str(getattr(s.provider, 'provider_id', '') or ''),
+                'effort': s.effort,
                 'policy': s.policy.mode.value,
                 'busy': s.busy,
                 'waiting_on': s.waiting_on,

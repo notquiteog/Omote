@@ -481,6 +481,7 @@ class AgentSession:
                 session_id=self.id,
                 cwd=str(self.cwd),
                 model=self.model,
+                provider=str(getattr(self.provider, 'provider_id', '') or ''),
                 effort=self.effort,
                 policy=self.policy.describe() + ('' if self.confined else '  ·  UNCONFINED: the whole filesystem'),
                 tools=sorted(self.tools),
@@ -853,7 +854,7 @@ class AgentSession:
 
     # -- /model, /undo, /redo, /context, /status ----------------------------
 
-    async def set_model(self, want: str) -> tuple[str, str]:
+    async def set_model(self, want: str, *, provider: str | None = None) -> tuple[str, str]:
         """Change which model answers, from the next request on.
 
         Returns `(provider, model)`. The reason this is a live control and not
@@ -872,7 +873,8 @@ class AgentSession:
         want = want.strip()
         if not want:
             raise ValueError('say which model: /model anthropic, /model gpt-5, or a full id')
-        provider, model = _model_want(want)
+        explicit_provider = provider is not None
+        provider, model = (provider, want) if explicit_provider else _model_want(want)
         try:
             impl, chosen, provider_id = await resolve_chat(provider or None, model or None)
         except Exception:
@@ -880,7 +882,7 @@ class AgentSession:
             # the provider already in use ("gpt-5"). Asking as a provider first
             # and falling back to a model is the order people mean, and the
             # refusal that comes back from both is the honest answer.
-            if provider:
+            if provider or explicit_provider:
                 raise
             impl, chosen, provider_id = await resolve_chat(None, want)
         self.provider = impl
@@ -889,6 +891,7 @@ class AgentSession:
             session_id=self.id, mode=self.policy.mode.value, policy=self.policy.describe(),
             effort=self.effort, model=chosen, provider=provider_id,
         ))
+        await self._persist()
         return provider_id, chosen
 
     async def _model_command(self, arguments: str) -> str:

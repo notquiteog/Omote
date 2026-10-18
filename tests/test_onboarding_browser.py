@@ -118,6 +118,72 @@ def test_first_message_server_failure_is_visible_and_preserves_the_draft(workspa
     expect(page.locator('#send')).to_be_enabled()
 
 
+def test_model_dropdown_and_reasoning_slider_apply_to_new_and_existing_chats(workspace, chat_provider):
+    page, url = workspace
+    assert page.request.put(url + '/api/providers/connections', data={
+        'id': 'work-router', 'host_id': 'openrouter', 'api_key': KEY,
+        'base_url': chat_provider.base, 'configure_chat': True,
+    }).ok
+    page.route('**/api/providers/work-router/models?modality=chat', lambda route: route.fulfill(json={
+        'models': [{'id': 'vendor/first', 'label': 'First model'}, {'id': 'vendor/second', 'label': 'Second model'}],
+    }))
+    page.reload()
+    expect(page.locator('#chat-model option')).to_have_count(3)
+    page.locator('#chat-model').select_option(json.dumps(['work-router', 'vendor/first'], separators=(',', ':')))
+    for _ in range(4):
+        page.locator('#effort').press('ArrowRight')
+    expect(page.locator('#effort-value')).to_have_text('High')
+    page.locator('#input').fill('First message with my choices')
+    page.locator('#input').press('Enter')
+    expect(page.locator('#transcript .turn.assistant')).to_contain_text('Ready to help')
+    sessions = page.request.get(url + '/api/sessions').json()['sessions']
+    assert len(sessions) == 1
+    sid = sessions[0]['id']
+    assert sessions[0]['model'] == 'vendor/first' and sessions[0]['effort'] == 'high'
+    assert chat_provider.bodies('POST', '/api/v1/chat/completions')[-1]['model'] == 'vendor/first'
+    page.locator('#chat-model').select_option(json.dumps(['work-router', 'vendor/second'], separators=(',', ':')))
+    expect(page.locator('#transcript')).to_contain_text('Answering with vendor/second')
+    for _ in range(2):
+        page.locator('#effort').press('ArrowLeft')
+    expect(page.locator('#transcript')).to_contain_text('Thinking is now: low')
+    page.locator('#input').fill('Second message keeps our conversation')
+    page.locator('#input').press('Enter')
+    expect(page.locator('#transcript .turn.assistant')).to_have_count(2)
+    sessions = page.request.get(url + '/api/sessions').json()['sessions']
+    assert len(sessions) == 1 and sessions[0]['id'] == sid
+    assert sessions[0]['model'] == 'vendor/second' and sessions[0]['effort'] == 'low'
+    sent = chat_provider.bodies('POST', '/api/v1/chat/completions')[-1]
+    assert sent['model'] == 'vendor/second'
+    assert any('First message with my choices' in str(message) for message in sent['messages'])
+    page.reload()
+    expect(page.locator('#chat-model')).to_have_value(json.dumps(['work-router', 'vendor/second'], separators=(',', ':')))
+    expect(page.locator('#effort-value')).to_have_text('Low')
+    page.set_viewport_size({'width': 390, 'height': 844})
+    assert page.locator('#controls').evaluate('node => node.scrollWidth <= node.clientWidth')
+
+
+def test_model_change_failure_keeps_the_active_model_and_draft(workspace, chat_provider):
+    page, url = workspace
+    assert page.request.put(url + '/api/providers/connections', data={
+        'id': 'work-router', 'host_id': 'openrouter', 'api_key': KEY,
+        'base_url': chat_provider.base, 'configure_chat': True,
+    }).ok
+    page.route('**/api/providers/work-router/models?modality=chat', lambda route: route.fulfill(json={
+        'models': [{'id': 'deepseek/deepseek-v4-flash'}, {'id': 'vendor/second'}],
+    }))
+    page.reload()
+    page.locator('#input').fill('Start the conversation')
+    page.locator('#input').press('Enter')
+    expect(page.locator('#transcript .turn.assistant')).to_contain_text('Ready to help')
+    page.locator('#input').fill('Keep this draft')
+    page.route('**/api/sessions/*/model', lambda route: route.fulfill(
+        status=409, json={'detail': 'Finish the current reply before changing models.'}))
+    page.locator('#chat-model').select_option(json.dumps(['work-router', 'vendor/second'], separators=(',', ':')))
+    expect(page.locator('#transcript')).to_contain_text('Finish the current reply')
+    expect(page.locator('#chat-model')).to_have_value(json.dumps(['work-router', 'deepseek/deepseek-v4-flash'], separators=(',', ':')))
+    expect(page.locator('#input')).to_have_value('Keep this draft')
+
+
 def test_setup_can_be_skipped_and_tour_is_replayable(workspace):
     page, _ = workspace
     # The fixture skips welcome for other workspace regression tests. Open it
