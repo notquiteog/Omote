@@ -154,7 +154,7 @@
     </button>
     <div id="session-title">No session</div>
     <div id="studio-title">Studio</div>
-    <span id="session-meta" class="meta"></span>
+    <span id="session-meta" class="meta" hidden></span>
     <div class="spacer"></div>
     <!-- Two buttons, and each one does the whole thing: opens the microphone
          and starts listening, or ends the call. Nothing else to set up, because
@@ -275,7 +275,7 @@
         </span>
         <label id="mode-wrap" class="chip" hidden>
           <svg class="ic"><use href="#i-shield"></use></svg>
-          <select id="mode" aria-label="Action permissions">
+          <select id="mode" aria-label="Action permissions" aria-describedby="session-meta">
             <option value="read_only">read only</option>
             <option value="plan">plan first</option>
             <option value="ask">ask first</option>

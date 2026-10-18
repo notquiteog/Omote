@@ -307,4 +307,7 @@ class AnthropicProvider(ChatProvider):
                 if resp.status != 200:
                     return []
                 body = await resp.json()
-        return [{'id': m['id'], 'provider': self.provider_id} for m in body.get('data', []) if m.get('id')]
+        return [{
+            'id': m['id'], 'provider': self.provider_id,
+            **({'reasoning_capabilities': m['capabilities']} if isinstance(m.get('capabilities'), dict) else {}),
+        } for m in body.get('data', []) if m.get('id')]

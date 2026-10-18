@@ -131,6 +131,10 @@ def dialect_for(base_url: str) -> str:
         return 'gemini'
     if host == 'api.deepseek.com':
         return 'deepseek'
+    if host == 'api.x.ai':
+        return 'xai'
+    if host == 'api.mistral.ai':
+        return 'mistral'
     return 'generic'
 
 
@@ -285,6 +289,43 @@ def gemini_ladder(model: str) -> tuple[str, ...] | None:
     return _THREE
 
 
+def xai_ladder(model: str) -> tuple[str, ...] | None:
+    """https://docs.x.ai/developers/model-capabilities/text/reasoning"""
+    m = _bare(model)
+    if m.startswith('grok-3-mini'):
+        return ('low', 'high')
+    if m.startswith('grok-4.3'):
+        return ('none', *_THREE)
+    if m.startswith('grok-4.5'):
+        return _THREE
+    if re.match(r'grok-4\.[6-9](?:$|-)', m):
+        return (*_THREE, 'xhigh')
+    return None
+
+
+def mistral_ladder(model: str) -> tuple[str, ...] | None:
+    """https://docs.mistral.ai/studio/conversations/reasoning"""
+    m = _bare(model)
+    if m.startswith('zai-glm-5-3'):
+        return ('low', 'high', 'max')
+    if m == 'mistral-small-latest' or m.startswith(('mistral-medium-3-5', 'mistral-large-4-0')):
+        return ('none', 'high')
+    return None
+
+
+def deepseek_reasoning(level: str, model: str) -> dict[str, Any]:
+    """Chat Completions uses a thinking toggle plus low/high/max, not Responses' nesting.
+
+    https://api-docs.deepseek.com/guides/thinking_mode/
+    Legacy chat/reasoner model IDs retain their existing behavior.
+    """
+    if not _bare(model).startswith(('deepseek-flash', 'deepseek-v4')):
+        return {}
+    if level == 'off':
+        return {'thinking': {'type': 'disabled'}}
+    return {'thinking': {'type': 'enabled'}, 'reasoning_effort': clamp_effort(level, ('low', 'high', 'max'))}
+
+
 def _generic(level: str, model: str) -> dict[str, Any]:
     """vLLM, llama.cpp and friends accept or ignore the field rather than refusing it.
 
@@ -327,8 +368,10 @@ def openai_compat_reasoning(level: str | None, model: str, base_url: str = '', *
         effort = clamp_effort(lv, gemini_ladder(model))
         return {'reasoning_effort': effort} if effort else {}
     if dialect == 'deepseek':
-        # DeepSeek's own API picks reasoning by model name and has no field for it.
-        return {}
+        return deepseek_reasoning(lv, model)
+    if dialect in ('xai', 'mistral'):
+        effort = clamp_effort(lv, xai_ladder(model) if dialect == 'xai' else mistral_ladder(model))
+        return {'reasoning_effort': effort} if effort else {}
     return _generic(lv, model)
 
 
@@ -347,10 +390,97 @@ def openai_max_tokens_field(base_url: str) -> str:
     return 'max_completion_tokens' if dialect_for(base_url) == 'openai' else 'max_tokens'
 
 
+def openrouter_reasoning(level: str | None, row: dict[str, Any] | None) -> dict[str, Any]:
+    """Use the live catalogue's ladder, including models that cannot stop thinking.
+
+    Dynamic routers and non-reasoning models omit this metadata. An unavailable
+    catalogue also leaves the provider at its default instead of risking a 400.
+    https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
+    """
+    lv = normalise(level)
+    info = (row or {}).get('reasoning')
+    if lv is None or not isinstance(info, dict):
+        return {}
+    if 'supported_efforts' not in info:
+        return {} if info.get('mandatory') else {'reasoning': {'enabled': lv != 'off'}}
+    supported = info['supported_efforts']
+    if supported is not None and not isinstance(supported, list):
+        return {}
+    ladder = tuple(r for r in ORDER if supported is None or r in supported)
+    if info.get('mandatory'):
+        ladder = tuple(r for r in ladder if r != 'none')
+    effort = clamp_effort(lv, ladder)
+    return {'reasoning': {'effort': effort}} if effort else {}
+
+
+def reasoning_control(model: str, *, adapter: str = 'openai', base_url: str = '',
+                      row: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Slider choices derived from the same translations used for requests.
+
+    Remove duplicate rungs and omit an Off position when the model cannot
+    disable reasoning. The UI always adds Auto before these choices.
+    """
+    row = row or {}
+    off = True
+    if adapter == 'openrouter':
+        info = row.get('reasoning') or {}
+        supported = info.get('supported_efforts')
+        off = not info.get('mandatory') and (supported is None or 'none' in supported)
+        def translate(lv):
+            return openrouter_reasoning(lv, row)
+    elif adapter == 'anthropic':
+        fam = anthropic_family(model)
+        fam.update(anthropic_capabilities(row.get('reasoning_capabilities')) or {})
+        off = not fam.get('adaptive') and not fam.get('always_thinks')
+        def translate(lv):
+            return anthropic_reasoning(
+                model, lv, capabilities=row.get('reasoning_capabilities'), max_tokens=128000)['body']
+    elif adapter == 'ollama':
+        caps = row.get('capabilities') or []
+        if caps and 'thinking' not in caps:
+            return {'levels': [], 'note': 'This model does not support adjustable reasoning.'}
+        values = (row.get('thinking') or {}).get('values')
+        if not isinstance(values, list):
+            values = None
+        off = 'gpt-oss' not in model.lower() and (values is None or False in values)
+        def translate(lv):
+            return {'think': ollama_think(lv, model, values=values)}
+    else:
+        def translate(lv):
+            return openai_compat_reasoning(lv, model, base_url)
+        # Off on these ladders means the minimum the model accepts, not off.
+        dialect = dialect_for(base_url)
+        ladder = {'openai': openai_ladder, 'gemini': gemini_ladder,
+                  'xai': xai_ladder, 'mistral': mistral_ladder}.get(dialect, lambda _: None)(model)
+        if ladder and not {'none', 'minimal'}.intersection(ladder):
+            off = False
+        if dialect == 'groq' and 'gpt-oss' in _bare(model):
+            off = False
+    levels = []
+    seen = []
+    for lv in LEVELS:
+        body = translate(lv)
+        if (lv == 'off' and not off) or not body or body == {'think': None} or body in seen:
+            continue
+        seen.append(body)
+        levels.append(lv)
+    note = 'Auto uses the model default. Only supported reasoning settings are shown.' if levels else (
+        'This model manages reasoning automatically; there is no adjustable reasoning setting.')
+    control: dict[str, Any] = {'levels': levels, 'note': note}
+    if levels in (['off', 'low'], ['low']):
+        control['labels'] = {'low': 'On'}
+        control['note'] = 'This model supports reasoning on or off.' if off else 'This model keeps reasoning on.'
+    if adapter == 'openai' and dialect_for(base_url) == 'openai':
+        ladder = openai_ladder(model) or ()
+        if 'minimal' in ladder and 'none' not in ladder:
+            control['labels'] = {'off': 'Minimum'}
+    return control
+
+
 # ---------- Ollama ----------
 
 
-def ollama_think(level: str | None, model: str = '') -> bool | str | None:
+def ollama_think(level: str | None, model: str = '', *, values: list[Any] | None = None) -> bool | str | None:
     """Ollama's ``think``: ``False`` or low|medium|high, or None for no opinion.
 
     gpt-oss IGNORES booleans and thinks at its default whatever ``False`` says,
@@ -359,6 +489,17 @@ def ollama_think(level: str | None, model: str = '') -> bool | str | None:
     """
     lv = normalise(level)
     if lv is None:
+        return None
+    if isinstance(values, list):
+        if values == [False]:
+            return None
+        ladder = tuple(r for r in ORDER if r in values)
+        if ladder:
+            if lv == 'off' and False in values:
+                return False
+            return clamp_effort(lv, ladder)
+        if True in values:
+            return False if lv == 'off' and False in values else True
         return None
     if lv == 'off':
         return 'low' if 'gpt-oss' in (model or '').lower() else False

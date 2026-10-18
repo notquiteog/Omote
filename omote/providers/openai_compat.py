@@ -50,6 +50,7 @@ from omote.providers.base import (
 from omote.providers.control_tokens import strip_control_tokens
 from omote.providers.reasoning import (
     TRANSLATED_EXTRAS,
+    dialect_for,
     openai_compat_reasoning,
     openai_max_tokens_field,
     openai_takes_sampling,
@@ -60,7 +61,7 @@ from omote.providers.speech_audio import guard, resample, to_pcm16
 log = logging.getLogger(__name__)
 
 
-def _to_openai_messages(messages: list[Message], system: str | None) -> list[dict[str, Any]]:
+def _to_openai_messages(messages: list[Message], system: str | None, *, replay_reasoning: bool = False) -> list[dict[str, Any]]:
     """Flatten our blocks into OpenAI's message list.
 
     One assistant turn can hold text and several tool calls, and each tool
@@ -89,6 +90,7 @@ def _to_openai_messages(messages: list[Message], system: str | None) -> list[dic
 
         parts: list[dict[str, Any]] = []
         tool_calls: list[dict[str, Any]] = []
+        thoughts: list[str] = []
         for block in msg.content:
             if isinstance(block, TextBlock):
                 parts.append({'type': 'text', 'text': block.text})
@@ -100,9 +102,9 @@ def _to_openai_messages(messages: list[Message], system: str | None) -> list[dic
                     }
                 )
             elif isinstance(block, ThinkingBlock):
-                # Not replayed. No OpenAI-shaped endpoint accepts reasoning back
-                # as input, and several 400 on an unknown content part.
-                continue
+                # DeepSeek requires reasoning_content with subsequent tool
+                # requests. Other hosts may reject that field, so it is opt-in.
+                thoughts.append(block.text)
             elif isinstance(block, ToolUseBlock):
                 tool_calls.append(
                     {
@@ -124,6 +126,8 @@ def _to_openai_messages(messages: list[Message], system: str | None) -> list[dic
             entry['content'] = None
         if tool_calls:
             entry['tool_calls'] = tool_calls
+        if replay_reasoning and msg.role == 'assistant':
+            entry['reasoning_content'] = ''.join(thoughts)
         out.append(entry)
 
     return out
@@ -202,10 +206,13 @@ class OpenAICompatProvider(ChatProvider, EmbeddingProvider, STTProvider, TTSProv
 
     # -- chat ---------------------------------------------------------------
 
+    async def _reasoning_params(self, req: ChatRequest) -> dict[str, Any]:
+        return openai_compat_reasoning(request_level(req.effort, req.extra), req.model, self.base_url)
+
     async def stream(self, req: ChatRequest) -> AsyncIterator[StreamEvent]:
         payload: dict[str, Any] = {
             'model': req.model,
-            'messages': _to_openai_messages(req.messages, req.system),
+            'messages': _to_openai_messages(req.messages, req.system, replay_reasoning=dialect_for(self.base_url) == 'deepseek'),
             'stream': True,
             # Ask for usage on the final chunk. Servers that do not know the
             # option ignore it; none of the ones tested reject it.
@@ -242,7 +249,7 @@ class OpenAICompatProvider(ChatProvider, EmbeddingProvider, STTProvider, TTSProv
         # ladder, Groq's per-model set, OpenRouter's nesting, SiliconFlow's and
         # Alibaba's switch and budget — and nothing at all where it would be
         # refused. See omote.providers.reasoning.
-        payload.update(openai_compat_reasoning(request_level(req.effort, req.extra), req.model, self.base_url))
+        payload.update(await self._reasoning_params(req))
         # The escape hatch, minus the keys translated above. `think` is
         # Ollama's spelling: splatted into an OpenAI-shaped body it is an
         # unknown parameter, which OpenAI itself answers with a 400 — so the
@@ -299,12 +306,27 @@ class OpenAICompatProvider(ChatProvider, EmbeddingProvider, STTProvider, TTSProv
                     for choice in chunk.get('choices') or []:
                         delta = choice.get('delta') or {}
 
-                        if delta.get('content'):
+                        content = delta.get('content')
+                        if isinstance(content, str) and content:
                             # A local server behind an OpenAI-shaped endpoint leaks
                             # template markers the same way a native one does.
-                            cleaned = strip_control_tokens(delta['content'])
+                            cleaned = strip_control_tokens(content)
                             if cleaned:
                                 yield StreamText(text=cleaned)
+                        elif isinstance(content, list):
+                            # Mistral thinking mode emits typed content chunks.
+                            # Keep the reasoning out of the visible answer.
+                            for part in content:
+                                if not isinstance(part, dict):
+                                    continue
+                                if part.get('type') == 'text' and isinstance(part.get('text'), str):
+                                    cleaned = strip_control_tokens(part['text'])
+                                    if cleaned:
+                                        yield StreamText(text=cleaned)
+                                elif part.get('type') == 'thinking':
+                                    for thought in part.get('thinking') or []:
+                                        if isinstance(thought, dict) and isinstance(thought.get('text'), str):
+                                            yield StreamThinking(text=thought['text'])
 
                         # Where a server exposes reasoning it uses one of these
                         # two names; neither is standard.
@@ -362,7 +384,11 @@ class OpenAICompatProvider(ChatProvider, EmbeddingProvider, STTProvider, TTSProv
                 if resp.status != 200:
                     return []
                 body = await resp.json()
-        return [{'id': m.get('id'), 'provider': self.provider_id} for m in body.get('data', []) if m.get('id')]
+        return [{
+            'id': m['id'], 'provider': self.provider_id,
+            **({'label': m['name']} if m.get('name') else {}),
+            **({'capabilities': m['capabilities']} if isinstance(m.get('capabilities'), list) else {}),
+        } for m in body.get('data', []) if m.get('id')]
 
     # -- embeddings ---------------------------------------------------------
 

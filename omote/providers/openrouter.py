@@ -38,14 +38,16 @@ from __future__ import annotations
 
 import base64
 import logging
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 from omote.media.params import Param
 from omote.net.transport import Transport
-from omote.providers.base import GeneratedMedia, ImageProvider, Modality, refused
+from omote.providers.base import ChatRequest, GeneratedMedia, ImageProvider, Modality, refused
 from omote.providers.hosted_media import HostedMedia, Poll, Submitted, data_uri, sniff
 from omote.providers.openai_compat import OpenAICompatProvider, _usable
+from omote.providers.reasoning import openrouter_reasoning, request_level
 
 log = logging.getLogger(__name__)
 
@@ -143,13 +145,31 @@ class OpenRouterProvider(OpenAICompatProvider):
     def __init__(self, base_url: str = API, api_key: str = '', *, kind: Modality = Modality.CHAT, **kw: Any) -> None:
         super().__init__(base_url or API, api_key, **kw)
         self.kind = kind
+        self._chat_catalog: dict[str, dict[str, Any]] = {}
+        self._catalog_at = 0.0
+
+    async def _reasoning_params(self, req: ChatRequest) -> dict[str, Any]:
+        level = request_level(req.effort, req.extra)
+        if level is None:
+            return {}
+        if time.monotonic() - self._catalog_at > 300:
+            try:
+                await self.models()
+            except Exception:  # An offline catalogue must not prevent chat.
+                return {}
+        return openrouter_reasoning(level, self._chat_catalog.get(req.model))
 
     async def models(self) -> list[dict[str, Any]]:
         rows = await _listing(self.transport, self.base_url, self.api_key, self.kind, self.provider_id)
+        if self.kind is Modality.CHAT:
+            self._chat_catalog = {row['id']: row for row in rows}
+            self._catalog_at = time.monotonic()
         models = []
         for row in rows:
             item = {'id': row['id'], 'provider': self.provider_id, 'label': row.get('name') or row['id']}
             if self.kind is Modality.CHAT:
+                if isinstance(row.get('reasoning'), dict):
+                    item['reasoning'] = row['reasoning']
                 item['capabilities'] = ['completion']
                 if 'tools' in (row.get('supported_parameters') or []):
                     item['capabilities'].append('tools')

@@ -275,12 +275,15 @@ of `omote/providers/reasoning.py`:
 |---|---|
 | Anthropic | adaptive thinking + `output_config.effort` on 4.6 and later (no `xhigh` on 4.6); a `budget_tokens` on Haiku 4.5 and Opus 4.5, which refuse adaptive; the Models API's capability tree overrides the table |
 | OpenAI | `reasoning_effort` from the model's own ladder — `none`…`max` on GPT-5.6, `low`…`max` on GPT-6 Astra (no `none`), `minimal` on the original gpt-5; nothing at all to a model that does not reason |
-| OpenRouter | `reasoning: {effort}`, which OpenRouter maps per vendor |
+| OpenRouter | `reasoning: {effort}` clamped to the live model catalogue; `enabled` for on/off models; mandatory reasoning cannot be disabled |
 | Groq | per model: `reasoning_effort` low–high on gpt-oss, `none`/`default` (plus levels on qwen3.8) on Qwen with `reasoning_format: parsed` |
 | Fireworks | `reasoning_effort`, `none` for off |
 | Together | `reasoning: {enabled}` on hybrids, `reasoning_effort` on gpt-oss |
 | SiliconFlow, Alibaba Cloud | `enable_thinking` and a `thinking_budget`; Alibaba's open-source Qwen3 builds do not think on a non-streamed call |
 | Gemini | `reasoning_effort`; only the 2.5 Flash models can be switched off |
+| xAI | the selected Grok model's effort ladder; no Off on 4.5–4.7 |
+| Mistral | `none`/`high` on supported Mistral models; `low`/`high`/`max` on ZAI GLM 5.3; typed thinking chunks stay separate from the answer |
+| DeepSeek | current Flash/V4 models use a thinking toggle plus `low`/`high`/`max`; reasoning history is preserved for subsequent tool requests |
 | Ollama | `think`: `false` or low/medium/high — and `low` for off on gpt-oss, which ignores `false` |
 
 Two rules hold across every row: a level a model lacks clamps **down** to one
@@ -319,11 +322,22 @@ so.
 ## When chat does not answer
 
 Choose the chat model from the dropdown beneath the composer. Models are grouped
-by connected provider. The reasoning slider offers Auto, Off, Low, Medium, High,
-Extra high and Max; Auto uses the model's default, and other levels map to what
-the model supports. New chats remember your choices. An idle chat can switch
+by connected provider, and the default model is named before the first message.
+The reasoning slider starts at Auto and shows only the selected model's distinct
+supported settings. Models with mandatory reasoning have no Off position;
+on/off models show On, and models without an adjustable setting stay on Auto.
+OpenRouter uses its live `reasoning` metadata; Ollama uses `/api/show` thinking
+values, including models with boolean controls. A requested level above a model's
+limit displays its supported level while retaining your preference for other models.
+New chats remember your choices. An idle chat can switch
 models while keeping its history, and its model and reasoning setting are saved
-when the conversation is reopened.
+when the conversation is reopened. Sending waits until a model change finishes,
+so a draft cannot accidentally go to the previous model.
+
+The desktop chat UI workflow runs all 21 chat preset request contracts and
+browser journeys on Windows/Chromium, macOS/WebKit and Linux/Chromium. These
+vendor protocol fixtures need no paid API keys. Live vendor tests are separate;
+a passing fixture does not prove account access or current service availability.
 
 1. Open **Settings → AI providers** and test the connection. A working model
    catalog proves connectivity, but the selected model may still be unavailable

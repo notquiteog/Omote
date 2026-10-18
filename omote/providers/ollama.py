@@ -104,6 +104,7 @@ class OllamaProvider(ChatProvider, EmbeddingProvider):
         # connection, so two servers with the same model name never share an
         # answer about it.
         self._capability_cache: dict[str, list[str]] = {}
+        self._thinking_cache: dict[str, dict[str, Any]] = {}
 
     def _session(self, timeout: float | None = None):
         """Every request goes through the transport, without exception.
@@ -155,7 +156,13 @@ class OllamaProvider(ChatProvider, EmbeddingProvider):
         # `think` itself in `extra`, which the voice path does and which is
         # already this API's own field. None leaves the model at its default.
         if 'think' not in req.extra:
-            think = ollama_think(req.effort, req.model)
+            if req.effort is not None and req.model not in self._capability_cache:
+                await self._show_capabilities(req.model)
+            caps = self._capability_cache.get(req.model) or []
+            values = self._thinking_cache.get(req.model, {}).get('values')
+            think = ollama_think(req.effort, req.model, values=values)
+            if caps and 'thinking' not in caps:
+                think = None
             if think is not None:
                 payload['think'] = think
         payload.update({k: v for k, v in req.extra.items() if k != 'effort'})
@@ -258,13 +265,15 @@ class OllamaProvider(ChatProvider, EmbeddingProvider):
         # model being pulled again, and this is otherwise a request per model
         # every time a picker opens. Bounded, so a machine with forty models
         # pulled does not open forty sockets at once.
-        unknown = [row for row in listed if not row['capabilities']]
+        unknown = [row for row in listed if not row['capabilities'] or 'thinking' in row['capabilities']]
         if unknown:
             gate = asyncio.Semaphore(5)
 
             async def fill(row: dict[str, Any]) -> None:
                 async with gate:
-                    row['capabilities'] = await self._show_capabilities(row['id'])
+                    row['capabilities'] = await self._show_capabilities(row['id']) or row['capabilities']
+                    if row['id'] in self._thinking_cache:
+                        row['thinking'] = self._thinking_cache[row['id']]
 
             await asyncio.gather(*(fill(row) for row in unknown), return_exceptions=True)
 
@@ -287,7 +296,10 @@ class OllamaProvider(ChatProvider, EmbeddingProvider):
                     f'{self.base_url}/api/show', json={'model': model}, headers=self._headers()
                 ) as resp:
                     if resp.status == 200:
-                        found = (await resp.json()).get('capabilities') or []
+                        body = await resp.json()
+                        found = body.get('capabilities') or []
+                        if isinstance(body.get('thinking'), dict):
+                            self._thinking_cache[model] = body['thinking']
         except Exception as exc:  # noqa: BLE001 - an endpoint that is not there is an answer
             log.debug('%s: /api/show for %s did not answer: %s', self.provider_id, model, exc)
 

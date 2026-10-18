@@ -25,6 +25,7 @@ from omote.net import tor as tor_mod
 from omote.providers import catalog, connections
 from omote.providers.base import Modality, ProviderRefused
 from omote.providers.connections import Connection, ConnectionStore
+from omote.providers.reasoning import reasoning_control
 from omote.providers.registry import NoProviderError, Route, RouteSet, pick_model, registry
 from omote.providers.routing import RouteStore
 
@@ -127,6 +128,18 @@ async def list_models(provider_id: str, modality: str = 'chat') -> dict[str, Any
                 row.setdefault('dimensions', known.dimensions)
                 row.setdefault('label', known.label)
                 row.setdefault('truncatable', known.truncatable)
+
+    if kind is Modality.CHAT:
+        from omote.providers.anthropic import AnthropicProvider
+        from omote.providers.ollama import OllamaProvider
+        from omote.providers.openrouter import OpenRouterProvider
+
+        adapter = ('openrouter' if isinstance(impl, OpenRouterProvider) else
+                   'anthropic' if isinstance(impl, AnthropicProvider) else
+                   'ollama' if isinstance(impl, OllamaProvider) else 'openai')
+        for row in models:
+            row['reasoning_control'] = reasoning_control(
+                str(row.get('id', '')), adapter=adapter, base_url=getattr(impl, 'base_url', ''), row=row)
 
     live = not all(m.get('source') == 'catalogue' for m in models) if models else False
     return {'models': models, 'live': live, 'count': len(models)}

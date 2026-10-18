@@ -186,8 +186,8 @@ HOSTS: tuple[Host, ...] = (
         base_url='https://api.deepseek.com/v1',
         env_key='DEEPSEEK_API_KEY',
         modalities=CHAT,
-        note='DeepSeek\'s own API. It reasons by model rather than by setting — deepseek-reasoner '
-             'thinks, deepseek-chat does not — so the thinking level only decides what is shown.',
+        note='DeepSeek\'s own API. Current Flash and V4 models support a thinking toggle and low/high/max effort. '
+             'Legacy chat/reasoner model IDs retain their provider defaults.',
     ),
     Host(
         id='deepinfra',

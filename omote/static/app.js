@@ -24,7 +24,7 @@ import { clear as clearAttachments, pending as pendingAttachments, wireAttachmen
 import { active as searchActive, wireHistory } from './history.js';
 import { setCommitRoot, wireCommit } from './commit.js';
 import { $, api, el, icon, json, onReachable, socket, took } from './dom.js';
-import { wireChatControls, configureChatControls, syncChatControls, chatControlsBusy, preferredModel } from './chat-controls.js';
+import { wireChatControls, configureChatControls, syncChatControls, chatControlsBusy, chatControlsStarting, chatModelChanging, preferredModel } from './chat-controls.js';
 import { wireLive } from './live.js';
 import { mailCard } from './mail.js';
 import { go, mode, onEnter, onLeave, wireModes } from './modes.js';
@@ -1133,7 +1133,7 @@ function setBusy(busy) {
      queue — and it made the queue unreachable, since a hidden button cannot be
      pressed and Enter was refused by the same check. The server holds a
      message sent while busy, so the interface has to offer to. */
-  $('#send').disabled = !state.sessionId;
+  $('#send').disabled = !state.sessionId || chatModelChanging();
   $('#send').hidden = false;
   $('#send').title = busy
     ? 'Queue this — it runs when the turn in progress finishes'
@@ -1252,6 +1252,8 @@ function handleAgentEvent(ev) {
       // a true sentence about the wrong thing.
       const before = state.info || {};
       $('#mode').value = ev.mode;
+      $('#mode-wrap').title = ev.policy || ev.mode;
+      $('#session-meta').textContent = ev.policy || ev.mode;
       if (before.policy !== ev.mode) notice(`Approval is now: ${ev.policy || ev.mode}.`);
       if ((before.effort ?? null) !== (ev.effort ?? null)) {
         notice(`Thinking is now: ${ev.effort || "the model's own default"}.`);
@@ -1965,17 +1967,6 @@ async function loadProviders() {
     $('#link').textContent = chatReady ? 'ready' : 'setup needed';
     $('#link').className = `pill ${chatReady ? 'on' : 'off'}`;
   }
-  $('#provider-chip').hidden = !chat.length;
-  const chip = $('#provider-chip');
-  if (chat.length) {
-    const chosen = data.routes?.chat?.provider || chat[0];
-    const info = (data.providers || []).find((p) => p.id === chosen);
-    chip.hidden = false;
-    chip.textContent = info?.label || chosen;
-    chip.title = info && info.local ? 'running on this machine' : 'a remote provider';
-    chip.classList.toggle('local', Boolean(info && info.local));
-  }
-
   const select = $('#new-dialog select[name=provider]');
   // Rebuilt rather than appended to: this runs again whenever a connection is
   // added, and appending would give three copies of Groq after three edits.
@@ -2160,16 +2151,18 @@ function wire() {
     // where it is least needed.
     const attachments = pendingAttachments();
     if (!text && !attachments.length) return;
-    if (startingChat) return;
+    if (startingChat || chatModelChanging()) return;
     if (!state.sessionId) {
       if (!chatReady) { openSetup(); return; }
       startingChat = true;
+      chatControlsStarting(true);
       input.disabled = true;
       $('#send').disabled = true;
       try {
         if (!await createSession()) return;
       } finally {
         startingChat = false;
+        chatControlsStarting(false);
         input.disabled = false;
         $('#send').disabled = false;
         input.focus();
@@ -2219,6 +2212,7 @@ function wire() {
   wireChatControls({
     sessionId: () => state.sessionId,
     onModel: info => { dressChips(info); refreshSessionsSoon(); },
+    onChanging: value => { $('#send').disabled = value || startingChat || (!state.sessionId && !chatReady); },
     onError: message => notice(message, 'error'),
     onEffort: value => {
       rememberEffort(value);

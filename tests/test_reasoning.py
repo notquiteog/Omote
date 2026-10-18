@@ -81,7 +81,7 @@ def test_the_keys_this_adapter_translates_are_held_back_from_the_splat():
     assert 'effort' in _TRANSLATED_EXTRAS
 
 
-def _code_strings(path: Path) -> list[str]:
+def _code_strings(path: Path, *, functions: set[str] | None = None) -> list[str]:
     """Every string literal in a module that is not a docstring.
 
     On the syntax tree rather than the text, and the reason is concrete: the
@@ -92,6 +92,12 @@ def _code_strings(path: Path) -> list[str]:
     comments still leaves docstrings, which are strings and not comments.
     """
     tree = ast.parse(path.read_text(encoding='utf-8'))
+    if functions is not None:
+        # DeepSeek's Chat Completions API requires a disabled thinking type.
+        # This guard is specifically about Anthropic's adaptive tool calls.
+        tree = ast.Module(body=[node for node in tree.body
+                               if isinstance(node, ast.FunctionDef) and node.name in functions], type_ignores=[])
+        assert len(tree.body) == len(functions), 'the guarded Anthropic functions were not found'
     docstrings = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
@@ -118,7 +124,7 @@ def test_the_adapter_never_writes_a_disabled_thinking_type():
     for name in ('anthropic.py', 'reasoning.py'):
         src = root / name
         assert len(src.read_text(encoding='utf-8')) > 500, f'{name} was not read properly'
-        literals += _code_strings(src)
+        literals += _code_strings(src, functions={'anthropic_reasoning', 'anthropic_family'} if name == 'reasoning.py' else None)
 
     assert 'disabled' not in literals, (
         "the adapter sets thinking type 'disabled', which makes the model write "
