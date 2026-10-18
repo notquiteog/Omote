@@ -6,6 +6,7 @@ The browser matrix separately tests the controls against real local HTTP.
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -136,6 +137,19 @@ async def test_openrouter_mandatory_thinking_clamps_all_slider_positions(request
     posts = [kw['json'] for method, url, kw in transport.requests if method == 'POST']
     assert all(body['reasoning'] == {'effort': expected} for body in posts)
     assert len([url for method, url, _ in transport.requests if method == 'GET']) == 1
+
+
+@pytest.mark.parametrize('uptime', [0.0, 1.0, 299.0])
+async def test_openrouter_discovers_reasoning_on_a_freshly_booted_machine(monkeypatch, uptime):
+    from omote.providers import openrouter
+    monkeypatch.setattr(openrouter, 'time', SimpleNamespace(monotonic=lambda: uptime))
+    transport = RecordingTransport('vendor/reasoner')
+    provider = openrouter.OpenRouterProvider(transport=transport)
+    for _ in range(2):
+        _ = [e async for e in provider.stream(ChatRequest(model=transport.model, messages=[], effort='medium'))]
+    assert len([url for method, url, _ in transport.requests if method == 'GET']) == 1
+    bodies = [kw['json'] for method, _, kw in transport.requests if method == 'POST']
+    assert all(body.get('reasoning') == {'effort': 'medium'} for body in bodies)
 
 
 @pytest.mark.parametrize('model', ['openrouter/free', 'openrouter/auto', 'vendor/plain'])

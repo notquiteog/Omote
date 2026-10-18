@@ -146,13 +146,13 @@ class OpenRouterProvider(OpenAICompatProvider):
         super().__init__(base_url or API, api_key, **kw)
         self.kind = kind
         self._chat_catalog: dict[str, dict[str, Any]] = {}
-        self._catalog_at = 0.0
+        self._catalog_at: float | None = None
 
     async def _reasoning_params(self, req: ChatRequest) -> dict[str, Any]:
         level = request_level(req.effort, req.extra)
         if level is None:
             return {}
-        if time.monotonic() - self._catalog_at > 300:
+        if self._catalog_at is None or time.monotonic() - self._catalog_at > 300:
             try:
                 await self.models()
             except Exception:  # An offline catalogue must not prevent chat.
