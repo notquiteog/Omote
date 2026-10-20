@@ -143,6 +143,7 @@ const TOOL_STATES = {
   // unpacking, which is what 'running' already means here.
   package_install: 'running',
   package_remove: 'running',
+  setup_local: 'running',
   display_hdr: 'desktop',
   media_params: 'reading',
   media_job: 'reading',

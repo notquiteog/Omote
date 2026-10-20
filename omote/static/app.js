@@ -481,6 +481,7 @@ const VERBS = {
   package_search: 'Looked for',
   package_install: 'Installed',
   package_remove: 'Removed',
+  setup_local: 'Set up',
   display_info: 'Checked the displays',
   display_hdr: 'Changed HDR for',
   media_params: 'Checked what it can tune',
