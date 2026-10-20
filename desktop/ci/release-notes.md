@@ -1,23 +1,40 @@
-## Omote 0.10.2
+## Omote 0.11.0
 
-- Choose a connected provider and model from the dropdown beside the chat composer.
-- Adjust reasoning with an accessible slider: Auto, Off, Low, Medium, High,
-  Extra high and Max. Adapters translate the level to what each model supports.
-- Set model and effort before the first message; switch an idle conversation's
-  model while preserving its history and reasoning setting.
-- Remember model/effort choices, show the active selection after reload, and
-  preserve the draft and current model when a switch fails.
-- Keep model and reasoning settings when reopening a stored conversation after
-  restarting the app, without duplicating messages.
-- Wait for provider setup to finish loading before accepting an API key, so a
-  late catalog response cannot clear a key that was just entered.
-- Keep controls usable on narrow screens. Model catalogs load in the background.
-- Require real first-message, model-control and update UI tests on Windows,
-  macOS WebKit and Linux before publishing future releases.
+### Local setup, no terminal
 
-Includes 0.10.1's update recovery and visible chat failures. Real free-model
-checks covered streaming, file tools, lazy discovery, system telemetry and the
-new composer controls. Local in-app installation from 0.10.0 to 0.10.1 was verified.
+**Studio → Tools** installs and configures ComfyUI or Playwright with no shell, pip, administrator account or Python install. ComfyUI gets a private runtime, detects the device, connects Studio and managed model folders, and restarts with Omote. Playwright installs and tests a version-matched browser. Start is asynchronous; poll status until ready or failed. Cancel keeps reusable downloads, and stop only stops Omote-owned ComfyUI while refusing while creations are queued or running.
+
+### Video export
+
+**Studio → Make final video** assembles shots into an H.264/AAC MP4 at 30 fps through local FFmpeg, with burned-in captions, voiceover replacing original audio, and mixed aspect ratios fitted without cropping. When FFmpeg is missing, **Set up video export** downloads a checksum-pinned native binary for Linux x64/ARM64, macOS Intel/Apple Silicon, or Windows x64, tests H.264 encoding and libass captions, and installs into Omote's data directory — no shell, system Python or administrator access needed. Existing FFmpeg on PATH is preferred.
+
+### Guided Studio projects
+
+**Studio → Create a project** offers six starting points — cinematic story, remix a video, stage in 3D, product campaign, visual effects, narrated short — with shared character and image references, per-shot direction, plans stored per configured user with `base_revision` conflict protection, and exports that survive daemon restarts. Generated takes and exports keep their provenance; a stale revision is rejected before work starts and an interrupted job is shown explicitly, never automatically resubmitted.
+
+### Creative apps
+
+**Studio → Creative apps** shows detected engines and configured creative MCP connectors. The `creative_apps` tool supports all 13 native ArtCraft engines (PhotoCraft, VectorCraft, FilmCraft, EffectCraft, LightCraft, PdfCraft, DesignCraft, FigCraft, WordCraft, SoundCraft, DeckCraft, CADCraft, GridCraft): `status`, `tools` with actual schemas and pagination, and `call` invoking a discovered tool with its original arguments. Keep the returned session ID across edits; up to four editor sessions can be open. Adobe and other apps can use an operator-installed MCP bridge with `"creative": true` in the server's `.mcp.json`.
+
+### Reference media
+
+Uploads now accept video and audio references as well as images, up to 32 MB each. Video references are validated before storage, and image/video/audio generator parameters carry `multiple` and `max_images` so a model receives one reference or several exactly as its schema allows.
+
+### Local models
+
+The device mode gained `auto` alongside `gpu` and `cpu`, and runtime operations gained `prepare` (warm a model without starting generation) and `cancel_setup`.
+
+### Memory
+
+Automatic chat context now searches personal memories plus the current project's memories, filtered before ranking so unrelated projects cannot crowd out relevant results. Explicit recall can still search other subjects, and a manually entered project label must match the project root to take part in that project's automatic recall.
+
+### System
+
+The system tool now reports the machine's architecture and any foreign architectures the package manager serves (Debian multiarch, e.g. `i386` for Steam and Wine), so a library installed for the native architecture alone is not mistaken for one that serves 32-bit programs. It also reports what is already installed — by package manager and by app-menu entry, including programs unpacked by hand — before installing anything twice. A new `setup_local` agent tool offers the same ComfyUI/Playwright setup from the agent. Telegram joins the install recipes (flatpak on Linux, winget on Windows, cask on macOS), with a note about where its flatpak keeps its data.
+
+### Provider and reasoning controls
+
+Reasoning limits load immediately after system boot, and controls show the actual reasoning levels for models with fixed minimums. Model and effort choices persist across restarts, survive a failed switch, and apply when reopening a stored conversation.
 
 Each installer contains the Omote app and its daemon, with its own Python runtime. Optional tools and services have the setup requirements above. It keeps its data, its logs and an optional `.env` in `~/.omote`. If a daemon is already running on port 8477, one you started yourself, the app uses that one and leaves it running when it quits.
 

@@ -63,9 +63,13 @@ def ffmpeg() -> str | None:
     package manager and one that does not. A binary already on `PATH` is
     preferred, because it is the one somebody deliberately installed.
     """
+    from omote.media.setup import binary_path
     found = shutil.which('ffmpeg')
     if found:
         return found
+    managed = binary_path()
+    if managed.is_file():
+        return str(managed.resolve())
     try:
         import imageio_ffmpeg
     except ImportError:

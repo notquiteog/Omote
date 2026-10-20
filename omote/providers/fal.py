@@ -138,7 +138,9 @@ class FalProvider(HostedMedia):
                 continue
             if fields and key not in fields:
                 continue
-            out[key] = data_uri(value) if isinstance(value, bytes | bytearray) else value
+            out[key] = ([data_uri(v) if isinstance(v, bytes | bytearray) else v for v in value]
+                        if isinstance(value, list) else
+                        data_uri(value) if isinstance(value, bytes | bytearray) else value)
         if not fields or 'prompt' in fields:
             out['prompt'] = prompt
         if out.get('seed') in (-1, '-1'):

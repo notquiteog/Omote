@@ -62,7 +62,7 @@ CATALOG: tuple[dict[str, str], ...] = (
     {
         'id': 'chromium',
         'label': "Chromium (Playwright's own)",
-        'note': 'Bundled with the browser extra and always version-matched. The default.',
+        'note': 'Recommended. Set up browser installs and checks it automatically.',
     },
     {
         'id': 'chrome',
@@ -210,6 +210,8 @@ async def available() -> list[dict[str, Any]]:
     five browsers to populate a settings dialog would take ten seconds and
     several gigabytes of RAM to tell somebody what a `which` call already knows.
     """
+    from omote.setup.browser import activate
+    activate()
     engines: dict[str, bool] = dict.fromkeys(ENGINES, False)
     missing_playwright = False
     try:
@@ -240,7 +242,7 @@ async def available() -> list[dict[str, Any]]:
         row = dict(entry)
         if missing_playwright:
             row['installed'] = False
-            row['why'] = "Playwright is not installed — pip install 'omote[browser]'"
+            row['why'] = 'Choose Set up browser to install automatically.'
         elif entry['id'] == 'custom':
             # Always offerable: whether the binary exists is checked when the
             # path is given, which is the only moment it can be checked.
@@ -248,7 +250,7 @@ async def available() -> list[dict[str, Any]]:
         elif entry['id'] in ENGINES:
             row['installed'] = engines[entry['id']]
             if not row['installed']:
-                row['why'] = f'not downloaded — run `playwright install {entry["id"]}`'
+                row['why'] = 'Available through Set up browser.'
         else:
             row['installed'] = channel_installed(entry['id'])
             if not row['installed']:

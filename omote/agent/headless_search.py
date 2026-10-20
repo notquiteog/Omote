@@ -328,12 +328,13 @@ class HeadlessSearcher:
             if self._browser is not None and self._browser.is_connected():
                 return self._browser
             try:
+                from omote.setup.browser import activate
+                activate()
                 from playwright.async_api import async_playwright
             except ImportError as exc:
                 raise SearchUnavailable(
-                    'the headless search backend needs Playwright. Install it with '
-                    "`pip install 'omote[browser]'` then `playwright install chromium`, "
-                    'or set OMOTE_SEARCH_BACKEND to brave, tavily or searxng.'
+                    'Browser search needs setup. Choose Settings → Browser → Set up browser, '
+                    'or ask the agent to set up Playwright with setup_local.'
                 ) from exc
 
             if self._pw is None:
@@ -356,8 +357,8 @@ class HeadlessSearcher:
             except Exception as exc:  # noqa: BLE001 - playwright raises its own
                 raise SearchUnavailable(
                     f'could not start {choice.label()} for headless search: {exc}. '
-                    f'If the browser is missing, run `playwright install {choice.engine}`, '
-                    'or choose another browser in settings.'
+                    'Choose Settings → Browser → Set up browser to repair it, '
+                    'or choose another installed browser.'
                 ) from exc
             log.debug('headless search: using %s', choice.label())
             return self._browser

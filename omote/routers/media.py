@@ -50,7 +50,7 @@ service: Any = None
 # here — a reference clip is tens of megabytes, and every generator that takes
 # one takes a *still* from it rather than the file.
 UPLOADABLE = frozenset({
-    'image/png', 'image/jpeg', 'image/webp', 'image/gif',
+    'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'video/mp4', 'video/webm',
     'audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/flac', 'audio/midi',
 })
 MAX_UPLOAD = 32 * 1024 * 1024
@@ -60,6 +60,15 @@ def _service():
     if service is None:
         raise HTTPException(status_code=503, detail='media generation is not configured on this install')
     return service
+
+
+@router.post('/setup/video', status_code=202)
+async def setup_video():
+    from omote.media.setup import start
+    try:
+        return start(_service()).to_json()
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.get('/describe')
@@ -252,11 +261,16 @@ async def upload(request: Request) -> dict[str, Any]:
     if media_type not in UPLOADABLE:
         raise HTTPException(
             status_code=415,
-            detail=f'{media_type or "that"} cannot be used as a reference image. '
+            detail=f'{media_type or "that"} cannot be used as reference media. '
                    f'Send one of: {", ".join(sorted(UPLOADABLE))}.',
         )
 
-    data = await request.body()
+    data = bytearray()
+    async for chunk in request.stream():
+        if len(data) + len(chunk) > MAX_UPLOAD:
+            raise HTTPException(413, f'Upload exceeds {MAX_UPLOAD // (1024 * 1024)} MB.')
+        data.extend(chunk)
+    data = bytes(data)
     if not data:
         raise HTTPException(status_code=400, detail='the upload was empty')
     if len(data) > MAX_UPLOAD:
@@ -265,9 +279,15 @@ async def upload(request: Request) -> dict[str, Any]:
             detail=f'that is {len(data) // (1024 * 1024)}MB and the limit is {MAX_UPLOAD // (1024 * 1024)}MB.',
         )
 
+    if media_type.startswith('video/'):
+        from omote.creative.validation import InvalidAsset, validate
+        try:
+            validate(data, 'reference.' + ('mp4' if media_type == 'video/mp4' else 'webm'))
+        except InvalidAsset as exc:
+            raise HTTPException(400, str(exc)) from exc
     media = _service().store.add(
         data,
-        kind='image',
+        kind=media_type.split('/')[0],
         media_type=media_type,
         prompt=request.headers.get('x-omote-filename', '')[:200],
         source='upload',

@@ -132,6 +132,10 @@ def _order(field: Any) -> float:
 
 
 def param_for(name: str, field: dict[str, Any], *, required: bool = False) -> Param | None:
+    for variant in field.get('anyOf', []):
+        if isinstance(variant, dict) and variant.get('type') not in (None, 'null'):
+            field = {**variant, **{k: v for k, v in field.items() if k != 'anyOf'}}
+            break
     kind = kind_for(name, field)
     if kind is None:
         return None
@@ -157,6 +161,8 @@ def param_for(name: str, field: dict[str, Any], *, required: bool = False) -> Pa
         help=' '.join(str(field.get('description') or '').split())[:400],
         advanced=not required and name not in COMMON,
         group=group_for(name),
+        multiple=field.get('type') == 'array',
+        max_images=field.get('maxItems') if field.get('type') == 'array' else 1,
     )
 
 
@@ -175,12 +181,12 @@ def kind_for(name: str, field: dict[str, Any]) -> str | None:
         return 'bool'
     if declared == 'array':
         items = field.get('items') or {}
-        if items.get('format') == 'uri' or 'image' in name:
-            return 'image'
+        if items.get('format') == 'uri' or any(part in name for part in ('image', 'video', 'audio')):
+            return 'video' if 'video' in name else 'audio' if 'audio' in name else 'image'
         return None
     if declared == 'string':
-        if field.get('format') == 'uri' or name.endswith(('_url', '_image')) or name in ('image', 'video'):
-            return 'image'
+        if field.get('format') == 'uri' or name.endswith(('_url', '_image')) or name in ('image', 'video', 'audio'):
+            return 'video' if 'video' in name else 'audio' if 'audio' in name else 'image'
         long_form = (
             name in ('prompt', 'negative_prompt')
             or len(str(field.get('description') or '')) > 90

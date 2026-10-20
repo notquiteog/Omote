@@ -2,6 +2,7 @@
  * A frame is kept mounted across mode switches so unsaved graphs survive. */
 import { $, api, el } from './dom.js';
 import { showConnections } from './connections.js';
+import { openToolSetup } from './tool-setup.js';
 
 let editors = [];
 let activeURL = '';
@@ -29,8 +30,8 @@ function describe() {
   else link.removeAttribute('href');
   $('#comfy-status').textContent = entry
     ? (entry.reason || 'Open your ComfyUI editor to edit graphs and run workflows. Sign in to ComfyUI there if required.')
-    : 'Connect ComfyUI in Settings → Connections to use the full graph editor. You can still generate with other providers.';
-  $('#comfy-empty-action').textContent = entry?.available ? 'Open ComfyUI editor' : 'Connect ComfyUI';
+    : 'Set up a local studio to use the full ComfyUI editor. Omote handles the installation and connection.';
+  $('#comfy-empty-action').textContent = entry?.available ? 'Open ComfyUI editor' : 'Set up local studio';
 }
 
 async function refresh() {
@@ -102,6 +103,10 @@ function openEditor() {
 }
 
 export function wireComfyUI() {
+  const setup = el('button', 'ghost small studio-setup-button', 'Set up local studio');
+  setup.type = 'button'; setup.id = 'studio-setup';
+  setup.onclick = () => openToolSetup('comfyui');
+  $('.studio-workspace-bar').append(setup);
   for (const [id, advanced] of [['studio-simple', false], ['studio-graph', true], ['studio-library', false]]) {
     $(`#${id}`).onclick = () => {
       const library = id === 'studio-library';
@@ -128,7 +133,14 @@ export function wireComfyUI() {
   $('#comfy-refresh').onclick = refresh;
   $('#comfy-settings').onclick = showConnections;
   $('#comfy-focus').onclick = () => focusMode(!$('#pane-studio').classList.contains('comfy-focus'));
-  $('#comfy-empty-action').onclick = () => selected()?.available ? openEditor() : showConnections();
+  $('#comfy-empty-action').onclick = () => selected()?.available ? openEditor() : openToolSetup('comfyui');
+  document.addEventListener('omote:open-local-studio', async () => {
+    $('#start-studio')?.click();
+    $('#studio-graph').click();
+    await refresh();
+    $('#comfy-provider').value = 'omote-managed-comfyui';
+    describe(); openEditor();
+  });
   $('#comfy-reload').onclick = () => {
     if (!activeURL || !confirm('Reload ComfyUI? Save your graph in the editor first; unsaved editor changes may be lost.')) return;
     const frame = $('#comfy-frame');

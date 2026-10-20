@@ -34,7 +34,7 @@ from typing import Any, Literal
 # `Kind` rather than a bespoke control type because that is what a MIDI writer
 # wants to be handed, and a form field is the only way to get a structured list
 # out of a human without building a grid editor nobody will finish.
-Kind = Literal['int', 'float', 'string', 'text', 'bool', 'enum', 'seed', 'image', 'notes']
+Kind = Literal['int', 'float', 'string', 'text', 'bool', 'enum', 'seed', 'image', 'video', 'audio', 'notes']
 
 
 @dataclass(slots=True)
@@ -56,6 +56,7 @@ class Param:
     # Image inputs default to one blob. None explicitly allows several, with
     # the provider enforcing its own current limit; an integer is a known cap.
     max_images: int | None = 1
+    multiple: bool = False
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -70,7 +71,8 @@ class Param:
             'help': self.help,
             'advanced': self.advanced,
             'group': self.group,
-            **({'max_images': self.max_images} if self.kind == 'image' else {}),
+            'multiple': self.multiple,
+            **({'max_images': self.max_images} if self.kind in ('image', 'video', 'audio') else {}),
         }
 
 
@@ -90,7 +92,9 @@ def coerce(params: list[Param], given: dict[str, Any]) -> dict[str, Any]:
         if param is None or value is None or value == '':
             continue
         try:
-            if param.kind in ('int', 'seed'):
+            if param.kind in ('image', 'video', 'audio') and isinstance(value, list):
+                value = ','.join(str(v) for v in value)
+            elif param.kind in ('int', 'seed'):
                 value = int(value)
             elif param.kind == 'float':
                 value = float(value)

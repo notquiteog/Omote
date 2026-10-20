@@ -151,9 +151,13 @@ function bridge(action, payload = {}) {
   const origin = new URL(frame.src).origin;
   const id = crypto.randomUUID();
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { pending.delete(id); reject(new Error('Editor bridge did not answer. Install the bridge, add this workspace origin in ComfyUI settings, and reconnect.')); }, 10000);
-    pending.set(id, { origin, source: frame.contentWindow, resolve, reject, timer });
-    frame.contentWindow.postMessage({ channel: 'omote.comfy.v1', id, action, ...payload }, origin);
+    const send = () => frame.contentWindow.postMessage({ channel: 'omote.comfy.v1', id, action, ...payload }, origin);
+    // The canvas appears before upstream extensions finish loading. Only retry
+    // the read-only handshake; graph mutations must never be sent twice.
+    const retry = action === 'hello' ? setInterval(send, 1000) : null;
+    const timer = setTimeout(() => { clearInterval(retry); pending.delete(id); reject(new Error('Editor bridge did not answer. Wait for the editor to finish opening and try again. For an external server, check Connect editor bridge.')); }, action === 'hello' ? 30000 : 10000);
+    pending.set(id, { origin, source: frame.contentWindow, resolve, reject, timer, retry });
+    send();
   });
 }
 async function capture() {
@@ -241,7 +245,7 @@ export function wireWorkbench() {
     <div class="creative-actions"><button id="wb-catalog" class="ghost small">Load node schemas</button><button id="wb-validate" class="ghost small">Validate</button></div></details>
     <button id="wb-run" class="primary">Run saved version</button>
     <details><summary>Run history &amp; outputs</summary><button id="wb-refresh-runs" class="ghost small">Refresh runs</button><div id="wb-runs"></div></details>
-    <details><summary>Connect editor bridge</summary><p class="meta">Install this optional extension in ComfyUI/custom_nodes. Restart ComfyUI, then add this exact origin to “Omote: trusted workspace origins” in its settings:</p><code id="wb-origin"></code>
+    <details><summary>Connect editor bridge</summary><p class="meta">Local studio sets this up automatically. For a separately managed ComfyUI server, install the extension in ComfyUI/custom_nodes, restart it, and add this origin to “Omote: trusted workspace origins” in its settings:</p><code id="wb-origin"></code>
     <div class="creative-actions"><a class="chip" href="/static/omote-comfyui-bridge.zip" download>Download bridge</a><button id="wb-bridge" class="ghost small">Connect bridge</button></div></details>`;
   const editor = el('div', 'comfy-editor-stage'); editor.id = 'comfy-editor-stage';
   const empty = el('div', 'comfy-editor-empty');
@@ -257,6 +261,48 @@ export function wireWorkbench() {
   const show = el('button', 'ghost small', 'Workflow library'); show.id = 'comfy-library-toggle';
   show.setAttribute('aria-expanded', 'false'); show.setAttribute('aria-controls', 'comfy-tools');
   $('#comfy-connect').after(show);
+  const ask = el('button', 'chip', 'Ask AI'); ask.id = 'comfy-assistant'; ask.type = 'button';
+  show.after(ask);
+  const assistant = el('dialog'); assistant.id = 'workflow-assistant';
+  assistant.setAttribute('aria-labelledby', 'workflow-assistant-title');
+  assistant.innerHTML = `<form id="workflow-assistant-form">
+    <header class="creative-actions"><h2 id="workflow-assistant-title">A hand with your workflow</h2><button type="button" class="ghost" id="workflow-assistant-close" aria-label="Close workflow assistant">✕</button></header>
+    <p class="meta">Build an idea, understand the nodes, or work through an error with your chat model.</p>
+    <p id="workflow-assistant-context" class="assistant-context"></p>
+    <div class="assistant-suggestions" role="group" aria-label="Workflow ideas">
+      <button type="button" class="chip" data-request="Help me build a workflow for ">Build a workflow</button>
+      <button type="button" class="chip" data-request="Explain how this workflow works and which settings matter most.">Explain the nodes</button>
+      <button type="button" class="chip" data-request="Help me improve the quality of this workflow without exceeding my available GPU memory.">Improve quality</button>
+      <button type="button" class="chip" data-request="Help me diagnose and fix this workflow error: ">Fix an error</button>
+    </div>
+    <label class="field"><span>What would you like to do?</span><textarea id="workflow-assistant-request" rows="5" required maxlength="8000" placeholder="Describe your idea or paste an error…"></textarea></label>
+    <p id="workflow-assistant-status" class="meta" role="status"></p>
+    <menu><span class="meta">Review your request in chat before sending.</span><button type="submit" class="primary">Continue in chat</button></menu>
+  </form>`;
+  document.body.append(assistant);
+  ask.onclick = () => {
+    $('#workflow-assistant-context').textContent = saved
+      ? `${saved.name} · Version ${saved.revision}` : 'New workflow · choose a saved workflow to ask about it';
+    $('#workflow-assistant-status').textContent = dirty ? 'Save your changes in Workflow library first so the assistant sees the latest version.' : '';
+    assistant.showModal();
+    $('#workflow-assistant-request').focus();
+  };
+  $('#workflow-assistant-close').onclick = () => assistant.close();
+  assistant.querySelectorAll('[data-request]').forEach(button => {
+    button.onclick = () => { $('#workflow-assistant-request').value = button.dataset.request; $('#workflow-assistant-request').focus(); };
+  });
+  $('#workflow-assistant-form').onsubmit = event => {
+    event.preventDefault();
+    const question = $('#workflow-assistant-request').value.trim();
+    if (!question) return;
+    if (dirty) { $('#workflow-assistant-status').textContent = 'Save your changes in Workflow library first so the assistant sees the latest version.'; return; }
+    document.dispatchEvent(new CustomEvent('omote:edit-workflow', { detail: {
+      id: saved?.id, revision: saved?.revision, name: saved?.name,
+      provider: $('#comfy-provider').value, question,
+    } }));
+    assistant.close();
+    $('#workflow-assistant-request').value = '';
+  };
   const toggle = (visible) => { aside.hidden = !visible; show.setAttribute('aria-expanded', String(visible)); };
   show.onclick = () => { toggle(aside.hidden); if (!aside.hidden) list().catch((e) => note(e.message)); };
   $('#wb-collapse').onclick = () => { toggle(false); show.focus(); };
@@ -264,13 +310,20 @@ export function wireWorkbench() {
   const action = (id, fn) => { $(id).onclick = async (event) => { const button = event.currentTarget; button.disabled = true; try { await fn(); } catch (error) { note(error.message); } finally { button.disabled = false; } }; };
   action('#wb-save', () => save()); action('#wb-copy', () => save(true)); action('#wb-capture', capture);
   action('#wb-bridge', async () => { await bridge('hello'); bridgeReady = true; note('Editor bridge connected. Capture and load are available.'); });
-  frame.addEventListener('load', () => { bridgeReady = false; });
+  frame.addEventListener('load', () => {
+    bridgeReady = false;
+    for (const waiting of pending.values()) {
+      clearTimeout(waiting.timer); clearInterval(waiting.retry);
+      waiting.reject(new Error('The editor reloaded. Try again after it opens.'));
+    }
+    pending.clear();
+  });
   window.addEventListener('message', (event) => {
     const message = event.data;
     if (!message || message.channel !== 'omote.comfy.v1') return;
     const waiting = pending.get(message.id);
     if (!waiting || waiting.source !== event.source || waiting.origin !== event.origin) return;
-    clearTimeout(waiting.timer); pending.delete(message.id);
+    clearTimeout(waiting.timer); clearInterval(waiting.retry); pending.delete(message.id);
     if (message.ok) waiting.resolve(message); else waiting.reject(new Error(message.error || 'Editor bridge failed'));
   });
   $('#wb-search').oninput = () => { clearTimeout(poll); poll = setTimeout(() => list().catch((e) => note(e.message)), 200); };

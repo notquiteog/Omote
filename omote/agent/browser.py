@@ -179,6 +179,8 @@ class BrowserSession:
                 return self._page
 
             if self._context is None:
+                from omote.setup.browser import activate
+                activate()
                 from playwright.async_api import async_playwright
 
                 self._pw = await async_playwright().start()

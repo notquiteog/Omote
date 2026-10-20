@@ -1387,11 +1387,6 @@ class AgentSession:
                 is_error=True,
             )
         self.tool_calls += 1
-        # Explicit tool calls from a resumed transcript or an upstream voice
-        # model still use the same policy checks and refresh the schema cache.
-        if tool is not self._discovery:
-            self._discovery.touch(tool.name)
-
         ctx = self._context(turn_id, call.id)
 
         try:
@@ -1403,6 +1398,11 @@ class AgentSession:
             return ToolResultBlock(
                 tool_use_id=call.id, content=f'Invalid call: {assessment.invalid}', is_error=True
             )
+
+        # Materialize and assess before caching: a failed optional import must
+        # not break every subsequent model request by entering its tool list.
+        if tool is not self._discovery:
+            self._discovery.touch(tool.name)
 
         call.risk = assessment.risk
         call.summary = assessment.summary

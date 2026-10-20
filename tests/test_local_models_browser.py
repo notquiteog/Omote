@@ -63,8 +63,10 @@ def test_download_cancel_resume_start_stop_and_remove(workspace):
 
     page.route('**/api/local-models**', route)
     open_library(page)
+    page.get_by_text('Storage & runtime details', exact=True).click()
     page.get_by_role('button', name='Install runtime', exact=True).click()
     model = page.locator(f'.lm-card[data-id="{CATALOG[0].id}"]')
+    model.get_by_text('Model details & controls', exact=True).click()
     model.get_by_role('button', name='Download', exact=True).click()
     expect(model.get_by_role('progressbar')).to_be_visible()
     model.get_by_role('button', name='Cancel download').click()
@@ -98,9 +100,9 @@ def test_compatibility_block_is_visible_and_cpu_is_an_explicit_choice(workspace)
     open_library(page)
     model = page.locator(f'.lm-card[data-id="{CATALOG[0].id}"]')
     expect(model).to_contain_text('Not enough free VRAM')
-    expect(model.get_by_role('button', name='Download', exact=True)).to_be_disabled()
+    expect(model.get_by_role('button', name='Set up & start', exact=True)).to_be_disabled()
     page.locator('#local-models-device').select_option('cpu')
-    expect(model.get_by_role('button', name='Download', exact=True)).to_be_enabled()
+    expect(model.get_by_role('button', name='Set up & start', exact=True)).to_be_enabled()
     expect(model).to_contain_text('RAM')
 
 
@@ -122,7 +124,7 @@ def test_mobile_custom_model_preserves_draft_and_closed_panel_stops_polling(work
 
     page.route('**/api/local-models**', route)
     open_library(page)
-    expect(page.locator('#local-models-runtime .lm-card')).to_be_visible()
+    expect(page.locator('#local-models-runtime .lm-card')).not_to_be_visible()
     assert page.locator('#local-models-dialog').evaluate('node => node.scrollWidth <= node.clientWidth')
     page.get_by_text('Add another GGUF model', exact=True).click()
     form = page.locator('#local-models-custom')
@@ -139,3 +141,42 @@ def test_mobile_custom_model_preserves_draft_and_closed_panel_stops_polling(work
     before = len(calls)
     page.wait_for_timeout(2200)
     assert len(calls) == before
+
+
+def test_one_click_setup_progress_cancel_retry_and_ready(workspace):
+    page, _ = workspace
+    data = library_data()
+    calls = []
+    def route(request):
+        path = request.request.url.split('/api/local-models', 1)[1].split('?')[0]
+        if request.request.method == 'POST':
+            calls.append(path)
+            if path.endswith('/prepare'):
+                assert json.loads(request.request.post_data)['mode'] == 'auto'
+                data['setup'] = {'state': 'running', 'model_id': CATALOG[0].id,
+                                 'note': 'Installing the tools for your computer'}
+                data['runtime_download'].update(state='downloading', downloaded=100000)
+            elif path == '/setup/cancel':
+                data['setup'].update(state='cancelled', note='Setup paused.')
+                data['runtime_download'].update(state='cancelled')
+            request.fulfill(json={'ok': True})
+        else:
+            request.fulfill(json=data)
+    page.route('**/api/local-models**', route)
+    open_library(page)
+    model = page.locator(f'.lm-card[data-id="{CATALOG[0].id}"]')
+    expect(page.get_by_role('button', name='Install runtime', exact=True)).not_to_be_visible()
+    model.get_by_role('button', name='Set up & start', exact=True).click()
+    expect(page.locator('#local-models-setup')).to_contain_text('Installing the tools')
+    expect(page.get_by_role('progressbar', name='Model setup progress')).to_be_visible()
+    expect(page.locator('#local-models-device')).to_be_disabled()
+    page.get_by_role('button', name='Cancel setup', exact=True).click()
+    expect(page.locator('#local-models-setup')).to_contain_text('Setup paused')
+    model.get_by_role('button', name='Set up & start', exact=True).click()
+    data['setup'].update(state='done')
+    data['models'][0].update(state='ready', downloaded=data['models'][0]['size'])
+    data['runtime_download'].update(state='ready')
+    data['runtime_installed'] = True
+    data['runtime'].update(state='running', model_id=CATALOG[0].id, device='Vulkan0', provider_id='managed-local')
+    expect(model.get_by_role('button', name='Use in chat', exact=True)).to_be_enabled()
+    assert calls == [f'/{CATALOG[0].id}/prepare', '/setup/cancel', f'/{CATALOG[0].id}/prepare']

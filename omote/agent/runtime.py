@@ -17,14 +17,10 @@ from omote.agent.session import AgentSession
 from omote.agent.tools.ask import AskUserTool
 from omote.agent.tools.autopilot import AutopilotTool
 from omote.agent.tools.base import FILE_WRITERS, Tool
-from omote.agent.tools.code import ApplyPatchTool, MultiEditTool, OutlineTool, ReadFilesTool
-from omote.agent.tools.files import EditTool, ListDirTool, ReadTool, WriteTool
-from omote.agent.tools.git import GitTool
-from omote.agent.tools.notebook import NotebookEditTool
+from omote.agent.tools.files import ListDirTool, ReadTool, WriteTool
 from omote.agent.tools.planning import ProposePlanTool
-from omote.agent.tools.search import GlobTool, GrepTool
+from omote.agent.tools.search import GrepTool
 from omote.agent.tools.shell import ShellTool
-from omote.agent.tools.tasks import TasksTool
 from omote.agent.tools.todo import TodoTool
 
 log = logging.getLogger(__name__)
@@ -57,7 +53,7 @@ TOOLSETS: dict[str, tuple[str, ...]] = {
     'trip': ('trip',),
     'career': ('career',),
     'photocraft': ('photocraft',),
-    'creative': ('creative_library', 'creative_apps', 'inspect_export', 'comfy_workflow'),
+    'creative': ('studio_project', 'creative_library', 'creative_apps', 'inspect_export', 'comfy_workflow'),
     'artcraft': ('creative_apps', 'inspect_export'),
     'comfyui': ('comfy_workflow', 'inspect_export'),
     'todo': ('todo',),
@@ -70,10 +66,10 @@ TOOLSETS: dict[str, tuple[str, ...]] = {
                 'browser_upload', 'browser_screenshot', 'browser_hand_over'),
     'desktop': ('desktop_screenshot', 'desktop_click', 'desktop_type', 'desktop_key',
                 'desktop_scroll'),
-    'system': ('system_info', 'system_usage', 'local_models', 'package_search', 'package_install', 'package_remove',
+    'system': ('system_info', 'system_usage', 'local_models', 'setup_local', 'package_search', 'package_install', 'package_remove',
                'display_info', 'display_hdr'),
     'media': ('media_params', 'generate_image', 'generate_video', 'generate_music',
-              'media_job', 'import_workflow', 'edit_media', 'photocraft', 'creative_library', 'creative_apps', 'inspect_export', 'comfy_workflow'),
+              'media_job', 'import_workflow', 'edit_media', 'photocraft', 'studio_project', 'creative_library', 'creative_apps', 'inspect_export', 'comfy_workflow'),
     'memory': ('remember', 'recall'),
     # Working unattended. Its own group rather than part of `desktop` because
     # the tool is offered whether or not a screen is available — so the model
@@ -104,6 +100,8 @@ def default_tools() -> list[Tool]:
     from omote.agent.tools.discovery import LazyTool
 
     return [
+        LazyTool('setup_local', 'Automatically install, configure, start, repair or stop local ComfyUI and Playwright browser automation on macOS, Linux and Windows.',
+                 'omote.agent.tools.setup', 'SetupLocalTool'),
         LazyTool('career', 'Save job searches by role and city, build resumes, export editable DOCX/PDF/HTML/TXT, and track application evidence.',
                  'omote.agent.tools.career', 'CareerTool'),
         LazyTool('photocraft', 'Edit layered images and inspect PhotoCraft installation and commands.',
@@ -116,22 +114,33 @@ def default_tools() -> list[Tool]:
                  'omote.agent.tools.comfy_workflow', 'ComfyWorkflowTool'),
         LazyTool('schedule', 'Create, list, update, pause or cancel recurring scheduled tasks and automations.',
                  'omote.agent.tools.schedule', 'ScheduleTool'),
+        LazyTool('studio_project', 'Create cinematic stories, video remixes, editable 3D scenes, marketing campaigns and effects. Set up video tools, assemble shots, add captions and voiceover, export finished MP4 videos in Studio.',
+                 'omote.creative.project_tool', 'StudioProjectTool'),
         LazyTool('creative_library', 'Manage characters, reference images, creative assets and saved recipes.',
                  'omote.creative.tools', 'CreativeLibraryTool'),
         ReadTool(),
-        ReadFilesTool(),
+        LazyTool('read_files', 'Read several files together, with bounded output per file.',
+                 'omote.agent.tools.code', 'ReadFilesTool'),
         WriteTool(),
-        EditTool(),
-        MultiEditTool(),
-        ApplyPatchTool(),
-        NotebookEditTool(),
-        OutlineTool(),
+        LazyTool('edit_file', 'Edit a file by replacing an exact text match.',
+                 'omote.agent.tools.files', 'EditTool'),
+        LazyTool('multi_edit', 'Apply multiple exact text edits to a file atomically.',
+                 'omote.agent.tools.code', 'MultiEditTool'),
+        LazyTool('apply_patch', 'Apply a patch to add, update or delete files.',
+                 'omote.agent.tools.code', 'ApplyPatchTool'),
+        LazyTool('notebook_edit', 'Read and edit Jupyter notebook cells and outputs.',
+                 'omote.agent.tools.notebook', 'NotebookEditTool'),
+        LazyTool('outline', 'Inspect the structure, functions and classes in a source file.',
+                 'omote.agent.tools.code', 'OutlineTool'),
         ListDirTool(),
-        GlobTool(),
+        LazyTool('glob', 'Find files by glob pattern, sorted by modification time.',
+                 'omote.agent.tools.search', 'GlobTool'),
         GrepTool(),
         ShellTool(),
-        TasksTool(),
-        GitTool(),
+        LazyTool('tasks', 'Inspect, read output from, or stop this session’s background tasks.',
+                 'omote.agent.tools.tasks', 'TasksTool'),
+        LazyTool('git', 'Inspect Git status, diffs, history and branches, and manage commits and pull requests.',
+                 'omote.agent.tools.git', 'GitTool'),
         TodoTool(),
         AskUserTool(),
     ]
@@ -427,7 +436,7 @@ def build_session(
         chosen = [*chosen, RememberTool(memory, user_id), RecallTool(memory, user_id)]
 
         async def context_provider(text: str) -> str:  # noqa: F811
-            return await memory.context_for(user_id, text)
+            return await memory.context_for(user_id, text, subject=str(root_path))
 
         async def on_user_text(text: str) -> None:  # noqa: F811
             await memory.capture(user_id, text, source='chat', subject=str(root_path))

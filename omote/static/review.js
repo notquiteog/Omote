@@ -117,6 +117,7 @@ async function load({ draw = true } = {}) {
   const id = currentSession();
   if (!id) return;
   const data = await json(`/api/sessions/${id}/review`);
+  if (id !== currentSession()) return;
   if (!data || !data.enabled) {
     state.enabled = false;
     $('#nav-review').hidden = true;

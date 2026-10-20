@@ -53,6 +53,90 @@ const manualReferenceInputs = new Set();
 const appliedReferences = new Map();
 let describeEpoch = 0;
 let describedModel = null;
+let projectShot = null;
+let previousDraft = null;
+
+function clearProjectShot() {
+  projectShot = null;
+  $('#studio-project-context').hidden = true;
+}
+async function prepareProjectShot(prepared) {
+  previousDraft ||= { kind, prompt: $('#studio-prompt').value, provider: $('#studio-provider').value,
+    model: $('#studio-model').value, values: [...values], characterRecipe,
+    manual: [...manualReferenceInputs], applied: [...appliedReferences] };
+  projectShot = prepared; characterRecipe = null; manualReferenceInputs.clear(); appliedReferences.clear(); values.clear();
+  $('#studio-character').hidden = true;
+  $('#studio-project-restore').hidden = false;
+  $('#studio-projects-open').textContent = 'Continue project';
+  kind = prepared.kind;
+  for (const button of document.querySelectorAll('.studio-kind .seg')) {
+    button.classList.toggle('on', button.dataset.kind === kind);
+    button.setAttribute('aria-pressed', String(button.dataset.kind === kind));
+  }
+  $('#studio-prompt').value = prepared.prompt; $('#studio-model').value = '';
+  await describe();
+  $('#studio-prompt').focus();
+}
+function applyProjectInputs() {
+  if (!projectShot) return;
+  const p = projectShot;
+  const messages = [`${p.name} · ${p.title} · Plan v${p.revision}`];
+  const image = schema.find(s => s.kind === 'image' && !/(mask|last|end|tail)/i.test(s.name));
+  const video = schema.find(s => s.kind === 'video');
+  if (p.reference_media_ids.length && image && !values.has(image.name)) values.set(image.name, p.reference_media_ids.join(','));
+  if (p.source_media_id && video && !values.has(video.name)) values.set(video.name, p.source_media_id);
+  for (const param of schema) {
+    const candidate = param.name === 'aspect_ratio' ? p.aspect_ratio
+      : ['duration', 'duration_seconds', 'seconds'].includes(param.name) && kind === 'video' ? p.seconds
+      : param.name === 'negative_prompt' ? p.negative_prompt : null;
+    if (candidate === null || candidate === '' || values.has(param.name)) continue;
+    if (param.kind === 'enum' && !param.options.includes(String(candidate))) continue;
+    if (typeof candidate === 'number' && ((param.min !== null && candidate < param.min) || (param.max !== null && candidate > param.max))) continue;
+    values.set(param.name, candidate);
+  }
+  const shape = schema.find(s => s.name === 'aspect_ratio');
+  const duration = schema.find(s => ['duration', 'duration_seconds', 'seconds'].includes(s.name));
+  if (shape && shape.options?.length && !shape.options.includes(p.aspect_ratio)) messages.push(`Planned format ${p.aspect_ratio}; choose a format this model supports below.`);
+  if (duration && kind === 'video' && !values.has(duration.name)) messages.push(`Planned duration ${p.seconds}s; choose a supported length below.`);
+  const width = schema.find(s => s.name === 'width'), height = schema.find(s => s.name === 'height');
+  if (!shape && width && height && !values.has('width') && !values.has('height')) {
+    const [w, h] = p.aspect_ratio.split(':').map(Number);
+    const area = (width.default || 1024) * (height.default || 1024);
+    const scale = Math.sqrt(area / (w * h));
+    for (const [param, dimension] of [[width, w], [height, h]]) {
+      const step = Math.max(64, Number(param.step) || 1);
+      const value = Math.round(dimension * scale / step) * step;
+      values.set(param.name, Math.max(param.min || step, Math.min(param.max || 4096, value)));
+    }
+  }
+  let blocked = '';
+  if (p.reference_media_ids.length && !image) blocked = 'Choose a model with image reference input to use this shot’s references.';
+  else if (image && p.reference_media_ids.length > imageLimit(image)) blocked = `This model accepts ${imageLimit(image)} reference image(s); reduce references in the plan or choose another model.`;
+  if (p.template === 'remix' && (!p.source_media_id || !video || kind !== 'video')) blocked = !p.source_media_id
+    ? 'Add a source video in your project before generating.' : 'Choose a video-input model, or use Ask AI in the project to build a ComfyUI workflow.';
+  if (kind === 'music') blocked = 'Project shots produce images or video. Restore your previous draft to make music.';
+  if (blocked) { messages.push(blocked); $('#studio-make').disabled = true; }
+  const note = $('#studio-project-context'); note.hidden = false; note.textContent = messages.join(' · ');
+}
+async function restoreStudioDraft() {
+  if (!previousDraft) return;
+  const draft = previousDraft; previousDraft = null; clearProjectShot();
+  kind = draft.kind; characterRecipe = draft.characterRecipe;
+  values.clear(); for (const [key, value] of draft.values) values.set(key, value);
+  manualReferenceInputs.clear(); for (const key of draft.manual) manualReferenceInputs.add(key);
+  appliedReferences.clear(); for (const [key, value] of draft.applied) appliedReferences.set(key, value);
+  $('#studio-prompt').value = draft.prompt; $('#studio-model').value = draft.model;
+  if (draft.provider && ![...$('#studio-provider').options].some(o => o.value === draft.provider)) {
+    const option = el('option', '', draft.provider); option.value = draft.provider; $('#studio-provider').append(option);
+  }
+  $('#studio-provider').value = draft.provider;
+  $('#studio-project-restore').hidden = true;
+  $('#studio-projects-open').textContent = 'Create a project';
+  for (const button of document.querySelectorAll('.studio-kind .seg')) {
+    button.classList.toggle('on', button.dataset.kind === kind); button.setAttribute('aria-pressed', String(button.dataset.kind === kind));
+  }
+  await describe();
+}
 
 function imageLimit(param) {
   return param.max_images === null ? Infinity : Math.max(1, Number(param.max_images) || 1);
@@ -89,6 +173,7 @@ function applyCharacterReferences() {
 }
 
 export async function applyCharacter(recipe, scene = '') {
+  clearProjectShot();
   // A reference sheet is an image even if Studio was previously making video
   // or music. A normal character can still be used for a video scene.
   if (kind === 'music' || (scene && kind !== 'image')) {
@@ -141,7 +226,18 @@ function status(text, tone = '') {
    way a number field never does; a number field otherwise, because a slider
    with no bounds is a lie about what is allowed. */
 function control(param) {
-  if (param.kind === 'image') return imageControl(param);
+  if (param.kind === 'image' || param.kind === 'video' || param.kind === 'audio') {
+    const row = imageControl(param);
+    const boundImage = schema.find(s => s.kind === 'image' && !/(mask|last|end|tail)/i.test(s.name));
+    const boundVideo = schema.find(s => s.kind === 'video');
+    if (projectShot && ((projectShot.reference_media_ids.length && param === boundImage) ||
+      (projectShot.source_media_id && param === boundVideo))) {
+      for (const input of row.querySelectorAll('button,input')) input.disabled = true;
+      const drop = row.querySelector('.dropzone'); drop.onclick = null; drop.ondrop = e => e.preventDefault();
+      row.append(el('p', 'meta', 'Managed by your project. Use Continue project to change references.'));
+    }
+    return row;
+  }
   if (param.kind === 'notes') return notesControl(param);
 
   const row = el('div', 'param');
@@ -281,6 +377,8 @@ function notesControl(param) {
  * riding along in the JSON. */
 function imageControl(param) {
   const row = el('div', 'param param-image');
+  const mediaKind = param.kind || 'image';
+  const noun = mediaKind === 'image' ? 'picture' : mediaKind === 'video' ? 'video' : 'audio file';
   const top = el('div', 'top');
   top.appendChild(el('label', '', param.label));
   row.appendChild(top);
@@ -291,7 +389,7 @@ function imageControl(param) {
 
   const picker = el('input');
   picker.type = 'file';
-  picker.accept = 'image/png,image/jpeg,image/webp,image/gif';
+  picker.accept = mediaKind === 'video' ? 'video/mp4,video/webm' : mediaKind === 'audio' ? 'audio/*' : 'image/png,image/jpeg,image/webp,image/gif';
   picker.multiple = imageLimit(param) > 1;
   picker.hidden = true;
 
@@ -302,14 +400,15 @@ function imageControl(param) {
     const current = ids();
     for (const id of current) {
       const thumb = el('div', 'thumb');
-      const img = document.createElement('img');
+      const img = document.createElement(mediaKind === 'image' ? 'img' : mediaKind);
+      if (mediaKind !== 'image') { img.controls = true; img.preload = 'metadata'; img.onclick = e => e.stopPropagation(); }
       img.src = `/api/media/${id}/file`;
       img.alt = '';
       thumb.appendChild(img);
 
       const remove = el('button', 'x', '×');
       remove.type = 'button';
-      remove.title = 'Use a different picture';
+      remove.title = `Remove ${noun}`;
       remove.onclick = (event) => {
         event.stopPropagation();
         manualReferenceInputs.add(param.name);
@@ -323,14 +422,14 @@ function imageControl(param) {
     }
     hint.textContent = current.length
       ? 'Drop another, or click to add'
-      : 'Drop a picture, or click to choose';
+      : `Drop a ${noun}, or click to choose`;
     drop.classList.toggle('filled', current.length > 0);
   }
 
   async function take(files) {
     const limit = imageLimit(param);
-    const accepted = [...files].filter((f) => f.type.startsWith('image/')).slice(0, limit);
-    if (files.length > limit) status(`This input accepts at most ${limit} image(s).`, 'bad');
+    const accepted = [...files].filter((f) => f.type.startsWith(mediaKind + '/')).slice(0, limit);
+    if (files.length > limit) status(`This input accepts at most ${limit} file(s).`, 'bad');
     if (!accepted.length) return;
     drop.classList.add('busy');
     const added = [];
@@ -451,6 +550,7 @@ function render() {
   const count = rest.filter((p) => p.advanced).length;
   $('#studio-advanced').textContent = count ? `Advanced settings · ${count} options` : 'No advanced settings';
   $('#studio-advanced').disabled = !count;
+  $('#studio-advanced').hidden = !count;
   markChanged();
 }
 
@@ -491,12 +591,14 @@ async function describe() {
       return describe();
     }
     paintProviders(provider);
-    status(detail, 'bad');
+    const mediaName = { image: 'images', video: 'videos', music: 'music' }[kind] || kind;
+    status(known.providers.length ? detail : `Connect a provider to generate ${mediaName}.`, known.providers.length ? 'bad' : '');
     $('#studio-connection-help').hidden = false;
     schema = [];
     known.models = [];
     paintModels('');
     applyCharacterReferences();
+    applyProjectInputs();
     render();
     return;
   }
@@ -517,6 +619,7 @@ async function describe() {
   describedModel = $('#studio-model').value.trim();
   status(`${info.provider}${info.local ? ' · on this machine' : ''}`, info.local ? 'good' : '');
   applyCharacterReferences();
+  applyProjectInputs();
   render();
 }
 
@@ -862,6 +965,7 @@ async function remove(item) {
  * and see only that change" is the whole loop, and reconstructing nineteen
  * settings by reading them off a caption is not it. */
 async function reuse(item) {
+  clearProjectShot();
   closeShot();
   characterRecipe = null; appliedReferences.clear(); manualReferenceInputs.clear();
   $('#studio-character').hidden = true;
@@ -1072,7 +1176,7 @@ async function make(event) {
   event.preventDefault();
   const prompt = $('#studio-prompt').value.trim();
   const params = collect();
-  const hasImage = schema.some((p) => p.kind === 'image' && params[p.name]);
+  const hasImage = schema.some((p) => ['image', 'video', 'audio'].includes(p.kind) && params[p.name]);
   if (!prompt && !hasImage) {
     status('say what to make first', 'bad');
     return;
@@ -1087,8 +1191,12 @@ async function make(event) {
   };
 
   $('#studio-make').disabled = true;
-  const res = await post('/api/media/jobs', body);
+  const selection = projectShot;
+  const res = selection ? await post(`/api/creative/projects/${selection.project_id}/shots/${selection.shot_id}/run`, {
+    ...body, base_revision: selection.revision,
+  }) : await post('/api/media/jobs', body);
   $('#studio-make').disabled = false;
+  applyProjectInputs();
 
   if (!res) {
     status('the daemon is not reachable', 'bad');
@@ -1261,7 +1369,13 @@ async function startEdit(event) {
 
 export function wireStudio(providers = []) {
   wireCreativeApps();
+  $('#studio-projects-open').onclick = async () => {
+    const { openProjects } = await import('./studio-projects.js');
+    await openProjects(prepareProjectShot);
+  };
+  $('#studio-project-restore').onclick = restoreStudioDraft;
   wireComfyAssets({ onUse: async (result) => {
+    clearProjectShot();
     kind = result.kind || 'image';
     values.clear();
     for (const button of document.querySelectorAll('.studio-kind .seg')) {

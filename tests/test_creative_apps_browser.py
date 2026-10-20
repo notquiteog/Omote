@@ -68,3 +68,41 @@ def test_edit_workflow_with_chat_requires_saved_version(workspace):
     page.locator('#wb-assistant').click()
     expect(page.locator('#input')).to_have_value(re.compile(saved['id']))
     expect(page.locator('#input')).to_have_value(re.compile('revision 2'))
+
+
+def test_workflow_assistant_prepares_versioned_request_and_preserves_draft(workspace):
+    page, url = workspace
+    response = page.request.post(url + '/api/media/comfyui/workflows', data={'name': 'Portrait lighting',
+        'prompt': {'1': {'class_type': 'EmptyLatentImage', 'inputs': {'width': 512, 'height': 512, 'batch_size': 1}}}})
+    assert response.ok
+    saved = response.json()
+    page.locator('#input').evaluate("node => { node.value = 'My existing idea'; }")
+    page.locator('#start-studio').click()
+    page.locator('#studio-graph').click()
+    page.locator('#comfy-library-toggle').click()
+    page.locator('.wb-saved').filter(has_text='Portrait lighting').click()
+    expect(page.locator('#wb-dirty')).to_have_text('Version 1')
+    page.locator('#comfy-assistant').click()
+    expect(page.locator('#workflow-assistant-context')).to_have_text('Portrait lighting · Version 1')
+    page.get_by_role('button', name='Improve quality', exact=True).click()
+    page.get_by_role('button', name='Continue in chat', exact=True).click()
+    expect(page.locator('#input')).to_have_value(re.compile(r'My existing idea\n\nHelp me with ComfyUI workflow ' + saved['id']))
+    expect(page.locator('#input')).to_have_value(re.compile('available GPU memory'))
+    assert page.locator('#transcript .turn.user').count() == 0
+
+
+def test_workflow_assistant_blocks_unsaved_version_and_fits_mobile(workspace):
+    page, _ = workspace
+    page.locator('#start-studio').click()
+    page.locator('#studio-graph').click()
+    page.locator('#comfy-library-toggle').click()
+    page.locator('#wb-name').fill('Unsaved graph')
+    page.locator('#comfy-assistant').click()
+    page.get_by_role('button', name='Fix an error', exact=True).click()
+    page.get_by_role('button', name='Continue in chat', exact=True).click()
+    expect(page.locator('#workflow-assistant-status')).to_contain_text('Save your changes')
+    page.set_viewport_size({'width': 390, 'height': 844})
+    assert page.locator('#workflow-assistant').evaluate('node => node.scrollWidth <= node.clientWidth')
+    expect(page.get_by_role('button', name='Continue in chat')).to_be_in_viewport()
+    page.locator('#workflow-assistant-close').click()
+    expect(page.locator('#wb-name')).to_have_value('Unsaved graph')

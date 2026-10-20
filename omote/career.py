@@ -273,17 +273,19 @@ def render_docx(resume):
 
 async def render_pdf(resume):
     try:
+        from omote.setup.browser import activate
+        activate()
         from playwright.async_api import async_playwright
     except ImportError as error:
         raise ValueError(
-            'PDF export needs the browser extra and Chromium. HTML/DOCX/TXT exports work without it; HTML also supports Print → Save as PDF.'
+            'PDF export needs Chromium. Choose Settings → Browser → Set up browser. HTML/DOCX/TXT exports remain available.'
         ) from error
     async with async_playwright() as engine:
         try:
             browser = await engine.chromium.launch(headless=True)
         except Exception as error:  # noqa: BLE001
             raise ValueError(
-                'PDF export needs installed Chromium: python -m playwright install chromium. HTML/DOCX/TXT remain available.'
+                'PDF export needs Chromium. Choose Settings → Browser → Set up browser. HTML/DOCX/TXT remain available.'
             ) from error
         try:
             page = await browser.new_page(java_script_enabled=False)

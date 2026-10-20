@@ -286,6 +286,7 @@ class MemoryService:
     async def recall(
         self, user_id: str, query: str, *, limit: int = 5,
         kind: str | None = None, subject: str | None = None,
+        include_personal: bool = False,
     ) -> Recall:
         """Nearest memories, optionally narrowed to a kind or a subject.
 
@@ -321,7 +322,7 @@ class MemoryService:
             return Recall(memories=[], reason='embedding model changed during recall; retry the search')
         found = self.store.search(
             user_id, vectors[0], limit=limit, min_score=MIN_SCORE, kind=kind, subject=subject,
-            embedder=embedding_name,
+            embedder=embedding_name, include_personal=include_personal,
         )
         if not found:
             pending = self.store.index_state().pending
@@ -335,14 +336,17 @@ class MemoryService:
                 )
         return Recall(memories=found)
 
-    async def context_for(self, user_id: str, query: str, *, budget: int = DEFAULT_BUDGET_CHARS) -> str:
+    async def context_for(self, user_id: str, query: str, *, budget: int = DEFAULT_BUDGET_CHARS,
+                          subject: str | None = None) -> str:
         """A prompt fragment, or an empty string.
 
         Empty rather than a heading with nothing under it: a model shown an
         empty "what you remember" section tends to apologise for not
         remembering, which is worse than never raising the subject.
         """
-        result = await self.recall(user_id, query)
+        # Automatic context is personal plus the current project. Other
+        # projects are available through explicit recall, never silently added.
+        result = await self.recall(user_id, query, subject=subject or '', include_personal=True)
         if not result.memories:
             return ''
 

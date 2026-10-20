@@ -615,19 +615,28 @@ class MediaService:
         only thing a client can name is something this server already has, so
         there is nothing here that turns a parameter into a file read.
         """
-        wanted = {p.name for p in schema if p.kind == 'image'}
+        wanted = {p.name: p for p in schema if p.kind in ('image', 'video', 'audio')}
         out: dict[str, Any] = {}
         for key, value in clean.items():
             if key not in wanted or not value:
                 out[key] = value
                 continue
             ids = [v.strip() for v in str(value).split(',') if v.strip()]
+            param = wanted[key]
+            if param.max_images is not None and len(ids) > param.max_images:
+                raise ValueError(f'{param.label} accepts at most {param.max_images} reference file(s).')
+            for ident in ids:
+                media = self.store.get(ident)
+                if media is None or not media.media_type.startswith(param.kind + '/'):
+                    raise ValueError(f'{param.label} needs a stored {param.kind} reference.')
             blobs = [data for data in (self._read(i) for i in ids) if data]
+            if len(blobs) != len(ids):
+                raise ValueError(f'A file for {param.label} is missing.')
             if not blobs:
                 continue
             # One image stays one image. Several providers take a single blob
             # and would be given a list of one, which is a different request.
-            out[key] = blobs[0] if len(blobs) == 1 else blobs
+            out[key] = blobs if wanted[key].multiple or len(blobs) > 1 else blobs[0]
         return out
 
     def _read(self, media_id: str) -> bytes | None:
@@ -707,6 +716,12 @@ class MediaService:
             return False
         job.task.cancel()
         return True
+
+    async def close(self) -> None:
+        tasks = [job.task for job in self.jobs.values() if job.task and not job.task.done()]
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     def _prune(self) -> None:
         """Forget the oldest finished jobs.

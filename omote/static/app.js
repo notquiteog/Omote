@@ -25,13 +25,13 @@ import { active as searchActive, wireHistory } from './history.js';
 import { setCommitRoot, wireCommit } from './commit.js';
 import { $, api, el, icon, json, onReachable, socket, took } from './dom.js';
 import { wireChatControls, configureChatControls, syncChatControls, chatControlsBusy, chatControlsStarting, chatModelChanging, preferredModel } from './chat-controls.js';
-import { wireLive } from './live.js';
+import { resetLive, wireLive } from './live.js';
 import { mailCard } from './mail.js';
 import { go, mode, onEnter, onLeave, wireModes } from './modes.js';
 import { searchCard } from './search.js';
 import { cancel as cancelStream, flush as flushStream, queue } from './stream.js';
 import { openStudio, stopPolling, wireStudio } from './studio.js';
-import { wireTalk } from './talk.js';
+import { resetTalk, wireTalk } from './talk.js';
 import { call, endCall, wireCalls } from './call.js';
 import { renderContext, refreshContext, wireContext } from './context.js';
 import { onHookApproval, resetHooks, wireHooks } from './hooks.js';
@@ -45,6 +45,7 @@ import { wireCreative } from './creative.js';
 import { wireMemory } from './memory.js';
 import { wireSystem } from './system.js';
 import { wireLocalModels } from './local-models.js';
+import { openToolSetup } from './tool-setup.js';
 import { Voice } from './voice.js';
 import { attach as attachAutopilot, narrate, reattach as reattachAutopilot, wireAutopilot } from './autopilot.js';
 
@@ -1040,7 +1041,8 @@ async function loadCommands(id) {
   state.commands = [];
   const res = await api(`/api/sessions/${id}/commands`);
   if (!res || !res.ok || state.sessionId !== id) return;
-  state.commands = (await res.json()).commands || [];
+  const data = await res.json();
+  if (state.sessionId === id) state.commands = data.commands || [];
 }
 
 function slashQuery() {
@@ -1155,7 +1157,7 @@ const FATAL_CLOSE = new Set([4400, 4401, 4404]);
 
 function connectAgent(sessionId) {
   if (state.agent) {
-    state.agent.onclose = null;
+    state.agent.onopen = state.agent.onmessage = state.agent.onclose = state.agent.onerror = null;
     state.agent.close();
   }
   state.sessionId = sessionId;
@@ -1165,6 +1167,7 @@ function connectAgent(sessionId) {
   state.agent = ws;
 
   ws.onopen = () => {
+    if (state.agent !== ws) return;
     setLink(true);
     const reconnected = state.retries > 0;
     state.retries = 0;
@@ -1178,9 +1181,10 @@ function connectAgent(sessionId) {
     flushOutbox(reconnected);
   };
 
-  ws.onmessage = (msg) => handleAgentEvent(JSON.parse(msg.data));
+  ws.onmessage = (msg) => { if (state.agent === ws) handleAgentEvent(JSON.parse(msg.data)); };
 
   ws.onclose = (event) => {
+    if (state.agent !== ws) return;
     setLink(false);
     if (state.sessionId !== sessionId) return;      // we moved on deliberately
 
@@ -1201,7 +1205,7 @@ function connectAgent(sessionId) {
     state.retries = (state.retries || 0) + 1;
     const wait = Math.min(1000 * 2 ** (state.retries - 1), 20000);
     setTimeout(() => {
-      if (state.sessionId === sessionId) connectAgent(sessionId);
+      if (state.agent === ws && state.sessionId === sessionId) connectAgent(sessionId);
     }, wait);
   };
 }
@@ -1647,6 +1651,8 @@ async function saveBrowserChoice(id) {
 }
 
 function wireBrowserChoice() {
+  $('#browser-setup').onclick = () => openToolSetup('playwright');
+  document.addEventListener('omote:browser-ready', () => loadBrowserChoices());
   // Enter in the path field saves it. A Save button next to a single input that
   // already has Enter is a button nobody presses twice.
   $('#browser-path').addEventListener('keydown', (e) => {
@@ -1778,11 +1784,14 @@ let loadedAt = Date.now();
 
 /* The rows on screen, so the relative times can be re-stated without a fetch. */
 const sessionRows = new Map();
+let sessionsEpoch = 0;
 
 async function loadSessions() {
+  const epoch = ++sessionsEpoch;
   const res = await api('/api/sessions');
   if (!res || !res.ok) return;
   const { sessions } = await res.json();
+  if (epoch !== sessionsEpoch) return;
 
   // This knows the truth sooner than the socket does. If the session we
   // are holding is not in the list, it is gone — the daemon was restarted —
@@ -1900,10 +1909,10 @@ function basename(path) {
 /* Put a session in the window: its name in the bar, its facts in the chips
    under the composer, and its socket attached. */
 function openSession(summary) {
+  selectSession(summary.id);
   $('#session-title').textContent = summary.title || summary.id;
   setBusy(Boolean(summary.busy));
   dressChips(summary);
-  selectSession(summary.id);
 }
 
 /* What the next thing you say will be run under: which folder, which model,
@@ -2003,10 +2012,27 @@ function lastSession() {
   try { return localStorage.getItem(LAST_SESSION); } catch { return null; }
 }
 
+const chatDrafts = new Map();
+
 function selectSession(id) {
   if (id === state.sessionId) return;
+  if (state.sessionId) chatDrafts.set(state.sessionId, $('#input').value);
+  $('#input').value = chatDrafts.get(id) || '';
+  $('#input').style.height = '';
+  state.voice?.stop();
+  endCall();
+  resetTalk();
+  resetLive();
+  $('#voice-partial').textContent = '';
+  $('#voice-mute').textContent = 'Mute';
+  state.sessionId = id;
+  state.info = null;
+  state.retries = 0;
+  setBusy(false);
+  setLink(false);
   clearTranscript();
   state.seq = 0;
+  state.echo = null;
   state.turnNode = null;
   state.turnStart = 0;
   state.turnFiles = new Map();
@@ -2032,6 +2058,8 @@ function selectSession(id) {
   clearAttachments();
   resetReview();
   resetHooks();
+  for (const selector of ['#rewind-dialog', '#review-dialog', '#hooks-dialog', '#worktree-dialog']) $(selector)?.close();
+  connectAgent(id);
   refreshWorktrees();
   loadCommands(id);
   rememberSession(id);
@@ -2045,7 +2073,6 @@ function selectSession(id) {
   // feature that only works on whichever session you happened to start in.
   // One small request, next to the command list this already fetches.
   refreshReview();
-  connectAgent(id);
   loadSessions();
 }
 
@@ -2237,15 +2264,17 @@ function wire() {
       return;
     }
     const voice = startStripVoice();
+    state.voice = voice;
     try {
       // The strip's call is attached to the open session, so speaking to it
       // here can act on the machine — which is the difference between this
       // and Talk mode's default, where the tick box is off.
       await voice.start({ agentSession: state.sessionId });
-      state.voice = voice;
+      if (state.voice !== voice) return;
       $('#voice-toggle').classList.add('on');
       $('#voice-toggle').title = 'End voice';
     } catch (err) {
+      if (err.name === 'AbortError') return;
       notice(`Voice could not start: ${err.message}`, 'error');
       voice.stop();
     }
@@ -2397,9 +2426,22 @@ document.addEventListener('omote:creative-app', (event) => {
   $('#input').dispatchEvent(new Event('input', { bubbles: true }));
   $('#input').focus();
 });
+document.addEventListener('omote:studio-assistant', (event) => {
+  go('chat');
+  const d = event.detail;
+  const request = `Help me develop Studio project ${d.id}, revision ${d.revision} (${d.name}, ${d.template}). Discover studio_project and read the saved plan. Improve its shots and direction using the brief, preserve references, and save with base_revision. For 3D, edit the stage objects, camera and lighting; for video remixes, discover compatible video-input models or inspect live ComfyUI nodes. For narrated shorts and campaigns, help produce narration, captions and timeline assembly using available creative tools. Check actual capabilities and costs before rendering. A plan or blocking preview is not a finished render.`;
+  const input = $('#input'); input.value = [input.value.trim(), request].filter(Boolean).join('\n\n');
+  input.dispatchEvent(new Event('input', { bubbles: true })); input.focus();
+});
 document.addEventListener('omote:edit-workflow', (event) => {
   go('chat');
-  if (!$('#input').value.trim()) $('#input').value = `Help me edit ComfyUI workflow ${event.detail.id}, revision ${event.detail.revision} (${event.detail.name}). Use comfy_workflow to inspect the saved graph, discover the selected server’s live node/model schemas, and make a new version using base_revision. Validate the new graph and preserve the original version. Let me describe the change before running it.`;
+  const detail = event.detail;
+  const context = detail.id ? `Help me with ComfyUI workflow ${detail.id}, revision ${detail.revision} (${detail.name}).`
+    : 'Help me create a ComfyUI workflow.';
+  const request = `${context}${detail.provider ? ` Use connection ${detail.provider}.` : ''} Use comfy_workflow to ${detail.id ? 'inspect the saved graph, ' : ''}discover the server’s live node/model schemas. Save and validate a new version${detail.id ? ' using base_revision; preserve the original version' : ''}. ${detail.question || 'Let me describe the change before running it.'}`;
+  const input = $('#input');
+  if (detail.question && input.value.trim()) input.value += `\n\n${request}`;
+  else if (!input.value.trim()) input.value = request;
   $('#input').dispatchEvent(new Event('input', { bubbles: true }));
   $('#input').focus();
 });

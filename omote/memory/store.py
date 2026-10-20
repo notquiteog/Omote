@@ -982,7 +982,7 @@ class MemoryStore:
         if kind:
             clauses.append('kind = ?')
             params.append(kind)
-        if subject:
+        if subject is not None:
             clauses.append('subject = ?')
             params.append(subject)
         params.append(blob)
@@ -1041,6 +1041,7 @@ class MemoryStore:
         kind: str | None = None,
         subject: str | None = None,
         embedder: str | None = None,
+        include_personal: bool = False,
     ) -> list[Memory]:
         """Nearest memories by cosine, scoped to one person by SQL.
 
@@ -1068,12 +1069,18 @@ class MemoryStore:
         if kind:
             clauses.append('kind = ?')
             params.append(kind)
-        if subject:
+        if subject is not None:
             # "What do you know about the omote project" -- narrowed before the
             # scan rather than filtered after it, so a small subject's memories
             # are not pushed out of the top-k by a large one's.
-            clauses.append('subject = ?')
-            params.append(subject)
+            if include_personal:
+                clauses.append("(subject = ? OR subject IS NULL OR subject = '')")
+                params.append(subject)
+            elif subject == '':
+                clauses.append("(subject IS NULL OR subject = '')")
+            else:
+                clauses.append('subject = ?')
+                params.append(subject)
         rows = list(
             self._db.execute(
                 'SELECT id, user_id, kind, subject, text, source, created_at, hits, dim, scale, vec'
@@ -1095,6 +1102,13 @@ class MemoryStore:
                 user_id, projected, src_dim=src_dim, kind=kind, subject=subject,
                 limit=limit, min_score=min_score,
             )
+            if found is not None and include_personal and subject:
+                personal = self._search_indexed(
+                    user_id, projected, src_dim=src_dim, kind=kind, subject='',
+                    limit=limit, min_score=min_score,
+                )
+                found = None if personal is None else sorted(
+                    [*found, *personal], key=lambda memory: memory.score, reverse=True)[:limit]
             if found is not None:
                 # The vec0 table carries no embedder column, so the one clause
                 # it cannot apply is applied here against the rows the scan

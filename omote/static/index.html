@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="/static/schedules.css">
 <link rel="stylesheet" href="/static/system.css">
 <link rel="stylesheet" href="/static/local-models.css">
+<link rel="stylesheet" href="/static/tool-setup.css">
 <!-- The theme, before the first paint. A module arrives after the stylesheet
      and the page flashes the wrong theme at somebody who chose dark months
      ago; the flash happens on every load and is the reason this is here
@@ -439,6 +440,11 @@
       </div>
       <form id="studio-form" class="studio-form">
         <div class="studio-form-heading"><h2>Create something</h2><p class="meta">Start with an idea. Fine-tune the details below.</p></div>
+        <div class="studio-project-entry">
+          <button id="studio-projects-open" type="button" class="ghost">Create a project</button>
+          <button id="studio-project-restore" type="button" class="ghost small" hidden>Restore previous draft</button>
+          <p id="studio-project-context" class="meta" hidden></p>
+        </div>
         <div class="studio-kind" role="group" aria-label="What to make">
           <button type="button" class="seg on" data-kind="image">Image</button>
           <button type="button" class="seg" data-kind="video">Video</button>
@@ -774,10 +780,10 @@
 
 <dialog id="local-models-dialog" aria-labelledby="local-models-title">
   <div class="lm-heading"><h2 id="local-models-title">Local models</h2><button id="local-models-close" class="ghost" type="button">Close</button></div>
-  <p class="lm-intro">Download once. Run and chat on this computer.</p>
-  <div class="lm-toolbar"><label for="local-models-device">Run on <select id="local-models-device"><option value="gpu">GPU</option><option value="cpu">CPU</option></select></label><button id="local-models-refresh" class="ghost small" type="button">Refresh</button></div>
+  <p class="lm-intro">Choose a model. Omote installs what it needs and gets it ready for private, local chat.</p>
+  <div class="lm-toolbar"><label for="local-models-device">Run on <select id="local-models-device"><option value="auto">Automatic</option><option value="gpu">GPU</option><option value="cpu">CPU</option></select></label><button id="local-models-refresh" class="ghost small" type="button">Refresh</button></div>
   <p id="local-models-status" class="meta" role="status"></p>
-  <div id="local-models-runtime"></div>
+  <div id="local-models-setup" role="status"></div>
   <div id="local-models-list" aria-label="Model library"></div>
   <details class="lm-advanced"><summary>Add another GGUF model</summary>
     <p class="meta">Use a public HTTPS source and its published SHA-256 and exact file size. Model architecture support is checked at startup.</p>
@@ -789,7 +795,7 @@
       <button type="submit" class="ghost small">Add to library</button>
     </form>
   </details>
-  <details class="lm-advanced"><summary>Storage &amp; runtime details</summary><p id="local-models-storage" class="meta"></p><p class="meta">Cancel keeps partial downloads for Resume. Remove frees their space. Files are verified before use. Memory requirements are estimates; actual driver and architecture support are validated at startup. Starting a model registers it for chat; stopping it ends access for chats using it.</p><button id="local-models-repair" type="button" class="ghost small">Repair runtime</button><pre id="local-models-log"></pre></details>
+  <details class="lm-advanced"><summary>Storage &amp; runtime details</summary><div id="local-models-runtime"></div><p id="local-models-storage" class="meta"></p><p class="meta">Cancel keeps partial downloads for Resume. Remove frees their space. Files are verified before use. Memory requirements are estimates; actual driver and architecture support are validated at startup. Starting a model registers it for chat; stopping it ends access for chats using it.</p><button id="local-models-repair" type="button" class="ghost small">Repair runtime</button><pre id="local-models-log"></pre></details>
 </dialog>
 
 <dialog id="settings-dialog" aria-labelledby="settings-title">
@@ -852,13 +858,14 @@
   <section class="tab-panel" role="tabpanel" id="panel-browser" aria-labelledby="tab-browser">
     <p class="explain">
       Choose the browser Omote uses for web tasks. Available browsers are listed below.
-      If browser control is not installed, the setup instructions appear here.
+      Choose Set up browser to install and check everything automatically.
     </p>
     <p class="explain">
       Each browser has its own profile. Sign in to websites directly in that browser;
       switching browsers may require signing in again.
     </p>
 
+    <button id="browser-setup" type="button" class="primary">Set up browser</button>
     <ul id="browser-list" class="conn-list"></ul>
 
     <label class="field" id="browser-path-field" hidden>

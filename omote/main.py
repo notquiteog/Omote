@@ -35,6 +35,7 @@ from omote.routers import providers as providers_router
 from omote.routers import realtime as realtime_router
 from omote.routers import schedules as schedules_router
 from omote.routers import search as search_router
+from omote.routers import setup as setup_router
 from omote.routers import system as system_router
 from omote.routers import updates as updates_router
 from omote.routers import voice as voice_router
@@ -207,7 +208,18 @@ async def lifespan(app: FastAPI):
         local_models_router.service = LocalModels(config.data_dir / 'local-models', registry)
     except (OSError, ValueError):
         log.exception('Local model management could not start')
+    from omote.setup.service import ToolSetup
+    try:
+        setup_router.service = ToolSetup(config.data_dir, registry, providers_router.store)
+        await setup_router.service.restore()
+    except (OSError, ValueError, RuntimeError):
+        log.exception('Local tool setup could not start')
     yield
+    if media_router.service:
+        await media_router.service.close()
+    if setup_router.service:
+        await setup_router.service.close()
+        setup_router.service = None
     if local_models_router.service:
         await local_models_router.service.close()
         local_models_router.service = None
@@ -278,6 +290,7 @@ app.include_router(agent_router.http)
 # nothing has heard of.
 app.include_router(history_router.router)
 app.include_router(local_models_router.router)
+app.include_router(setup_router.router)
 app.include_router(voice_router.router)
 app.include_router(providers_router.router)
 app.include_router(memory_router.router)

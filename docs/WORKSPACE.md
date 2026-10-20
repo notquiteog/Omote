@@ -64,18 +64,22 @@ the chat's approval policy.
 
 Choose **System → Local models** to manage local GGUF chat models:
 
-1. **Install runtime** downloads a checksum-pinned llama.cpp build for this
-   computer. Linux/Windows builds use Vulkan; Mac builds use Metal where supported.
-   GPU drivers and required OS libraries must be installed separately.
-2. Choose **GPU** or **CPU** explicitly, then **Download** a starter model. Omote
-   checks available RAM, estimated VRAM, platform support, and free space on the
-   actual library disk. The UI shows download size and memory estimates.
-3. **Cancel download** stops transfer and keeps the partial file. **Resume** uses
+1. Choose **Set up & start** on a model. Omote downloads and installs a
+   checksum-pinned llama.cpp build for this computer, downloads the model, verifies
+   both, and starts an authenticated local server. Readiness requires a successful
+   health check. Closing the panel leaves setup running.
+2. **Automatic** checks runtime devices and memory, preferring a usable GPU and
+   otherwise choosing CPU. GPU/CPU remain explicit options. Linux/Windows builds
+   use Vulkan; Mac builds use Metal where supported. Required GPU drivers and OS
+   libraries still need to be present; unsupported combinations fail visibly.
+3. **Cancel setup** keeps partial files. **Set up & start** resumes them, including
+   after restarting Omote. Manual download/start/remove controls are under
+   **Model details & controls**; runtime repair is under **Storage & runtime details**.
+   Manual **Resume** uses
    HTTP byte ranges and validators, including after restarting Omote. If a server
    ignores ranges it restarts safely. Size and SHA-256 must match before the model
    becomes available; corrupt downloads are removed.
-4. **Start** verifies the model again, checks the GPU backend, and starts one owned
-   server on an authenticated loopback port. **Use in chat** opens a chat with that
+4. **Use in chat** opens a chat with that
    model and Ask first permissions. **Stop** frees the runtime; it never stops
    Ollama, ComfyUI or other servers started outside Omote. Existing chats reconnect
    when the same managed model is started again.
@@ -100,7 +104,8 @@ runtime stops. On restart, a leftover process is stopped only when executable,
 creation time and unique runtime key match the ownership record.
 
 The agent can discover `local_models` through `find_tools` and use the same
-library; list is read-only, downloads are network actions, runtime controls require
+library; `prepare` performs the whole setup and `cancel_setup` cancels it. List is
+read-only, downloads are network actions, setup and runtime controls require
 execution permission, and removing files is destructive. Discovery grants no permissions.
 
 Starter weights come from [official Qwen repositories](https://huggingface.co/Qwen/Qwen3-0.6B-GGUF).
@@ -131,11 +136,10 @@ is labeled for non-commercial research use.
 
 1. Download a model. **Cancel download** retains its partial file; **Resume
    download** continues it. **Remove** deletes only that managed download.
-2. Expand **ComfyUI setup & storage** once to obtain the extra-model-paths YAML
-   configuration. Add it to ComfyUI's startup with `--extra-model-paths-config`,
-   then restart ComfyUI. The configuration points at Omote's managed model folders;
-   existing ComfyUI models and configuration are not overwritten. A remote server
-   needs the downloaded files and matching paths on its own machine.
+2. Choose **Set up local studio** in Studio. Omote installs ComfyUI and connects
+   these model folders automatically. For a separately managed server, expand
+   **ComfyUI setup & storage** to obtain its extra-model-paths configuration.
+   A remote server needs the downloaded files and matching paths on its own machine.
 3. Select your ComfyUI connection and **Check connection** to verify model
    visibility. **Check & use in Studio** validates the SD Turbo recipe against
    live node schemas, model choices, links and GPU memory before opening Generate.
@@ -156,7 +160,50 @@ Managed files live in `local-models/comfy` under the data directory. Imported
 Studio templates live in the data directory's `workflows` folder, rather than the
 application installation. The lazy `local_models` tool accepts `library: "comfyui"`
 for list/download/cancel/remove, using the same action-specific approvals.
-ComfyUI's process lifecycle remains managed by your existing ComfyUI installation.
+Omote starts and stops its managed local studio. Separately connected ComfyUI
+installations keep their existing process lifecycle.
+
+### Automatic local setup
+
+In **Studio → Set up local studio** or **Settings → Browser → Set up browser**,
+choose **Set up**. There are no terminal commands, Python paths or connection URLs
+to fill in. Progress stays in the dialog; closing it lets setup continue.
+**Cancel setup** keeps reusable downloads, and **Retry setup** resumes or repairs
+the installation. Advanced engine choices and diagnostic logs stay collapsed.
+
+ComfyUI uses a private Python runtime and the full upstream editor, with GPU
+detection, CPU fallback, Omote's editor bridge, and automatic model-folder and
+connection setup. It binds only to localhost. After a successful setup it starts
+again with Omote; **Stop studio** disables that automatic start. Existing external
+servers are preserved. Stop is refused while creations are running or queued.
+
+Playwright installs a private, version-matched Chromium by default. Firefox and
+WebKit are available under **Advanced**. Setup checks an actual page interaction
+both in the private runtime and in the running app before calling it ready.
+Packages match the app's Python version, including frozen desktop builds.
+Linux browser support packages and Windows C++ support use the native permission
+flow when necessary. Credentials stay with the operating system.
+
+Native bootstrap packages cover macOS, Linux and Windows on x64 and ARM64.
+Local ComfyUI on macOS currently requires Apple silicon; Intel Macs can connect
+an existing server. Upstream browser, GPU-driver and operating-system requirements
+still apply. Model weights are selected separately in the model library.
+The lazy `setup_local` tool exposes the same status/start/cancel/stop operations
+to agents, with execution approval for changes.
+
+The native setup CI workflow builds the actual frozen daemon without Playwright,
+then installs both tools, tests health and browser interaction, and restarts the
+app on Linux, Windows and Apple silicon macOS. Native CI must pass before claiming
+verification on those release platforms.
+
+The packaged Linux daemon was verified locally with Playwright 1.64.0,
+ComfyUI 0.42.0, frontend 1.55.18 and PyTorch 2.14.1+cu132. The check covered
+installation from a fresh data folder, a real browser interaction, GPU startup,
+stop/start, full app restart, opening the native editor, and **Capture editor**
+through the installed bridge. It did not download or run generation models.
+Windows and macOS native runs remain pending. Upstream requirements are documented
+by [Playwright](https://playwright.dev/python/docs/intro#system-requirements) and
+[ComfyUI](https://docs.comfy.org/installation/manual_install).
 
 Live verification on Linux used ComfyUI 0.39.2, PyTorch CUDA 13.0 and an RTX 5060 Ti.
 The 5,214,561,328-byte SD Turbo transfer was cancelled at 240,774,136 bytes and resumed
@@ -258,7 +305,7 @@ approvals appear in the conversation. Choose the session's approval policy befor
 unattended work. Background commands have status and Stop controls; the autopilot
 tool supports longer desktop jobs. See [Autonomy](AUTONOMY.md) and [Installation](INSTALL.md).
 
-Browser automation needs the browser extra and its browser installation. Desktop
+Browser automation is installed through **Settings → Browser → Set up browser**. Desktop
 control needs the desktop extra and the platform's input/screenshot permissions.
 An application such as **Photoshop** must be installed and accessible on that
 desktop. The bundled `/photoshop` skill guides the agent through opening a document,

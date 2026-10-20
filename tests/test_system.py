@@ -12,12 +12,18 @@ agent that meets a read-only root filesystem and starts trying to disable it.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
 
 from omote.agent.tools.base import ToolContext, ToolError
-from omote.agent.tools.system import PackageInstallTool, PackageRemoveTool, _elevate
+from omote.agent.tools.system import (
+    PackageInstallTool,
+    PackageRemoveTool,
+    SystemInfoTool,
+    _elevate,
+)
 from omote.protocol.agent import Risk
 from omote.system import (
     LINUX_MANAGERS,
@@ -27,8 +33,11 @@ from omote.system import (
     _os_release,
     detect,
     hdr_route,
+    launchers_for,
+    matching_lines,
     recipe_for,
     route_for,
+    search_terms,
 )
 
 
@@ -127,6 +136,98 @@ def test_a_name_is_matched_loosely(phrasing):
 def test_the_longer_name_wins():
     """'epic games store' must not be matched by the 'epic' entry first."""
     assert 'heroic' in route_for(recipe_for('epic games store'), linux()).package
+
+
+def test_telegram_on_linux_is_the_flathub_build():
+    route = route_for(recipe_for('reinstall telegram properly'), linux())
+    assert (route.manager, route.package) == ('flatpak', 'org.telegram.desktop')
+    assert 'tdata' in recipe_for('telegram').note
+
+
+# -- what is already here -----------------------------------------------------
+
+
+def test_a_recipe_is_recognised_by_its_package_id():
+    """A flatpak is listed by id, not by the name a person says."""
+    terms = search_terms('telegram', recipe_for('telegram'))
+    listing = 'org.telegram.desktop\t7.3.1\tuser\ncom.brave.Browser\t1.97\tuser\n'
+    assert matching_lines(listing, terms) == ['org.telegram.desktop\t7.3.1\tuser']
+
+
+def test_an_unknown_name_is_searched_by_its_words():
+    assert search_terms('install the latest torsocks please') == ('torsocks',)
+    listing = 'libtorsocks:amd64 2.5.0-6\ntorsocks:all 2.5.0-6\ntor:amd64 0.4\n'
+    assert matching_lines(listing, ('torsocks',)) == [
+        'libtorsocks:amd64 2.5.0-6', 'torsocks:all 2.5.0-6',
+    ]
+
+
+def test_a_hand_installed_launcher_is_found_and_a_stale_one_says_so(tmp_path):
+    """Telegram's tarball registers a menu entry and nothing else. Every package
+    manager says it is not installed; only the launcher knows otherwise."""
+    gone = tmp_path / 'Downloads/tsetup/Telegram'
+    (tmp_path / 'org.telegram.desktop._c7c6.desktop').write_text(
+        '[Desktop Entry]\nName=Telegram\n'
+        f'TryExec={gone}\nExec={gone} -- %U\n'
+        '[Desktop Action quit]\nName=Quit Telegram\nExec=/elsewhere -quit\n'
+    )
+    (tmp_path / 'org.gimp.GIMP.desktop').write_text('[Desktop Entry]\nName=GIMP\nExec=gimp\n')
+
+    found = launchers_for(('telegram',), (tmp_path, tmp_path / 'absent'))
+    assert len(found) == 1
+    assert found[0].name == 'Telegram'
+    assert found[0].target == str(gone)
+    assert found[0].present is False
+
+    gone.parent.mkdir(parents=True)
+    gone.write_text('')
+    assert launchers_for(('telegram',), (tmp_path,))[0].present is True
+
+
+def test_a_launcher_on_the_path_is_not_called_missing(tmp_path):
+    (tmp_path / 'gimp.desktop').write_text('[Desktop Entry]\nName=GIMP\nExec="gimp %U\n')
+    assert launchers_for(('gimp',), (tmp_path,))[0].present is True
+
+
+def test_foreign_architectures_are_reported():
+    host = linux(arch='amd64', foreign_arches=('i386',))
+    out = asyncio.run(SystemInfoTool(host).run({}, ctx())).content
+    assert 'Architecture: amd64, plus foreign i386' in out
+    assert 'lib:i386' in out
+    assert host.to_json()['foreign_arches'] == ['i386']
+
+
+def test_system_info_about_reports_existing_installs(monkeypatch, tmp_path):
+    import omote.agent.tools.system as tools
+
+    async def fake_run(argv, _deadline, emit=None):
+        return 0, ('org.telegram.desktop\t7.3.1\tuser\n' if argv[0] == 'flatpak'
+                   else 'bash:amd64 5.2\n')
+
+    monkeypatch.setattr(tools, '_run', fake_run)
+    monkeypatch.setattr(tools, 'launchers_for', lambda terms: [])
+    host = linux(managers=tuple(m for m in LINUX_MANAGERS if m.name in ('apt', 'flatpak')))
+    out = asyncio.run(SystemInfoTool(host).run({'about': 'telegram'}, ctx())).content
+    assert 'flatpak: org.telegram.desktop\t7.3.1\tuser' in out
+    assert 'bash' not in out
+    assert "'telegram': flatpak install org.telegram.desktop" in out
+    assert 'installed by hand' not in out, 'a managed install is not a hand-made one'
+
+
+def test_a_hand_made_launcher_is_flagged_as_such(monkeypatch):
+    import omote.agent.tools.system as tools
+    from omote.system import Launcher
+
+    async def nothing(argv, _deadline, emit=None):
+        return 0, ''
+
+    stale = Launcher(Path.home() / '.local/share/applications/org.telegram.desktop._x.desktop',
+                     'Telegram', '/home/x/Downloads/tsetup/Telegram', False)
+    monkeypatch.setattr(tools, '_run', nothing)
+    monkeypatch.setattr(tools, 'launchers_for', lambda terms: [stale])
+    out = asyncio.run(SystemInfoTool(linux()).run({'about': 'telegram'}, ctx())).content
+    assert 'not from any package manager — its program is MISSING' in out
+    assert 'not with package_remove' in out
 
 
 # -- grading ----------------------------------------------------------------

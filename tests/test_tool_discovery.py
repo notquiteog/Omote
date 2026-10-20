@@ -6,7 +6,7 @@ from omote.agent.approval import ApprovalPolicy, Mode
 from omote.agent.runtime import build_session, default_tools
 from omote.agent.session import AgentSession
 from omote.agent.tools.base import Assessment, Output, Tool
-from omote.agent.tools.discovery import CACHE_SIZE, LazyTool
+from omote.agent.tools.discovery import CACHE_SIZE, CORE_TOOLS, LazyTool
 from omote.protocol.agent import Risk, ToolCall, ToolDenied
 from omote.providers.base import StreamDone, StreamText, StreamToolUse
 from tests.test_agent import ScriptedProvider, turn
@@ -115,7 +115,7 @@ async def test_toolsets_and_live_plan_mode_filter_discovery(tmp_path):
 def test_default_optional_implementations_and_schemas_stay_unloaded(tmp_path):
     tools = default_tools()
     lazy = [tool for tool in tools if isinstance(tool, LazyTool)]
-    assert {tool.name for tool in lazy} == {'career', 'schedule', 'photocraft', 'creative_library', 'creative_apps', 'inspect_export', 'comfy_workflow'}
+    assert {tool.name for tool in lazy} == {tool.name for tool in tools if tool.name not in CORE_TOOLS}
     agent = session(tmp_path, tools)
     agent.context_report()
     assert not any(tool.loaded for tool in lazy)
@@ -154,3 +154,34 @@ async def test_exact_discovery_materializes_only_the_selected_implementation(tmp
     assert not agent.tools['creative_library'].loaded
     result = await agent.invoke(ToolCall(id='plural', name='find_tools', arguments={'query': 'notebooks'}), 'turn')
     assert json.loads(result.content)['tools'][0]['name'] == 'notebook_edit'
+
+
+async def test_broken_optional_import_does_not_poison_later_requests(tmp_path):
+    broken = LazyTool('missing_catalog', 'Inspect the optional catalog.', 'omote.missing_plugin', 'Missing')
+    healthy = OptionalTool()
+    agent = session(tmp_path, [broken, healthy])
+    result = await agent.invoke(ToolCall(id='find', name='find_tools', arguments={'query': 'catalog'}), 'turn')
+    rows = {row['name']: row for row in json.loads(result.content)['tools']}
+    assert 'Could not load' in rows[broken.name]['error']
+    assert 'input_schema' in rows[healthy.name]
+    assert broken.name not in agent._discovery.loaded
+    # A direct call from an older transcript must not insert a broken tool either.
+    result = await agent.invoke(ToolCall(id='broken', name=broken.name, arguments={}), 'turn')
+    assert result.is_error
+    assert broken.name not in agent._discovery.loaded
+    agent.context_report()
+
+
+async def test_discovered_tools_and_implementations_belong_to_one_chat(tmp_path):
+    first = session(tmp_path, default_tools())
+    second = session(tmp_path, default_tools())
+    await first.invoke(ToolCall(id='find', name='find_tools', arguments={'query': 'git'}), 'turn')
+    assert first.tools['git'].loaded
+    assert not second.tools['git'].loaded
+    assert 'git' not in {tool.name for tool in second._visible_tools()}
+
+
+def test_lazy_metadata_matches_implementation_names():
+    for tool in default_tools():
+        if isinstance(tool, LazyTool):
+            assert tool._load().name == tool.name

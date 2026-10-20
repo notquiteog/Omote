@@ -55,10 +55,12 @@ the session. Existing transcript calls can load an allowed tool directly, with
 the same execution checks. Each subagent has its own discovery cache. Voice
 sessions update their upstream schemas before continuing from discovery results.
 
-Career, PhotoCraft, scheduling, creative-library, creative-app, export-inspection and
-ComfyUI-workflow implementations use lightweight
-descriptors and instantiate on first schema request or execution. Other built-in
-tools may already have instances; their optional schemas are still deferred.
+All optional tools in the default set—including Git, patching, notebook editing,
+batch reads and background-task controls—use lightweight descriptors and
+instantiate on first schema request or execution. Browsing metadata and estimating
+context do not instantiate them. A failed optional import is reported beside its
+search result without hiding healthy matches or entering the active schema cache.
+Service-bound tools may already have instances; their optional schemas are still deferred.
 Configured MCP servers still initialize at daemon startup to obtain their catalogs;
 their schemas are loaded into model requests only when selected. This does not
 yet defer those configured servers' processes or network connections. The native
@@ -68,10 +70,16 @@ launch all 13 engines. Their actual schemas are separately searched/paginated
 instead of adding hundreds of app commands to every model request.
 
 The isolated default-session fixture measured 8 initial schemas / 6,591 serialized
-bytes versus 26 allowed schemas / 29,659 bytes (77.8% fewer schema bytes). This is
+bytes versus 26 allowed schemas / 35,206 bytes (81.3% fewer schema bytes, with full
+descriptions materialized before serialization). This is
 a JSON-size measurement, not an exact tokenizer count or an inference-latency or
 task-success benchmark. `tests/test_tool_discovery.py` checks loading, cache bounds,
 permission isolation and schema-size reduction.
+
+An October 17, 2026 live check using the currently zero-priced `openrouter/free`
+route completed discovery → optional `read_files` → correct answer on a synthetic
+file. The first request carried only `find_tools`; later requests added only the
+selected file tool. This verifies that path, not every free model or tool.
 
 ### Local and remote
 

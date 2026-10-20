@@ -21,7 +21,7 @@ def live():
 
 
 class DeviceMode(BaseModel):
-    mode: Literal['gpu', 'cpu'] = 'gpu'
+    mode: Literal['auto', 'gpu', 'cpu'] = 'auto'
 
 
 class CustomModel(BaseModel):
@@ -32,7 +32,7 @@ class CustomModel(BaseModel):
 
 
 @router.get('')
-async def library(response: Response, mode: Literal['gpu', 'cpu'] = 'gpu'):
+async def library(response: Response, mode: Literal['auto', 'gpu', 'cpu'] = 'auto'):
     response.headers['Cache-Control'] = 'no-store'
     return await live().snapshot(mode)
 
@@ -49,7 +49,7 @@ async def custom(spec: CustomModel):
         raise HTTPException(400, str(error)) from error
 
 
-async def operation(name, ident=None, mode='gpu'):
+async def operation(name, ident=None, mode='auto'):
     manager = live()
     try:
         if name == 'download':
@@ -61,7 +61,11 @@ async def operation(name, ident=None, mode='gpu'):
         elif name == 'start':
             await manager.start(ident, mode)
         elif name == 'stop':
-            await manager.runtime.stop()
+            await manager.stop()
+        elif name == 'prepare':
+            return await manager.prepare(ident, mode)
+        elif name == 'cancel_setup':
+            await manager.cancel_setup()
         return {'ok': True}
     except KeyError as error:
         raise HTTPException(404, 'No such managed model or runtime.') from error
@@ -87,6 +91,16 @@ async def remove(ident: str):
 @router.post('/{ident}/start')
 async def start(ident: str, spec: DeviceMode):
     return await operation('start', ident, spec.mode)
+
+
+@router.post('/{ident}/prepare', status_code=202)
+async def prepare(ident: str, spec: DeviceMode):
+    return await operation('prepare', ident, spec.mode)
+
+
+@router.post('/setup/cancel')
+async def cancel_setup():
+    return await operation('cancel_setup')
 
 
 @router.post('/runtime/stop')

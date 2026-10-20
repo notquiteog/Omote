@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import os
 import platform
+import shlex
 import shutil
 import subprocess
 import sys
@@ -53,6 +54,9 @@ class Manager:
     #: What to append after the package name, if anything (`-y`, `--noconfirm`).
     assume_yes: tuple[str, ...] = ()
     note: str = ''
+    #: Lists what this manager already has installed, one entry per line, so
+    #: "is it here already, and how?" is answered before installing it twice.
+    listing: tuple[str, ...] = ()
 
     @property
     def needs_elevation(self) -> bool:
@@ -65,18 +69,24 @@ class Manager:
 # everywhere including immutable systems, and snap last because several
 # distributions ship it disabled.
 LINUX_MANAGERS: tuple[Manager, ...] = (
-    Manager('apt', 'system', ('apt-cache', 'search'), ('apt-get', 'install'), ('-y',)),
-    Manager('dnf', 'system', ('dnf', 'search'), ('dnf', 'install'), ('-y',)),
-    Manager('pacman', 'system', ('pacman', '-Ss'), ('pacman', '-S'), ('--noconfirm',)),
-    Manager('zypper', 'system', ('zypper', 'search'), ('zypper', 'install'), ('-y',)),
-    Manager('apk', 'system', ('apk', 'search'), ('apk', 'add'), ()),
+    Manager('apt', 'system', ('apt-cache', 'search'), ('apt-get', 'install'), ('-y',),
+            listing=('dpkg-query', '-W', '-f', '${Package}:${Architecture} ${Version}\n')),
+    Manager('dnf', 'system', ('dnf', 'search'), ('dnf', 'install'), ('-y',),
+            listing=('rpm', '-qa')),
+    Manager('pacman', 'system', ('pacman', '-Ss'), ('pacman', '-S'), ('--noconfirm',),
+            listing=('pacman', '-Q')),
+    Manager('zypper', 'system', ('zypper', 'search'), ('zypper', 'install'), ('-y',),
+            listing=('rpm', '-qa')),
+    Manager('apk', 'system', ('apk', 'search'), ('apk', 'add'), (),
+            listing=('apk', 'info', '-v')),
     Manager(
         'flatpak', 'user', ('flatpak', 'search'), ('flatpak', 'install', '--user'), ('-y',),
         note='Sandboxed and per-user, so it needs no elevation and works on an '
              'immutable system where the package managers above do not.',
+        listing=('flatpak', 'list', '--app', '--columns=application,version,installation'),
     ),
-    Manager('snap', 'system', ('snap', 'find'), ('snap', 'install'), ()),
-    Manager('nix-env', 'user', ('nix-env', '-qa'), ('nix-env', '-i'), ()),
+    Manager('snap', 'system', ('snap', 'find'), ('snap', 'install'), (), listing=('snap', 'list')),
+    Manager('nix-env', 'user', ('nix-env', '-qa'), ('nix-env', '-i'), (), listing=('nix-env', '-q')),
 )
 
 WINDOWS_MANAGERS: tuple[Manager, ...] = (
@@ -93,7 +103,8 @@ WINDOWS_MANAGERS: tuple[Manager, ...] = (
 )
 
 MAC_MANAGERS: tuple[Manager, ...] = (
-    Manager('brew', 'user', ('brew', 'search'), ('brew', 'install'), ()),
+    Manager('brew', 'user', ('brew', 'search'), ('brew', 'install'), (),
+            listing=('brew', 'list', '--versions')),
 )
 
 
@@ -113,6 +124,13 @@ class Platform:
     managers: tuple[Manager, ...] = ()
     elevation: str = 'none'
     elevation_note: str = ''
+    #: The machine's own architecture, in its package manager's spelling where
+    #: it has one (`amd64` rather than `x86_64` on Debian).
+    arch: str = ''
+    #: Further architectures the package manager installs for: Debian
+    #: multiarch, almost always `i386` for Steam and Wine. A library installed
+    #: for the native one alone does nothing for programs built for these.
+    foreign_arches: tuple[str, ...] = ()
 
     @property
     def family(self) -> tuple[str, ...]:
@@ -139,6 +157,8 @@ class Platform:
             ],
             'elevation': self.elevation,
             'elevation_note': self.elevation_note,
+            'arch': self.arch,
+            'foreign_arches': list(self.foreign_arches),
         }
 
 
@@ -238,6 +258,32 @@ def _elevation() -> tuple[str, str]:
     return 'none', 'no way to run anything as root was found'
 
 
+def _architectures() -> tuple[str, tuple[str, ...]]:
+    """The native architecture, and any foreign ones the package manager serves.
+
+    Asked of dpkg where it exists, because multiarch is a dpkg setting and its
+    names are the ones `apt install lib:i386` takes. It matters for libraries
+    more than programs: a preload library such as libtorsocks installed for
+    amd64 alone does nothing for a 32-bit program, and fails open rather than
+    loudly — the traffic goes direct.
+    """
+    native = platform.machine()
+    if not shutil.which('dpkg'):
+        return native, ()
+    try:
+        native = subprocess.run(
+            ['dpkg', '--print-architecture'],
+            capture_output=True, text=True, timeout=10, check=False,
+        ).stdout.strip() or native
+        foreign = subprocess.run(
+            ['dpkg', '--print-foreign-architectures'],
+            capture_output=True, text=True, timeout=10, check=False,
+        ).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        return native, ()
+    return native, tuple(foreign)
+
+
 # Detection shells out — `sudo -n true` is the only honest way to ask whether
 # sudo will prompt — and a session is built every time somebody opens one. None
 # of these facts change while the process runs, so it is worked out once.
@@ -301,6 +347,7 @@ def _detect() -> Platform:
         managers = tuple(sorted(managers, key=lambda m: m.scope != 'user'))
 
     how, why = _elevation()
+    arch, foreign = _architectures()
     return Platform(
         system='linux',
         distro=distro,
@@ -317,6 +364,8 @@ def _detect() -> Platform:
         managers=managers,
         elevation=how,
         elevation_note=why,
+        arch=arch,
+        foreign_arches=foreign,
     )
 
 
@@ -401,6 +450,17 @@ RECIPES: tuple[Recipe, ...] = (
         },
     ),
     Recipe(
+        names=('telegram', 'telegram desktop'),
+        routes={
+            'linux': Route('flatpak', 'org.telegram.desktop'),
+            'windows': Route('winget', 'Telegram.TelegramDesktop'),
+            'darwin': Route('brew', '--cask telegram'),
+        },
+        note='On Linux the flatpak keeps its data in ~/.var/app/org.telegram.desktop, not '
+             '~/.local/share/TelegramDesktop where the tarball build does — copy tdata '
+             'across before first launch to keep a signed-in session.',
+    ),
+    Recipe(
         names=('protonup', 'protonup-qt', 'proton ge'),
         routes={'linux': Route('flatpak', 'net.davidotek.pupgui2')},
         note='Manages Proton-GE builds for Steam and Heroic. The usual next step after '
@@ -422,6 +482,92 @@ def recipe_for(what: str) -> Recipe | None:
             if name in wanted:
                 return recipe
     return None
+
+
+def search_terms(what: str, recipe: Recipe | None = None) -> tuple[str, ...]:
+    """The words that identify a thing among what is already installed.
+
+    A recipe knows its package ids as well as its names, which is how a
+    flatpak listed as `org.telegram.desktop` is recognised as "telegram".
+    """
+    if recipe is not None:
+        ids = (r.package.split()[-1] for r in recipe.routes.values())
+        return tuple(dict.fromkeys(t.lower() for t in (*recipe.names, *ids)))
+    filler = {'install', 'uninstall', 'remove', 'reinstall', 'the', 'please', 'app', 'latest'}
+    return tuple(w for w in what.lower().split() if len(w) > 2 and w not in filler)
+
+
+def matching_lines(listing: str, terms: tuple[str, ...]) -> list[str]:
+    """Lines of a manager's installed list that mention any of the terms."""
+    return [
+        line.strip() for line in listing.splitlines()
+        if line.strip() and any(t in line.lower() for t in terms)
+    ]
+
+
+@dataclass(frozen=True, slots=True)
+class Launcher:
+    """A desktop entry, and whether the program it starts is still there."""
+
+    path: Path
+    name: str
+    target: str
+    #: False when it points at an absolute path that no longer exists: a
+    #: menu entry left by an unpacked tarball whose folder was deleted.
+    present: bool
+
+
+def launcher_dirs() -> tuple[Path, ...]:
+    home = Path.home()
+    return (
+        home / '.local/share/applications',
+        home / '.local/share/flatpak/exports/share/applications',
+        Path('/var/lib/flatpak/exports/share/applications'),
+        Path('/usr/share/applications'),
+        Path('/usr/local/share/applications'),
+    )
+
+
+def launchers_for(terms: tuple[str, ...], dirs: tuple[Path, ...] | None = None) -> list[Launcher]:
+    """Desktop entries for something, whoever put them there.
+
+    Package managers only know what they installed. A program unpacked by hand
+    — Telegram's tarball, an AppImage — registers itself here and nowhere else,
+    and is invisible to every listing above. Looking only at those is how an
+    agent concludes nothing is installed while a stale launcher sits in the
+    menu, or installs a second copy beside the first.
+    """
+    found: list[Launcher] = []
+    for directory in dirs if dirs is not None else launcher_dirs():
+        try:
+            entries = sorted(directory.glob('*.desktop'))
+        except OSError:
+            continue
+        for path in entries:
+            try:
+                text = path.read_text(encoding='utf-8', errors='replace')
+            except OSError:
+                continue
+            fields: dict[str, str] = {}
+            for line in text.splitlines():
+                if line.startswith('[') and fields:
+                    break       # only the main [Desktop Entry] group
+                key, sep, value = line.partition('=')
+                if sep and key.strip() in ('Name', 'Exec', 'TryExec'):
+                    fields.setdefault(key.strip(), value.strip())
+            name = fields.get('Name', '')
+            haystack = f'{path.name} {name}'.lower()
+            if not any(t in haystack for t in terms):
+                continue
+            target = fields.get('TryExec', '')
+            if not target:
+                try:
+                    target = (shlex.split(fields.get('Exec', '')) or [''])[0]
+                except ValueError:      # unbalanced quoting in a hand-written entry
+                    target = fields.get('Exec', '').split(' ', 1)[0]
+            present = not target.startswith('/') or Path(target).exists()
+            found.append(Launcher(path, name, target, present))
+    return found
 
 
 def route_for(recipe: Recipe, host: Platform) -> Route | None:

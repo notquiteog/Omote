@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -75,3 +76,25 @@ def test_editor_discovery_is_authenticated(registry, monkeypatch):
         response = client.get('/api/media/comfyui/editors', headers={'Authorization': 'Bearer test-token'})
         assert response.status_code == 200
         assert len(response.json()['editors']) == 1
+
+
+async def test_workflow_binding_hides_incompatible_connections(tmp_path, monkeypatch):
+    from omote.providers import comfyui as provider_module
+
+    monkeypatch.setattr(provider_module, 'WORKFLOW_DIR', tmp_path)
+    monkeypatch.setattr(provider_module.workflow_mod, 'user_directory', lambda: tmp_path)
+    graph = {'1': {'class_type': 'CLIPTextEncode', 'inputs': {'text': '%prompt%'}}}
+    (tmp_path / 'bound.json').write_text(json.dumps(graph))
+    (tmp_path / 'bound.omote.json').write_text(json.dumps({'provider_ids': ['new-runtime'], 'kind': 'image'}))
+    new = ComfyUIProvider('http://localhost:8190', provider_id='new-runtime')
+    old = ComfyUIProvider('http://localhost:8188', provider_id='old-runtime')
+    assert [m['id'] for m in await new.models()] == ['bound']
+    assert await old.models() == []
+    assert await old.describe() == []
+    assert await new.describe('bound')
+    with pytest.raises(ValueError, match='another ComfyUI connection'):
+        await old.describe('bound')
+    with pytest.raises(ValueError, match='another ComfyUI connection'):
+        await old.generate('test', model='bound')
+    (tmp_path / 'shared.json').write_text(json.dumps(graph))
+    assert [m['id'] for m in await old.models()] == ['shared']

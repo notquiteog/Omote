@@ -45,8 +45,8 @@ function paintCharacters() {
   for (const character of characters) {
     const card = el('article', `character-card${selected === character.id ? ' on' : ''}`);
     if (character.reference_asset_ids.length) {
-      const image = el('img'); image.src = `${prefix}/assets/${encodeURIComponent(character.reference_asset_ids[0])}/file`; image.alt = ''; card.appendChild(image);
-    }
+      const image = el('img', 'character-portrait'); image.src = `${prefix}/assets/${encodeURIComponent(character.reference_asset_ids[0])}/file`; image.alt = `${character.name} reference`; image.loading = 'lazy'; card.appendChild(image);
+    } else card.appendChild(el('div', 'character-initial', [...character.name][0] || '◇'));
     card.append(el('h3', '', character.name), el('p', 'meta', character.project || 'Personal character'));
     if (character.description) card.appendChild(el('p', 'meta', character.description.slice(0, 150)));
     const actions = el('div', 'creative-actions');
@@ -55,7 +55,8 @@ function paintCharacters() {
     }));
     card.appendChild(actions); list.appendChild(card);
   }
-  if (!characters.length) list.appendChild(el('p', 'meta', 'Create a character once. Keep their look, story notes, and reference images together for later scenes.'));
+  if (!characters.length) list.appendChild(el('p', 'meta', $('#character-search').value.trim()
+    ? 'No characters match this search.' : 'Create a character once. Keep their look, story notes, and reference images together for later scenes.'));
   $('#characters-more').hidden = characters.length >= characterTotal;
   $('#creative-selection').textContent = selectedCharacter()?.name || 'All assets';
 }
@@ -77,7 +78,15 @@ async function loadAssets(more = false) {
     grid.appendChild(card);
   }
   if (!assets.length) {
-    const empty = el('div', 'creative-empty'); empty.append(el('h3', '', 'A home for the things you make'), el('p', '', 'Drop reference images, videos, or 3D models here. You can also keep generated results from Studio or the ComfyUI workbench.'));
+    const filtered = selected || $('#asset-search').value.trim() || $('#asset-kind').value || $('#asset-project-filter').value.trim();
+    const empty = el('div', 'creative-empty'); empty.append(el('div', 'creative-empty-icon', '◇'),
+      el('h3', '', filtered ? 'No matching assets yet' : 'A home for the things you make'),
+      el('p', '', filtered ? 'Try a different search or filter, or import a reference for this character.' : 'Bring in a reference image, video, or 3D model. Keep your favorite Studio results here to use again.'));
+    if (filtered) empty.append(button('Clear filters', async () => {
+      selected = ''; for (const id of ['#asset-search', '#asset-kind', '#asset-project-filter']) $(id).value = '';
+      paintCharacters(); await loadAssets();
+    }));
+    else empty.append(button('Import your first asset', () => $('#asset-upload').click(), 'chip'));
     grid.appendChild(empty);
   }
   $('#assets-more').hidden = assets.length >= assetTotal;

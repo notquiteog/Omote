@@ -283,13 +283,14 @@ async def test_a_reference_image_reaches_the_provider_as_bytes(tmp_path):
     assert impl.seen['steps'] == 30
 
 
-async def test_an_id_for_something_that_is_not_there_is_dropped_rather_than_sent(tmp_path):
+async def test_a_missing_reference_stops_before_calling_the_provider(tmp_path):
     impl = _Recorder()
     service = _service(tmp_path, impl)
     job = service.start('image', 'a cat', params={'image': 'deadbeefdeadbeef'})
     await job.task
-    assert job.state == 'done'
-    assert 'image' not in impl.seen
+    assert job.state == 'failed'
+    assert 'stored image reference' in job.error
+    assert not impl.seen
 
 
 async def test_the_recipe_records_the_settings_and_not_the_picture(tmp_path):

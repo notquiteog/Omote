@@ -31,6 +31,11 @@ personal/project scope, kind, or a saved project/subject. Browsing and text sear
 are local: they work while paused, need no embedding connection, and do not
 increment recall counts. Search matches literal text and subject names; semantic
 recall remains a separate operation that needs an embedding model.
+Automatic chat context searches personal memories and memories whose subject is
+the chat's project root. It filters before ranking, so unrelated projects cannot
+crowd out relevant results or appear in the prompt. Explicit recall can still
+search other subjects. A project label entered manually must match the project
+root to participate in that project's automatic recall.
 Pausing does not hide existing entries. Corrections save locally even when the
 embedding provider is offline, invalidate the old vector immediately, and can be
 re-indexed later. Paused users' entries are not sent for re-embedding.

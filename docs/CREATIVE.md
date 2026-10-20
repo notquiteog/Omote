@@ -12,6 +12,131 @@ See [managed ComfyUI assets](WORKSPACE.md#managed-comfyui-assets) for setup and 
 GPU verification. API recipes keep their original defaults; native editor JSON
 can be saved to the workbench or exported into the full editor.
 
+## Guided Studio projects
+
+**Studio → Create a project** offers six starting points in one interface:
+
+| Starting point | What works now |
+| --- | --- |
+| Cinematic story | Editable shots; genre, era, camera, lens, focus, movement, lighting, palette, pace and emotion direction; shared character and image references. |
+| Remix a video | Owned source-video uploads, restyle/motion-transfer/subject-replacement direction, and generation through a model that actually exposes video input. Select a model designed for the intended transformation. |
+| Stage in 3D | Local WebGL blocking with boxes, spheres, cylinders and people; object dragging, transforms, color, camera and light; capture a real frame into the shot’s reference images. |
+| Product campaign | Hook, benefit and offer shots with product references, planned timing, voiceover scripts and captions. |
+| Visual effects | Editable orbit, miniature, particle, aerial reveal and frozen-moment direction, or a custom effect. |
+| Narrated short | Reorderable shots, narration scripts and captions; local MP4 assembly with a chosen voice provider. |
+
+Plans are stored per configured user in the creative library database. Save uses
+`base_revision`, so an agent edit cannot silently replace an open browser draft.
+**Reload plan** loads the latest saved copy; **Export plan** preserves a draft as
+JSON before resolving a conflict. **Import plan** creates a new local project.
+References in exported plans are library IDs, not embedded asset files. Closing
+and reopening the dialog preserves unsaved edits in the current page; save before
+reloading the browser. Plans and saved generation takes survive daemon restarts.
+
+**Prepare image/video** saves the plan and fills the existing generator. It does
+not call a generation model. **Restore previous draft** restores the prompt,
+provider, model, parameter values and character that were there before preparing
+a project shot. Project references remain controlled by the plan. The selected
+model must accept all required image/video inputs before generation can proceed.
+Format and duration map only to supported controls; camera/look choices are
+prompt direction, not guaranteed physical camera settings or proprietary models.
+
+Generate starts one reviewed shot through the existing cancellable job pipeline.
+**Show takes** retains its plan revision, submitted prompt, reference IDs, selected
+provider, model, state and outputs. Deleting a plan keeps its generated files and
+library assets. If a daemon stops during a render, the take is marked interrupted;
+check the provider before retrying to avoid duplicate remote jobs. Visual generation
+does not itself synthesize speech or assemble a finished short.
+
+**Make final video** saves the plan and opens a simple finishing screen. Choose
+one generated take or owned library image/video for every shot, or upload a visual.
+The saved plan determines shot order. Select clip sound, silence, or voiceover;
+captions use each shot's on-screen caption text. **Edit shot → Add voiceover & caption**
+adds those fields to any template.
+
+Export uses local FFmpeg to produce an H.264/AAC MP4 at 30 fps, with a 720-pixel
+short edge. It fits mixed aspect ratios without cropping, pads short audio with
+silence, and holds the final video frame when a shot needs more time. Voiceover
+replaces original audio and extends each shot to fit the whole narration. A voice
+provider and model must be explicitly selected; only the script is sent to that
+provider, and local-only routing still applies. Hosted speech may incur charges.
+Captions are burned in through FFmpeg's libass support, with markup treated as text.
+These [FFmpeg filters](https://ffmpeg.org/ffmpeg-filters.html) normalize the clips
+before joining them, so differing dimensions/codecs do not prevent assembly.
+
+Export progress counts completed shots. Cancel stops synthesis or terminates and
+reaps the FFmpeg process, including during application shutdown. At most two
+exports run concurrently. Finished videos can be played or downloaded by project
+name; their saved plan, selections, voice settings and actual shot durations
+survive restarts. Later plan edits do not rewrite export provenance. A stale
+revision is rejected before work starts; an interrupted job is shown explicitly
+and is never automatically resubmitted. Missing files must be replaced.
+
+When FFmpeg is missing, **Set up video export** downloads a checksum-pinned native
+binary for Linux x64/ARM64, macOS Intel/Apple Silicon, or Windows x64. It tests
+H.264 encoding and libass captions before installing into Omote's data directory.
+No shell, system Python, or administrator access is required. Cancel preserves
+partial downloads for retry. Existing FFmpeg on PATH is preferred. Unsupported
+architectures show an agent setup option. Native installation and captioned export
+were exercised on Linux; the Mac/Windows selectors have regression coverage but
+have not been run on those operating systems.
+
+Workflow sidecars can specify `provider_ids` to bind a recipe to compatible
+ComfyUI connections. Other connections neither offer nor run it. Recipes without
+this field remain shared.
+
+Local quality validation used the full BF16 Qwen-Image 2.1 base diffusion model,
+its BF16 VAE and the official 8-bit Qwen3-VL text encoder, at 1024×1024 and 40 steps.
+It produced a Studio take in 90 seconds on an RTX 5060 Ti (16 GiB) and exported
+a six-second captioned H.264/AAC video through the same project API.
+The [official ComfyUI workflow guide](https://docs.comfy.org/tutorials/image/qwen/qwen-image-2-1)
+documents these weights and the required newer nodes. This validation used a
+separate current ComfyUI installation; it does not claim every model/framework
+or cross-platform runtime is already supported.
+
+**Ask AI** prepares an editable chat request and preserves any existing draft.
+The lazy `studio_project` tool provides catalog/schema, list, get, create, update,
+prepare, render, take-history, export-options, assembly, export-history and cancellation operations. Rendering starts one chosen shot,
+uses the normal network approval policy and records the same provenance as the UI.
+Assembly uses the write policy for local work and the network policy when generating narration.
+The tool edits the same shots and 3D scene data as the UI. Use
+`comfy_workflow` for actual node/model discovery and compatible transform graphs,
+and `creative_apps` for native audio, effects and timeline assembly. The 3D stage
+is a primitive blocking editor; it does not generate meshes or replace a DCC.
+The stage and its Three.js dependency load only when the stage is opened.
+
+The design references [Higgsfield Cinema Studio](https://higgsfield.ai/blog/cinema-studio-4-0),
+[3D Jutsu](https://higgsfield.ai/blog/higgsfield-3d-jutsu), and the workflow organization
+in [Open-Higgsfield-AI](https://github.com/Autom8AI/Open-Higgsfield-AI).
+No code, artwork or model weights were copied from that repository: its inspected
+main tree did not contain a license file despite its README’s MIT claim. These
+are independently implemented workflows using Omote’s providers, not a direct
+Higgsfield service integration or a claim of proprietary feature parity.
+
+### Subject replacement validation
+
+The Remix project currently supplies transformation direction to a video model.
+It does not certify exact background preservation. The experimental local
+validation harness in `tools/validate_subject_replacement.py` combines two
+character references, tracked subject masks and pose controls with MiniMax H3
+and its Fun ControlNet patch. The managed model downloader now accepts the
+`model_patches` folder used by that native ComfyUI workflow.
+
+`tools/finish_subject_replacement.py` copies source pixels outside the union of
+original and generated subject masks, writes an FFV1 lossless master, then
+independently decodes both the original source and delivered master to compare
+every protected pixel. The MP4 viewing copy is lossy and is not described as
+pixel-exact. Newly revealed areas behind the original subjects need
+reconstruction; there are no original visible pixels to copy in those areas.
+
+The audit fails on missing frames, empty subject tracks, excessive edit coverage
+or any changed protected pixel. Background preservation alone is not a successful
+replacement: identity, motion and visual quality need separate review. The
+repeatability report requires at least three distinct seeds and artifacts from
+the same complete source clip, with all checks passing. Short previews and
+unchanged copies of the source do not count. This is a validation workflow, not
+yet a certified one-click replacement mode in Studio.
+
 ## Creative apps and export checks
 
 **Studio → Creative apps** shows detected engines and configured creative MCP
@@ -124,6 +249,13 @@ frontend's native API importer, then captures both the generated editor layout
 and canonical executable prompt. Save that paired result as a new version.
 **Edit with chat** prepares a request referencing the exact saved workflow and
 revision; save pending edits first. It does not submit the request or run a graph.
+
+**Ask AI** in the editor toolbar provides an editable request with shortcuts for
+building a workflow, explaining nodes, improving quality and fixing an error.
+It includes the selected saved version and connection when available; unsaved
+changes must be saved first. **Continue in chat** prepares the request for review,
+preserving any existing text draft. The editor stays mounted while you switch
+views. The assistant uses the chat's configured model and existing workflow tools.
 
 The lazy `comfy_workflow` tool uses this same version library and run history.
 Models can discover the live server's node/model schemas, inspect subsets of large

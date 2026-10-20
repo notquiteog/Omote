@@ -8,6 +8,14 @@ Three things that are not modes, and that are all about the same question:
 Every turn is written to `data/sessions/`, one JSON file per session plus a
 small index in front of them.
 
+Switching chats keeps text drafts separately for the lifetime of the page, clears
+pending attachments, and stops voice calls, including calls still connecting.
+Call transcripts and late socket events from the old chat cannot enter the new
+chat. Context, review, hooks and worktree responses are checked against the
+selected chat before rendering. Switching views does not copy model history;
+forking explicitly does. Opted-in Brain memories are separate from chat history:
+automatic recall includes personal facts and the current project's facts only.
+
 * `GET /api/sessions/stored` — every conversation on disk, newest first.
 * `GET /api/sessions/search?q=` — every conversation, matching messages rather
   than titles. Answers with the excerpt and the character offsets of the match

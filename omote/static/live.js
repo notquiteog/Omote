@@ -61,10 +61,12 @@ export async function goLive() {
   }
 
   $('#live-state').textContent = 'connecting…';
-  ws = new WebSocket(socket('/ws/realtime', { session: wantsTools ? session : null }));
+  const connection = new WebSocket(socket('/ws/realtime', { session: wantsTools ? session : null }));
+  ws = connection;
   ws.binaryType = 'arraybuffer';
 
   ws.onmessage = (msg) => {
+    if (ws !== connection) return;
     if (msg.data instanceof ArrayBuffer) {
       // One continuous utterance per response; the id is only used to reset
       // the schedule, and the server does not give us one, so a constant does.
@@ -82,10 +84,11 @@ export async function goLive() {
           ? `Acting in session ${ev.session}. ${ev.policy}`
           : 'Talk only — it has no tools in this call.');
         player = new Player(ev.sample_rate || RATE);
+        player.resume();
         capture = new Capture();
         capture.start(ev.sample_rate || RATE, (buf) => {
-          if (ws && ws.readyState === WebSocket.OPEN) ws.send(buf);
-        }).catch((err) => note(`the microphone could not start: ${err.message}`));
+          if (ws === connection && ws.readyState === WebSocket.OPEN) ws.send(buf);
+        }).catch((err) => { if (ws === connection) note(`the microphone could not start: ${err.message}`); });
         companion.set('listening');
         break;
 
@@ -133,16 +136,17 @@ export async function goLive() {
   };
 
   ws.onclose = () => {
-    if (!ws) return;
+    if (ws !== connection) return;
     endLive(true);
   };
-  ws.onerror = () => note('the realtime connection failed');
+  ws.onerror = () => { if (ws === connection) note('the realtime connection failed'); };
 }
 
 export function endLive(remote) {
-  if (ws && !remote && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'realtime.stop' }));
-    ws.close();
+  if (ws) {
+    ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+    if (!remote && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'realtime.stop' }));
+    if (ws.readyState < WebSocket.CLOSING) ws.close();
   }
   if (player) player.close();
   if (capture) capture.stop();
@@ -151,6 +155,13 @@ export function endLive(remote) {
   setRunning(false);
   $('#live-state').textContent = 'Speech to speech, one model, no transcript in the middle.';
   companion.set('idle');
+}
+
+export function resetLive() {
+  endLive();
+  $('#live-log').replaceChildren();
+  $('#live-heard').textContent = '';
+  $('#live-model').textContent = '';
 }
 
 export function isLive() {

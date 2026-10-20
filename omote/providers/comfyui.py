@@ -107,7 +107,14 @@ class ComfyUIProvider(VideoProvider):
         return path
 
     def _load_workflow(self, model: str) -> tuple[dict[str, Any], dict[str, Any]]:
-        return workflow_mod.load(self._template_path(model))
+        graph, overrides = workflow_mod.load(self._template_path(model))
+        if not self._accepts(overrides):
+            raise ValueError('This workflow belongs to another ComfyUI connection. Choose its configured connection.')
+        return graph, overrides
+
+    def _accepts(self, overrides: dict) -> bool:
+        providers = overrides.get('provider_ids')
+        return providers is None or (isinstance(providers, list) and self.provider_id in providers)
 
     async def generate(
         self, prompt: str, *, model: str, progress: Any = None, n: int = 1, size: str = '', **kw: Any
@@ -285,6 +292,8 @@ class ComfyUIProvider(VideoProvider):
             except (OSError, ValueError) as exc:
                 log.warning('workflow %s is not loadable: %s', path.name, exc)
                 continue
+            if not self._accepts(overrides):
+                continue
             out.append(
                 {
                     'id': path.stem,
@@ -315,6 +324,8 @@ class ComfyUIProvider(VideoProvider):
             try:
                 graph, overrides = workflow_mod.load(path)
             except (OSError, ValueError):
+                continue
+            if not self._accepts(overrides):
                 continue
             for param in workflow_mod.describe(graph, overrides.get('params')):
                 merged.setdefault(param.name, param)

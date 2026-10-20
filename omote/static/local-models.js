@@ -13,6 +13,7 @@ export function wireLocalModels({ onUse }) {
   let latest;
   let failure = '';
   let providerState = '';
+  const expanded = new Set();
   const mode = () => $('#local-models-device').value;
   const active = () => dialog.open && !document.hidden;
   const stop = () => { clearTimeout(timer); timer = null; };
@@ -54,7 +55,10 @@ export function wireLocalModels({ onUse }) {
     const card = el('article', 'lm-card');
     card.dataset.id = row.id;
     const heading = el('div', 'lm-heading');
-    heading.append(el('h3', '', row.label), el('span', 'meta', row.state === 'ready' ? 'Downloaded' : row.state));
+    heading.append(el('h3', '', row.label), el('span', 'meta', ({
+      ready: 'Downloaded', available: 'Not downloaded', downloading: 'Downloading', verifying: 'Checking',
+      installing: 'Installing', cancelled: 'Paused', error: 'Needs attention',
+    })[row.state] || row.state));
     card.appendChild(heading);
     const estimated = row.kind === 'model' ? ` · about ${bytes(mode() === 'gpu' ? row.preflight.estimated_vram_bytes : row.preflight.estimated_ram_bytes)} ${mode() === 'gpu' ? 'VRAM' : 'RAM'}` : '';
     card.appendChild(el('p', 'meta', `${bytes(row.size)} download${estimated}`));
@@ -72,21 +76,33 @@ export function wireLocalModels({ onUse }) {
     }
     const actions = el('div', 'lm-actions');
     const anyDownload = [...data.models, data.runtime_download].filter(Boolean).some(item => busyStates.has(item.state));
-    if (busyStates.has(row.state)) {
+    const settingUp = data.setup?.state === 'running';
+    const owns = data.runtime.model_id === row.id;
+    const running = owns && data.runtime.state === 'running';
+    const starting = owns && data.runtime.state === 'starting';
+    const unavailable = settingUp || anyDownload || ['starting', 'running', 'stopping'].includes(data.runtime.state);
+    const details = el('details', 'lm-model-details'), manual = el('div', 'lm-actions');
+    details.open = expanded.has(row.id);
+    details.append(el('summary', '', 'Model details & controls'), manual);
+    details.ontoggle = () => details.open ? expanded.add(row.id) : expanded.delete(row.id);
+    const downloadActions = row.kind === 'model' ? manual : actions;
+    if (row.kind === 'model' && !running && !starting && !(settingUp && data.setup.model_id === row.id)) {
+      button(actions, row.state === 'ready' && data.runtime_installed ? 'Start model' : 'Set up & start', 'prepare', row.id,
+        () => change(`/${row.id}/prepare`), !row.preflight.ok || unavailable);
+      actions.lastChild.className = 'primary small';
+    }
+    if (busyStates.has(row.state) && !settingUp) {
       button(actions, 'Cancel download', 'cancel', row.id, () => change(`/${row.id}/cancel`));
     } else if (row.state !== 'ready' || (row.kind === 'runtime' && !data.runtime_installed)) {
-      button(actions, row.downloaded ? 'Resume' : row.kind === 'runtime' ? 'Install runtime' : 'Download', 'download', row.id,
-        () => change(`/${row.id}/download`), !row.preflight.ok || anyDownload);
+      button(downloadActions, row.downloaded ? 'Resume' : row.kind === 'runtime' ? 'Install runtime' : 'Download', 'download', row.id,
+        () => change(`/${row.id}/download`), !row.preflight.ok || anyDownload || settingUp);
     }
     if (row.kind === 'model' && row.state === 'ready') {
-      const owns = data.runtime.model_id === row.id;
-      const running = owns && data.runtime.state === 'running';
-      const starting = owns && data.runtime.state === 'starting';
-      if (running || starting) {
+      if ((running || starting) && !settingUp) {
         button(actions, starting ? 'Cancel startup' : 'Stop', 'stop', row.id, () => change('/runtime/stop'));
       } else {
-        button(actions, 'Start', 'start', row.id, () => change(`/${row.id}/start`),
-          !data.runtime_installed || !row.preflight.ok || ['running', 'starting', 'stopping'].includes(data.runtime.state));
+        button(manual, 'Start', 'start', row.id, () => change(`/${row.id}/start`),
+          !data.runtime_installed || !row.preflight.ok || unavailable);
       }
       if (running) button(actions, 'Use in chat', 'use', row.id, async () => {
         if (pending) return;
@@ -97,11 +113,12 @@ export function wireLocalModels({ onUse }) {
       });
     }
     if (row.kind === 'model' && (row.downloaded || row.state === 'ready') && !busyStates.has(row.state)) {
-      button(actions, 'Remove', 'remove', row.id, () => {
+      button(manual, 'Remove', 'remove', row.id, () => {
         if (confirm(`Remove ${row.label} from this computer? You can download it again later.`)) change(`/${row.id}`, 'DELETE');
-      }, data.runtime.model_id === row.id && ['running', 'starting', 'stopping'].includes(data.runtime.state));
+      }, settingUp || (data.runtime.model_id === row.id && ['running', 'starting', 'stopping'].includes(data.runtime.state)));
     }
     card.appendChild(actions);
+    if (row.kind === 'model') card.append(details);
     return card;
   }
 
@@ -116,19 +133,35 @@ export function wireLocalModels({ onUse }) {
     }
     const focused = document.activeElement?.dataset;
     const focus = focused?.action ? { action: focused.action, model: focused.model } : null;
+    const setup = data.setup || {};
+    const settingUp = setup.state === 'running';
+    const setupPanel = $('#local-models-setup');
+    setupPanel.replaceChildren();
+    setupPanel.hidden = !settingUp && !['error', 'cancelled'].includes(setup.state);
+    if (!setupPanel.hidden) {
+      setupPanel.append(el('strong', '', setup.note || 'Preparing your model'), el('p', 'meta',
+        setup.error || 'You can keep using Omote. Setup continues when you close this window.'));
+      if (settingUp) {
+        const downloading = [...data.models, data.runtime_download].find(row => row && busyStates.has(row.state));
+        const bar = el('progress'); bar.setAttribute('aria-label', 'Model setup progress');
+        if (downloading?.state === 'downloading') { bar.max = downloading.size; bar.value = downloading.downloaded; }
+        setupPanel.append(bar);
+        button(setupPanel, 'Cancel setup', 'cancel-setup', setup.model_id, () => change('/setup/cancel'));
+      }
+    }
     const holder = $('#local-models-runtime');
     if (data.runtime_download) {
       holder.replaceChildren(card(data.runtime_download, data));
       const status = el('p', 'lm-runtime-state', data.runtime.state === 'running'
         ? `Running on ${data.runtime.device} · ready for local chat`
-        : data.runtime.state === 'starting' ? 'Loading model…' : data.runtime_installed ? 'Runtime installed · stopped' : 'Install the runtime once, then download a model.');
+        : data.runtime.state === 'starting' ? 'Loading model…' : data.runtime_installed ? 'Runtime installed · stopped' : 'Installed automatically when you set up a model.');
       holder.appendChild(status);
     } else holder.replaceChildren(el('p', 'lm-problem', 'No managed runtime is available for this platform yet.'));
     $('#local-models-list').replaceChildren(...data.models.map(row => card(row, data)));
     $('#local-models-storage').textContent = data.directory;
     $('#local-models-log').textContent = data.runtime.log_tail || 'No runtime logs yet.';
-    $('#local-models-device').disabled = pending || ['starting', 'running', 'stopping'].includes(data.runtime.state);
-    $('#local-models-repair').disabled = pending || !data.runtime_download || ['starting', 'running', 'stopping'].includes(data.runtime.state);
+    $('#local-models-device').disabled = pending || settingUp || ['starting', 'running', 'stopping'].includes(data.runtime.state);
+    $('#local-models-repair').disabled = pending || settingUp || !data.runtime_download || ['starting', 'running', 'stopping'].includes(data.runtime.state);
     $('#local-models-custom button').disabled = pending;
     $('#local-models-status').textContent = failure || data.runtime.error || 'Downloads use the network. Model inference stays on this computer.';
     if (focus) {

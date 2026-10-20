@@ -243,6 +243,7 @@ export class Voice {
     this.capture = new Capture();
     this.muted = false;
     this.running = false;
+    this.cancelStart = null;
   }
 
   fire(name, ...args) {
@@ -251,16 +252,25 @@ export class Voice {
   }
 
   async start(options = {}) {
+    if (this.ws) return;
     const url = socket('/ws/voice');
-    this.ws = new WebSocket(url);
-    this.ws.binaryType = 'arraybuffer';
+    const ws = new WebSocket(url);
+    this.ws = ws;
+    ws.binaryType = 'arraybuffer';
 
-    await new Promise((resolve, reject) => {
-      this.ws.onopen = resolve;
-      this.ws.onerror = () => reject(new Error('could not open the voice socket'));
-    });
+    try {
+      await new Promise((resolve, reject) => {
+        this.cancelStart = () => reject(new DOMException('Call ended', 'AbortError'));
+        ws.onopen = resolve;
+        ws.onerror = () => reject(new Error('could not open the voice socket'));
+        ws.onclose = () => reject(new Error('voice connection closed before it opened'));
+      });
+    } finally {
+      if (this.ws === ws) this.cancelStart = null;
+    }
+    if (this.ws !== ws) throw new DOMException('Call ended', 'AbortError');
 
-    this.ws.send(JSON.stringify({
+    ws.send(JSON.stringify({
       type: 'voice.start',
       format: { sample_rate: 16000, encoding: 'pcm16' },
       // Opting a voice call into acting on the machine is per call, because
@@ -274,12 +284,13 @@ export class Voice {
       voice: options.voice || undefined,
     }));
 
-    this.ws.onmessage = (msg) => this.receive(msg);
-    this.ws.onclose = () => this.stop(true);
+    ws.onmessage = (msg) => { if (this.ws === ws) this.receive(msg); };
+    ws.onclose = () => { if (this.ws === ws) this.stop(true); };
     this.running = true;
   }
 
   receive(msg) {
+    if (!this.running) return;
     if (msg.data instanceof ArrayBuffer) {
       // 12 ASCII bytes of utterance id, then PCM16.
       const view = new Uint8Array(msg.data);
@@ -300,7 +311,7 @@ export class Voice {
         this.player.resume();
         this.capture.start(ev.format.sample_rate, (buf) => {
           if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(buf);
-        }).catch((err) => this.fire('error', `the microphone could not start: ${err.message}`));
+        }).catch((err) => { if (this.running) this.fire('error', `the microphone could not start: ${err.message}`); });
         this.fire('ready', ev);
         break;
 
@@ -351,15 +362,19 @@ export class Voice {
   }
 
   stop(remote) {
-    if (!this.running) return;
+    if (!this.ws && !this.running) return;
     this.running = false;
-    if (this.ws && this.ws.readyState === WebSocket.OPEN && !remote) {
-      this.ws.send(JSON.stringify({ type: 'voice.stop' }));
-      this.ws.close();
+    this.cancelStart?.();
+    this.cancelStart = null;
+    const ws = this.ws;
+    this.ws = null;
+    if (ws) {
+      ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+      if (ws.readyState === WebSocket.OPEN && !remote) ws.send(JSON.stringify({ type: 'voice.stop' }));
+      if (ws.readyState < WebSocket.CLOSING) ws.close();
     }
     if (this.player) this.player.close();
     this.capture.stop();
-    this.ws = null;
     this.player = null;
     this.fire('stopped');
   }

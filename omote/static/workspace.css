@@ -172,3 +172,48 @@ body.mode-studio #session-title, body.mode-studio #session-meta, body.mode-studi
     min-width: 0; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow: auto;
   }
 }
+
+/* Keep the writing surface quiet, and make Studio's primary actions legible. */
+#input { font-family: inherit; font-size: 15px; line-height: 1.6; }
+#hero { max-width: 740px; }
+.workspace-starters { gap: 12px; margin-top: 24px; }
+.workspace-starter { padding: 17px; transition: background .15s, border-color .15s; }
+.workspace-starter:hover { background: var(--glass-weak); border-color: var(--edge); }
+.studio-workspace-bar { justify-content: flex-start; gap: 8px; padding: 14px 20px; }
+.studio-workspace-switch { border: 0; background: var(--glass); padding: 4px; }
+.studio-workspace-switch .seg { min-height: 34px; padding-inline: 14px; }
+#studio-workspace-hint { flex: 1; padding-left: 14px; font-size: 12px; }
+.studio-form-heading { padding-bottom: 8px; }
+.studio-form-heading h2 { font-size: 24px; }
+.studio-form #studio-prompt { min-height: 150px; line-height: 1.6; background: var(--raise); }
+.studio-route { gap: 8px; }
+.studio-route .chip { display: flex; width: 100%; padding: 10px 12px; background: transparent; border: 1px solid var(--edge-soft); }
+.studio-route .chip select, .studio-route .chip input { min-width: 0; flex: 1; }
+.studio-form .studio-go .primary { width: 100%; min-height: 44px; }
+.studio-go { flex-direction: column; align-items: stretch; gap: 10px; }
+#studio-status { min-width: 0; max-width: 100%; overflow-wrap: anywhere; line-height: 1.5; }
+.studio-connection-help { margin: 14px 14px 0; border-radius: 12px; }
+body.mode-studio #bar .talk-button { display: none; }
+#studio-status:empty, #studio-model-note:empty { display: none; }
+.gallery .studio-gallery-empty { border-style: solid; border-color: var(--edge-soft); }
+.studio-example-prompts .chip { padding: 9px 13px; }
+#workflow-assistant { width: min(560px, calc(100vw - 32px)); min-width: 0; max-height: calc(100dvh - 32px); overflow: auto; padding: 26px; border-radius: 20px; }
+#workflow-assistant h2 { flex: 1; margin: 0; font-weight: 500; font-size: 23px; letter-spacing: -.03em; }
+#workflow-assistant .meta { font-size: 13px; line-height: 1.6; }
+.assistant-context { padding: 12px; border: 1px solid var(--edge-soft); border-radius: 10px; font-size: 13px; overflow-wrap: anywhere; }
+.assistant-suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
+.assistant-suggestions .chip { padding: 8px 12px; border: 1px solid var(--edge-soft); border-radius: 8px; background: var(--glass-weak); }
+#workflow-assistant-request { width: 100%; padding: 14px; border: 1px solid var(--edge); border-radius: 12px; font: inherit; line-height: 1.6; color: var(--ink); background: var(--raise); resize: vertical; }
+#workflow-assistant menu { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 0; margin-bottom: 0; }
+#workflow-assistant-status:empty { display: none; }
+@media (max-width: 1250px) { #studio-workspace-hint { display: none; } }
+@media (max-width: 640px) {
+  .studio-workspace-bar { padding: 8px; }
+  .studio-workspace-switch { width: 100%; }
+  .studio-workspace-switch .seg { flex: 1; padding-inline: 7px; font-size: 12px; }
+  #workflow-assistant { padding: 18px; }
+  #workflow-assistant menu .primary { width: 100%; }
+  .workspace-starters { gap: 6px; }
+  .workspace-starter { padding: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .workspace-starter { transition: none; } }

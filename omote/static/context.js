@@ -103,7 +103,9 @@ const currentSession = (fn) => (fn ? fn() : null);
 
 export async function refreshContext(sessionId) {
   const id = currentSession(sessionId);
+  $('#context-meter').hidden = true;
+  state.last = null;
   if (!id) return;
   const info = await json(`/api/sessions/${encodeURIComponent(id)}/context`);
-  if (info) renderContext(info);
+  if (info && currentSession(sessionId) === id) renderContext(info);
 }

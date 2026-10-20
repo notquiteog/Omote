@@ -18,7 +18,7 @@ class Artifact(BaseModel):
     id: str = Field(pattern=r'^[a-z0-9][a-z0-9-]{0,79}$')
     label: str = Field(min_length=1, max_length=100)
     kind: Literal['model', 'runtime', 'safetensors', 'workflow'] = 'model'
-    category: Literal['checkpoints', 'loras', 'vae', 'text_encoders', 'diffusion_models', 'controlnet', 'clip_vision', 'upscale_models'] = 'checkpoints'
+    category: Literal['checkpoints', 'loras', 'vae', 'text_encoders', 'diffusion_models', 'controlnet', 'clip_vision', 'upscale_models', 'model_patches'] = 'checkpoints'
     filename: str = Field(default='', pattern=r'^(?:[a-zA-Z0-9][a-zA-Z0-9._-]{0,149}\.safetensors)?$')
     media_kind: Literal['image', 'video'] = 'image'
     url: str = Field(max_length=2048)

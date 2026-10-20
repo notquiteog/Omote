@@ -129,7 +129,9 @@ class ReplicateProvider(HostedMedia):
                 continue
             # A reference image arrives as bytes and leaves as a data URI,
             # which every file input on Replicate accepts.
-            out[key] = data_uri(value) if isinstance(value, bytes | bytearray) else value
+            out[key] = ([data_uri(v) if isinstance(v, bytes | bytearray) else v for v in value]
+                        if isinstance(value, list) else
+                        data_uri(value) if isinstance(value, bytes | bytearray) else value)
 
         if not fields or 'prompt' in fields:
             out['prompt'] = prompt

@@ -438,3 +438,25 @@ async def test_no_embedding_provider_means_the_store_is_left_alone():
         assert svc.index_state().searchable == before
     finally:
         tmp.cleanup()
+
+
+@pytest.mark.parametrize('indexed', [False, True])
+async def test_automatic_context_uses_only_personal_and_current_project_memories(indexed):
+    svc, _, tmp = build()
+    with tmp:
+        if indexed and not svc.store._vec:
+            pytest.skip('sqlite-vec is unavailable')
+        if not indexed:
+            svc.store._vec = False
+        svc.set_settings('alice', enabled=True, auto_capture=False)
+        for i in range(20):
+            await svc.remember('alice', f'deployment deployment deployment private-{i}', subject='/other/project')
+        personal = await svc.remember('alice', 'deployment personal preference')
+        current = await svc.remember('alice', 'deployment current project', subject='/current/project')
+        context = await svc.context_for('alice', 'deployment', subject='/current/project')
+        assert personal.text in context and current.text in context
+        assert 'private-' not in context
+        assert 'current project' not in await svc.context_for('alice', 'deployment')
+        # Explicit recall still supports deliberately looking in another project.
+        other = await svc.recall('alice', 'deployment', subject='/other/project')
+        assert other.memories and all(m.subject == '/other/project' for m in other.memories)

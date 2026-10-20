@@ -62,7 +62,7 @@ async function load() {
   const id = currentSession();
   if (!id) return;
   const data = await json(`/api/sessions/${id}/hooks`);
-  if (!data) return;
+  if (!data || id !== currentSession()) return;
   state.hooks = data.hooks || [];
   $('#hooks-foot').textContent =
     `Enabled: ${data.enabled ? 'yes' : 'no'} · project hooks ask first: ${data.allow_project ? 'no' : 'yes'}`

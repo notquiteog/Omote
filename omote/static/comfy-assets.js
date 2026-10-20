@@ -20,7 +20,7 @@ export function wireComfyAssets({ onUse }) {
     <p id="ca-status" class="meta" role="status" aria-live="polite"></p>
     <div id="ca-assets"></div>
     <details class="lm-advanced"><summary>ComfyUI setup & storage</summary>
-      <p class="meta">For ComfyUI on this computer, add these managed model folders using its extra model paths configuration, then restart ComfyUI. Existing models stay in place. A remote server needs the files on its own host.</p>
+      <p class="meta">Omote’s local studio connects these folders automatically. For a separately managed ComfyUI installation, use the configuration below. A remote server needs the files on its own host.</p>
       <p id="ca-path" class="meta"></p><p id="ca-config" class="meta"></p>
       <a class="ghost small" href="/api/media/comfyui/assets/paths-config" download="omote-model-paths.yaml">Download paths configuration</a>
       <p class="meta">For a manual installation, start ComfyUI with <code>--extra-model-paths-config /path/to/omote-model-paths.yaml</code>. Check compatibility after restarting.</p>
@@ -29,7 +29,7 @@ export function wireComfyAssets({ onUse }) {
       <label>Type<select name="kind"><option value="safetensors">Model · safetensors</option><option value="workflow">Workflow · JSON</option></select></label>
       <label hidden>Workflow output<select name="media_kind" disabled><option value="image">Image</option><option value="video">Video</option></select></label>
       <label>Label<input name="label" required maxlength="100"></label>
-      <label>Model folder<select name="category"><option>checkpoints</option><option>loras</option><option>vae</option><option>text_encoders</option><option>diffusion_models</option><option>controlnet</option><option>clip_vision</option><option>upscale_models</option></select></label>
+      <label>Model folder<select name="category"><option>checkpoints</option><option>loras</option><option>vae</option><option>text_encoders</option><option>diffusion_models</option><option>controlnet</option><option>model_patches</option><option>clip_vision</option><option>upscale_models</option></select></label>
       <label>Model filename<input name="filename" placeholder="Optional, e.g. my-model.safetensors" pattern="[a-zA-Z0-9][a-zA-Z0-9._-]{0,149}\\.safetensors"></label>
       <label>Public HTTPS URL<input name="url" type="url" required maxlength="2048"></label>
       <label>Exact size in bytes<input name="size" type="number" min="1" max="1099511627776" required></label>

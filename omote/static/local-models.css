@@ -24,6 +24,10 @@
 .lm-actions { margin-top: 12px; }
 .lm-problem { color: var(--warn); font-size: 12px; line-height: 1.6; }
 .lm-runtime-state { font-size: 13px; color: var(--dim); }
+.lm-model-details { margin-top: 14px; font-size: 12px; color: var(--dim); }
+.lm-model-details summary { cursor: pointer; }
+#local-models-setup { padding: 16px; margin: 16px 0; border: 1px solid var(--edge); border-radius: 12px; background: var(--raise); }
+#local-models-setup progress { display: block; width: 100%; margin: 14px 0; accent-color: var(--accent); }
 .lm-advanced { margin: 18px 0 0; font-size: 13px; }
 .lm-advanced summary { cursor: pointer; }
 .lm-advanced input { font: inherit; color: var(--ink); background: var(--raise); border: 1px solid var(--edge); border-radius: 7px; padding: 8px 10px; box-sizing: border-box; margin-top: 5px; }

@@ -49,6 +49,9 @@ class LazyTool(Tool):
     def input_schema(self) -> dict[str, Any]:
         return self._load().input_schema
 
+    def available(self) -> bool:
+        return self._instance.available() if self._instance is not None else True
+
     def assess(self, args: dict[str, Any], ctx: ToolContext) -> Assessment:
         return self._load().assess(args, ctx)
 
@@ -143,11 +146,17 @@ class ToolDiscovery(Tool):
             if query:
                 # Materialize first: a broken optional dependency must not
                 # poison the active list. The normal tool error shows the cause.
-                row['input_schema'] = tool.input_schema
+                try:
+                    row['input_schema'] = tool.input_schema
+                except Exception as exc:  # An unavailable plugin must not hide healthy matches.
+                    row['error'] = f'Could not load this tool: {exc}'
+                    rows.append(row)
+                    continue
                 row['description'] = tool.description
                 self.touch(tool.name)
             rows.append(row)
-        payload = {'tools': rows, 'total': len(matches), 'offset': offset, 'loaded': bool(query),
+        loaded = any('input_schema' in row for row in rows)
+        payload = {'tools': rows, 'total': len(matches), 'offset': offset, 'loaded': loaded,
                    'next_offset': offset + len(rows) if offset + len(rows) < len(matches) else None}
         return Output(content=json.dumps(payload, ensure_ascii=False),
-                      display={'count': len(rows), 'loaded': bool(query)})
+                      display={'count': len(rows), 'loaded': loaded})

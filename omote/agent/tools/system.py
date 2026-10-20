@@ -31,11 +31,21 @@ import base64
 import json
 import shlex
 import subprocess
+from pathlib import Path
 from typing import Any
 
 from omote.agent.tools.base import Assessment, Output, Tool, ToolContext, ToolError, truncate
 from omote.protocol.agent import Risk
-from omote.system import Manager, Platform, detect, recipe_for, route_for
+from omote.system import (
+    Manager,
+    Platform,
+    detect,
+    launchers_for,
+    matching_lines,
+    recipe_for,
+    route_for,
+    search_terms,
+)
 
 # Installing a large package is minutes, not seconds.
 INSTALL_TIMEOUT = 900
@@ -110,8 +120,9 @@ class SystemInfoTool(_SystemTool):
         'properties': {
             'about': {
                 'type': 'string',
-                'description': 'Optionally, something you are about to install — '
-                               '"steam", "epic games store". Answers how it would be done here.',
+                'description': 'Optionally, something you are about to install, remove or '
+                               'replace — "steam", "telegram". Answers whether it is already '
+                               'here and by which route, and how it would be installed.',
             },
         },
     }
@@ -148,9 +159,23 @@ class SystemInfoTool(_SystemTool):
         lines.append('')
         lines.append(f'Elevation: {host.elevation} — {host.elevation_note}')
 
+        if host.arch:
+            lines.append('')
+            lines.append(f'Architecture: {host.arch}'
+                         + (f', plus foreign {", ".join(host.foreign_arches)}' if host.foreign_arches else ''))
+            if host.foreign_arches:
+                lines.append(
+                    '  A library installed for the native architecture alone does not serve '
+                    'programs built for the foreign ones. "For all architectures" means one '
+                    'package per architecture (lib:i386 as well as lib:amd64), and the '
+                    'distribution may not build every library for every one — check with '
+                    'apt-cache policy before promising it.'
+                )
+
         about = (args.get('about') or '').strip()
         if about:
             lines.append('')
+            lines.extend(await self._installed(about))
             recipe = recipe_for(about)
             if recipe is None:
                 lines.append(
@@ -169,6 +194,55 @@ class SystemInfoTool(_SystemTool):
                     lines.append(f'  {recipe.note}')
 
         return Output(content='\n'.join(lines), display=host.to_json())
+
+    async def _installed(self, about: str) -> list[str]:
+        """Whether something is already here, by any route, before anything is changed.
+
+        Asks every manager and every menu entry, because the answer to "remove
+        X" or "install X properly" depends on how X got here — and a program
+        unpacked by hand appears in none of the managers, only as a launcher.
+        """
+        terms = search_terms(about, recipe_for(about))
+        if not terms:
+            return []
+
+        found: list[str] = []
+        for manager in self.host.managers:
+            if not manager.listing:
+                continue
+            try:
+                code, out = await _run(list(manager.listing), SEARCH_TIMEOUT)
+            except ToolError:
+                continue
+            if code != 0:
+                continue
+            for line in matching_lines(out, terms)[:15]:
+                found.append(f'  {manager.name}: {line}')
+
+        # Entries in these two directories belong to no package manager: they
+        # were written by a program's own installer, or by a person.
+        by_hand_dirs = {Path.home() / '.local/share/applications',
+                        Path('/usr/local/share/applications')}
+        by_hand = False
+        for launcher in launchers_for(terms):
+            mine = launcher.path.parent in by_hand_dirs
+            by_hand = by_hand or mine
+            state = '' if launcher.present else ' — its program is MISSING, so this entry is stale'
+            found.append(f'  menu entry {launcher.path} ({launcher.name or "unnamed"}) '
+                         f'runs {launcher.target or "?"}'
+                         + (', not from any package manager' if mine else '') + state)
+
+        if not found:
+            return [f'Already installed: nothing matching {about!r} in any manager or app menu.']
+        lines = [f'Already installed, matching {about!r}:', *found]
+        if by_hand:
+            lines.append(
+                '  An entry from no package manager was installed by hand or by the program '
+                'itself: remove or replace it by its files, not with package_remove. Personal '
+                'data (settings, sessions) usually lives elsewhere and is not part of the '
+                'program — ask before deleting it.'
+            )
+        return lines
 
 
 class PackageSearchTool(_SystemTool):

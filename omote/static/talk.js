@@ -140,10 +140,11 @@ export async function startTalking() {
     },
   });
 
+  voice = call;
   try {
     await call.start({ agentSession: wantsTools ? session : null });
-    voice = call;
   } catch (err) {
+    if (err.name === 'AbortError') return;
     setState(`Could not start: ${err.message}`);
     call.stop();
   }
@@ -152,6 +153,16 @@ export async function startTalking() {
 export function stopTalking() {
   if (voice) voice.stop();
   voice = null;
+}
+
+export function resetTalk() {
+  stopTalking();
+  saying = null;
+  $('#talk-log').replaceChildren();
+  $('#talk-heard').textContent = '';
+  $('#talk-route').textContent = '';
+  $('#talk-mute').textContent = 'Mute';
+  $('#talk-orb').classList.remove('asking');
 }
 
 export function talking() {

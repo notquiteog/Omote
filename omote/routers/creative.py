@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from omote.config import config
+from omote.creative.assembly import Assembly
 from omote.creative.store import CreativeStore
 from omote.creative.validation import MAX_UPLOAD, TYPES, InvalidAsset, filename
 
@@ -256,3 +257,238 @@ async def export_archive():
 
     return StreamingResponse(stream(), media_type='application/zip',
                              headers={'Content-Disposition': 'attachment; filename="omote-creative-library.zip"'})
+
+
+# Projects share the library's user boundary and use optimistic revisions so an
+# agent and a person cannot silently overwrite each other's production plans.
+class NewProject(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    template: str = Field(max_length=30)
+    name: str = Field(min_length=1, max_length=200)
+    brief: str = Field(default='', max_length=20000)
+
+
+class SaveProject(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    base_revision: int = Field(ge=1)
+    document: dict
+
+
+class ProjectRun(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    base_revision: int = Field(ge=1)
+    kind: Literal['image', 'video'] = 'image'
+    provider: str | None = None
+    model: str | None = None
+    prompt: str | None = Field(default=None, max_length=100000)
+    params: dict = Field(default_factory=dict)
+
+
+def _projects():
+    from omote.creative.projects import Projects
+    return Projects(_store())
+
+
+def _project(ident):
+    item = _projects().get(_user(), ident)
+    if item is None:
+        raise HTTPException(404, 'No such Studio project.')
+    return item
+
+
+@router.get('/projects/catalog')
+async def project_catalog():
+    from omote.creative.projects import DIRECTION, EFFECTS, TEMPLATES
+    return {'templates': TEMPLATES, 'direction': DIRECTION, 'effects': list(EFFECTS)}
+
+
+@router.get('/projects')
+async def projects():
+    return {'projects': _projects().list(_user())}
+
+
+@router.post('/projects', status_code=201)
+async def create_project(body: NewProject):
+    from omote.creative.projects import new_project
+    fields = _call(new_project, body.template, body.name, body.brief)
+    return _call(_projects().save, _user(), fields)
+
+
+class ImportProject(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    document: dict
+
+
+@router.post('/projects/import', status_code=201)
+async def import_project(body: ImportProject):
+    return _call(_projects().save, _user(), body.document)
+
+
+@router.get('/projects/{ident}')
+async def get_project(ident: str):
+    return _project(ident)
+
+
+@router.put('/projects/{ident}')
+async def save_project(ident: str, body: SaveProject):
+    from omote.creative.projects import Conflict
+    _project(ident)
+    try:
+        return _call(_projects().save, _user(), body.document, ident, body.base_revision)
+    except HTTPException as exc:
+        if isinstance(exc.__cause__, Conflict):
+            raise HTTPException(409, exc.detail) from exc
+        raise
+
+
+@router.delete('/projects/{ident}')
+async def delete_project(ident: str):
+    if not _projects().delete(_user(), ident):
+        raise HTTPException(404, 'No such Studio project.')
+    return {'ok': True}
+
+
+@router.post('/projects/{ident}/shots/{shot}/prepare')
+async def prepare_shot(ident: str, shot: str):
+    _project(ident)
+    if media_store is None:
+        raise HTTPException(503, 'The media store is not initialized.')
+    return _call(_projects().prepare, _user(), ident, shot, media_store)
+
+
+@router.get('/projects/{ident}/takes')
+async def project_takes(ident: str):
+    from omote.routers import media
+    _project(ident)
+    takes = _projects().takes(_user(), ident)
+    for take in takes:
+        job = media.service.jobs.get(take['job_id']) if media.service else None
+        if job:
+            take['result'] = job.to_json()
+        elif take['result']['state'] in ('queued', 'running'):
+            take['result']['state'] = 'interrupted'
+            take['result']['note'] = 'The daemon restarted. Check your provider before retrying this render.'
+    return {'takes': takes}
+
+
+@router.post('/projects/{ident}/shots/{shot}/run', status_code=202)
+async def run_project_shot(ident: str, shot: str, body: ProjectRun):
+    from omote.creative.projects import bind_references
+    from omote.media.params import Param
+    from omote.providers.registry import NoProviderError
+    from omote.routers import media
+
+    project = _project(ident)
+    if project['revision'] != body.base_revision:
+        raise HTTPException(409, 'The plan changed. Prepare this shot again before generating.')
+    if project['template'] == 'remix' and body.kind != 'video':
+        raise HTTPException(400, 'Video remix needs a video model.')
+    prepared = await prepare_shot(ident, shot)
+    service = media._service()
+    try:
+        description = await service.describe(body.kind, body.provider, body.model)
+        schema = [Param(name=p['name'], kind=p['kind'], label=p['label'], max_images=p.get('max_images', 1))
+                  for p in description['params']]
+        params = _call(bind_references, prepared, schema, body.params)
+        if _project(ident)['revision'] != project['revision']:
+            raise HTTPException(409, 'The plan changed while loading the model. Prepare this shot again.')
+        job = service.start(body.kind, body.prompt if body.prompt is not None else prepared['prompt'],
+                            provider=description['provider'], model=description['model'], params=params)
+    except NoProviderError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    try:
+        _projects().track(project, shot, {**prepared, 'prompt': job.prompt, 'params': params}, job)
+    except Exception:
+        service.cancel(job.id)
+        raise
+    return job.to_json()
+
+
+@router.get('/projects/{ident}/export-options')
+async def export_options(ident: str):
+    from omote.media.edit import ffmpeg
+    from omote.media.setup import artifact
+    from omote.providers.base import Modality
+    from omote.routers import media
+    _project(ident)
+    registry = media._service().registry
+    return {'available': bool(ffmpeg()), 'can_install': artifact() is not None, 'providers': [
+        {'id': p.id, 'label': p.label, 'local': p.local}
+        for p in registry.providers_for(Modality.TTS, local_only=config.local_only)
+    ]}
+
+
+@router.get('/projects/{ident}/export-voices')
+async def export_voices(ident: str, provider: str):
+    import asyncio
+
+    from omote.providers.base import Modality
+    from omote.providers.registry import NoProviderError, Route, RouteSet
+    from omote.routers import media
+    _project(ident)
+    try:
+        impl, route, _ = media._service().registry.resolve(
+            Modality.TTS, RouteSet(routes={Modality.TTS: Route(provider)}, local_only=config.local_only))
+        async with asyncio.timeout(20):
+            models = await impl.models() if hasattr(impl, 'models') else []
+            voices = await impl.voices()
+    except (NoProviderError, TimeoutError, RuntimeError) as exc:
+        raise HTTPException(503, str(exc) or 'The voice provider did not respond. Try again.') from exc
+    preferred = route.model or config.default_tts_model
+    default_model = preferred if any(m.get('id') == preferred for m in models) else ''
+    return {'models': models, 'voices': voices, 'model': default_model,
+            'voice': route.options.get('voice') or config.default_tts_voice}
+
+
+@router.get('/projects/{ident}/exports')
+async def project_exports(ident: str):
+    from omote.routers import media
+    _project(ident)
+    exports = _projects().exports(_user(), ident)
+    for item in exports:
+        job = media.service.jobs.get(item['job_id']) if media.service else None
+        if job:
+            item['result'] = job.to_json()
+        elif item['result']['state'] in {'queued', 'running'}:
+            item['result']['state'] = 'interrupted'
+            item['result']['note'] = 'The app stopped during this export. Choose Export video to start again.'
+    return {'exports': exports}
+
+
+@router.post('/projects/{ident}/exports', status_code=202)
+async def assemble_project(ident: str, body: Assembly):
+    from omote.creative.assembly import start
+    from omote.providers.registry import NoProviderError
+    from omote.routers import media
+    project = _project(ident)
+    if project['revision'] != body.base_revision:
+        raise HTTPException(409, 'The plan changed. Return to the plan and reload it before exporting.')
+    try:
+        job = _call(start, media._service(), _projects(), _user(), project, body)
+    except NoProviderError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return job.to_json()
+
+
+@router.delete('/projects/{ident}/exports/{job_id}')
+async def cancel_export(ident: str, job_id: str):
+    from omote.routers import media
+    _project(ident)
+    if not any(e['job_id'] == job_id for e in _projects().exports(_user(), ident)):
+        raise HTTPException(404, 'No such project export.')
+    return {'cancelled': media._service().cancel(job_id)}
+
+
+@router.get('/projects/{ident}/exports/{job_id}/file')
+async def download_export(ident: str, job_id: str):
+    from omote.routers import media
+    project = _project(ident)
+    rows = (await project_exports(ident))['exports']
+    item = next((e for e in rows if e['job_id'] == job_id), None)
+    if not item or item['result']['state'] != 'done' or not item['result'].get('media'):
+        raise HTTPException(404, 'No finished video for this export.')
+    path = media._service().store.path(item['result']['media'][0]['id'])
+    if not path or not path.is_file():
+        raise HTTPException(404, 'The exported video was removed.')
+    name = item['snapshot']['project'].get('name') or project['name']
+    return FileResponse(path, media_type='video/mp4', filename=filename(name + '.mp4'))

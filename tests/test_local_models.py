@@ -402,6 +402,8 @@ async def test_model_tool_permissions_are_action_specific_and_read_only_cannot_s
     tool = LocalModelsTool()
     assert tool.assess({'action': 'list'}, ctx()).risk is Risk.READ
     assert tool.assess({'action': 'download', 'id': 'x'}, ctx()).risk is Risk.NETWORK
+    assert tool.assess({'action': 'prepare', 'id': 'x', 'mode': 'auto'}, ctx()).risk is Risk.EXECUTE
+    assert not tool.assess({'action': 'cancel_setup'}, ctx()).invalid
     assert tool.assess({'action': 'remove', 'id': 'x'}, ctx()).risk is Risk.DESTRUCTIVE
     assert tool.assess({'action': 'start'}, ctx()).invalid
     assert tool.assess({'action': []}, ctx()).invalid
@@ -488,3 +490,112 @@ async def test_owned_runtime_start_stop_redacts_keys_and_existing_chat_reconnect
     await library.runtime.pump_task
     assert library.runtime.state == 'error'
     assert not key_file.exists()
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='Fixture uses POSIX executable script')
+async def test_one_click_setup_installs_downloads_and_waits_for_healthy_runtime(library, source, tmp_path):
+    # Small synthetic files exercise downloads and lifecycle, not model quality.
+    archive = tmp_path / 'fixture.tar.gz'
+    tar_archive(archive, 'llama-server', f'#!{sys.executable}\n{FAKE_SERVER}'.encode())
+    source['data'] = archive.read_bytes()
+    runtime = artifact(source, id='fixture-runtime', kind='runtime')
+    library.runtime_spec = runtime
+    library.store.add(runtime)
+    model = artifact({'url': source['url'], 'data': DATA})
+    library.store.add(model)
+    installed = library.downloads.after_download
+
+    async def advance(spec):
+        await installed(spec)
+        if spec.kind == 'runtime':
+            source['data'] = DATA
+
+    library.downloads.after_download = advance
+    initial = await library.prepare(model.id)
+    assert initial['state'] == 'running'
+    task = library.setup_task
+    assert await library.prepare(model.id) == initial
+    assert library.setup_task is task
+    async with asyncio.timeout(15):
+        await task
+    assert library.setup['state'] == 'done', library.setup
+    assert library.runtime.state == 'running'
+    assert library.runtime.device == 'Vulkan0'
+    assert library.binary().is_file() and library.store.final(model).is_file()
+    assert len(source['requests']) == 2
+    assert library.runtime.registry.impl(PROVIDER_ID, Modality.CHAT) is not None
+    assert (await library.prepare(model.id))['state'] == 'done'
+    assert len(source['requests']) == 2
+    with pytest.raises(ModelError, match='Stop the current'):
+        await library.prepare('qwen3-06b-q8')
+    await library.stop()
+    assert library.runtime.state == 'stopped'
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='Fixture uses POSIX executable script')
+async def test_setup_auto_uses_cpu_when_gpu_is_unavailable(library, source, hardware):
+    model = fake_installed_runtime(library, source)
+    hardware['gpu']['devices'][0]['memory_used_bytes'] = 16 * GIB
+    await library.prepare(model.id)
+    await library.setup_task
+    assert library.setup['state'] == 'done', library.setup
+    assert library.runtime.device == 'CPU'
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='Fixture uses POSIX executable script')
+async def test_setup_cancel_preserves_partial_then_resumes(library, source):
+    fake_installed_runtime(library, source)
+    model = library.store.get('test-model')['spec']
+    library.store.final(model).unlink()
+    library.store.update(model.id, state='available')
+    await library.prepare(model.id)
+    await partial(library.downloads, model)
+    with pytest.raises(ModelError, match='being set up'):
+        await library.remove(model.id)
+    with pytest.raises(ModelError, match='Another model'):
+        await library.prepare('qwen3-06b-q8')
+    await library.cancel_setup()
+    assert library.setup['state'] == 'cancelled'
+    assert library.store.get(model.id)['state'] == 'cancelled'
+    saved = library.store.partial(model).stat().st_size
+    assert 0 < saved < model.size
+    assert library.runtime.state == 'stopped'
+    await library.prepare(model.id, mode='cpu')
+    await library.setup_task
+    assert library.downloads.resumed_from == saved
+    assert library.setup['state'] == 'done', library.setup
+
+
+async def test_setup_failed_download_cannot_start_runtime(library, source):
+    fake_installed_runtime(library, source)
+    model = library.store.get('test-model')['spec']
+    library.store.final(model).unlink()
+    library.store.update(model.id, state='available')
+    source['data'] = b'broken' * 20
+    await library.prepare(model.id)
+    await library.setup_task
+    assert library.setup['state'] == 'error'
+    assert 'size' in library.setup['error']
+    assert library.runtime.state == 'stopped'
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='Fixture uses POSIX executable script')
+async def test_setup_retry_repairs_a_damaged_cached_model(library, source):
+    model = fake_installed_runtime(library, source)
+    library.store.final(model).write_bytes(b'broken cache')
+    await library.prepare(model.id, 'cpu')
+    await library.setup_task
+    assert library.setup['state'] == 'error'
+    assert not library.store.final(model).exists()
+    assert library.runtime.state == 'stopped'
+    await library.prepare(model.id, 'cpu')
+    await library.setup_task
+    assert library.setup['state'] == 'done', library.setup
+    assert library.store.final(model).read_bytes() == DATA
+
+
+async def test_setup_can_cancel_before_first_task_instruction(library):
+    await library.prepare('qwen3-06b-q8')
+    await library.cancel_setup()
+    assert library.setup['state'] == 'cancelled'
+    assert not library.setting_up

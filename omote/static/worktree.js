@@ -81,8 +81,10 @@ function render() {
 }
 
 async function load() {
-  if (!currentSession()) return;
-  const info = await json(`/api/sessions/${currentSession()}/worktrees`);
+  const id = currentSession();
+  if (!id) return;
+  const info = await json(`/api/sessions/${id}/worktrees`);
+  if (id !== currentSession()) return;
   if (info) state.info = info;
   render();
   return info;
@@ -94,9 +96,13 @@ async function load() {
  * answer to a question nobody asked, and a rail item that opens onto an
  * explanation of why it cannot help is worse than no rail item. */
 export async function refreshWorktrees() {
+  const id = currentSession();
   const button = $('#worktree-open');
-  if (!button || !currentSession()) return;
+  if (!button) return;
+  button.hidden = true;
+  if (!id) return;
   const info = await load();
+  if (id !== currentSession()) return;
   button.hidden = !(info && info.available);
 }
 
