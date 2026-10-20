@@ -443,6 +443,8 @@ class ToolSetup:
                                  'nonce_path': str(temporary)})
         base = f'http://127.0.0.1:{port}'
         try:
+            # transport-exempt: the locally-managed ComfyUI instance, not a
+            # model server, so it never crosses a provider or Tor.
             async with asyncio.timeout(180), aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
                 while True:
                     if process.returncode is not None:
@@ -489,6 +491,8 @@ class ToolSetup:
         await self.cancel('comfyui')
         async with self.operations:
             if self.process and self.process.returncode is None:
+                # transport-exempt: the locally-managed ComfyUI instance, not
+                # a model server, so it never crosses a provider or Tor.
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
                     async with session.get(self.state['comfyui']['url'] + '/queue') as response:
                         queue = await response.json()
