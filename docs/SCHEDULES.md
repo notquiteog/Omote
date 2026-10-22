@@ -32,7 +32,7 @@ the tool's instructions prohibit unsolicited follow-ups.
 ## Following and controlling work
 
 - **Tasks** combines active chats, Studio jobs and scheduled runs. Filter by
-  **Needs you**, **Working** or **Finished**; requests for input and failures appear
+  **Needs you**, **Working** or **Results**; requests for input and failures appear
   first. Studio includes all active generations and the 20 newest finished jobs.
   Ordinary idle chats stay in conversation history. This index displays status
   and links; it never copies messages between chats or grants approvals.
@@ -51,6 +51,36 @@ the tool's instructions prohibit unsolicited follow-ups.
 - Closing Tasks keeps an unsaved form draft for this page session. **Cancel**
   discards it. A page reload does not preserve an unsaved draft. Automatic refresh
   pauses while editing or reading expanded results, and stops when Tasks closes.
+
+## Saved results and recovery
+
+**Tasks → Results** finds saved chat replies, scheduled reports and generated
+media after a restart. Search by title, reply text or filename, expand a saved
+reply, download a file or open its original chat. Results load only when you open
+this view or choose Refresh; they do not poll while you read. **Show more results**
+loads another page. Browsing and downloading do not need a connected AI provider.
+
+Chats interrupted by an unclean restart appear under **Needs you**. **Review saved
+work** opens their result; **Review saved conversation** displays recent messages
+without rebuilding an agent or calling a model. **Save conversation** downloads
+the full saved transcript, including tool logs. **Continue in chat** reopens the
+original chat with its own context; work starts only after you send a message.
+An interrupted schedule stays paused until you explicitly resume it.
+
+Results use existing transcripts, schedule records and media files, rather than
+keeping a second copy. Deleting the original removes it from the inbox. A chat
+result is its latest saved reply, not an archive of every turn. The inbox examines
+the latest 500 records in each source. Reply previews read at most the last 64 KiB
+of a transcript and show up to 6,000 characters; a very long message may have no
+preview. Recovery previews show up to 12 recent text messages, 2,000 characters
+each. Older messages, reasoning and tool logs remain in the full transcript.
+
+Up to eight existing local files explicitly linked in a reply can be downloaded.
+They must resolve inside that chat's original project; URLs, missing files and
+symlinks outside the project are excluded. The boundary is checked again when
+downloading. These are the current files, not immutable copies of an earlier
+version. Files outside the project and files mentioned without a Markdown link
+remain accessible through the original chat's usual tools, not this inbox.
 
 ## Local execution and recovery
 
@@ -87,3 +117,9 @@ editable starters, draft preservation, polling cleanup and small-screen navigati
 `tests/test_task_activity.py` covers active-job retention and scheduled-chat
 deduplication. These tests do not prove a particular third-party
 website will allow an unattended workflow.
+
+`tests/test_results.py` covers restart persistence, source deletion, bounded
+previews, deduplication, pagination and project-file boundaries.
+`tests/test_results_browser.py` checks actual downloads, offline recovery,
+read-only browsing, search, late responses and narrow screens. The UI workflow
+also runs these cases on Windows/Chromium and macOS/WebKit.

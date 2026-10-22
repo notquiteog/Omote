@@ -989,7 +989,7 @@
 
 <dialog id="schedules-dialog" aria-labelledby="schedules-title">
   <div class="schedule-top"><div><p class="task-eyebrow">YOUR WORK, IN ONE PLACE</p><h2 id="schedules-title">Tasks</h2></div><button id="schedules-close" type="button" class="ghost" aria-label="Close tasks">Close</button></div>
-  <p class="schedule-intro">See what needs you, follow work in progress, and make useful tasks repeat.</p>
+  <p class="schedule-intro">Follow your work, find saved results, and make useful tasks repeat.</p>
   <div class="schedule-actions"><button id="schedule-new" type="button" class="primary" disabled>New recurring task</button><button id="schedule-refresh" type="button">Refresh</button></div>
   <p id="schedule-status" class="setup-status" role="status"></p>
   <div id="task-overview">
@@ -997,9 +997,17 @@
       <button type="button" data-task-filter="all" aria-pressed="true">All <span id="task-count-all">0</span></button>
       <button type="button" data-task-filter="attention" aria-pressed="false">Needs you <span id="task-count-attention">0</span></button>
       <button type="button" data-task-filter="working" aria-pressed="false">Working <span id="task-count-working">0</span></button>
-      <button type="button" data-task-filter="finished" aria-pressed="false">Finished <span id="task-count-finished">0</span></button>
+      <button type="button" data-task-filter="finished" aria-pressed="false">Results <span id="task-count-finished" hidden>0</span></button>
     </div>
     <div id="schedule-runs" aria-label="Task activity"></div>
+    <section id="task-results" aria-label="Saved results" hidden>
+      <label class="task-results-search">Search saved results<input id="task-results-search" type="search" placeholder="Find a reply, report or file…" maxlength="200"></label>
+      <p id="task-results-status" class="meta" role="status"></p>
+      <div id="task-results-list"></div>
+      <button id="task-results-more" type="button" hidden>Show more results</button>
+      <p id="task-results-limit" class="meta" hidden>Showing recent saved work. Older items remain in chat history and Studio.</p>
+    </section>
+    <div id="task-recurring">
     <div class="task-section-heading"><h3>Recurring tasks</h3><span class="meta">Run on this computer</span></div>
     <div id="schedule-templates" class="task-templates" aria-label="Start with a task">
       <button type="button" data-task-template="brief" disabled><strong>Morning briefing</strong><span>Start the day with a clear plan</span></button>
@@ -1008,6 +1016,7 @@
     </div>
     <div id="schedule-list"></div>
     <p class="schedule-intro task-local-note">Keep this computer awake and Omote running for scheduled work. Missed times are combined into one catch-up run.</p>
+    </div>
   </div>
   <form id="schedule-form" hidden>
     <h3 id="schedule-form-title">New scheduled task</h3>

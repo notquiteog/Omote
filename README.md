@@ -111,6 +111,8 @@ around the installed native editor; it does not replace its renderer.
 **Tasks** brings active chats, Studio jobs and scheduled runs together, with filters
 for work that needs you and editable recurring-task starters. See
 [Scheduled tasks](docs/SCHEDULES.md) for time zones, recovery and controls.
+**Tasks → Results** finds saved replies, reports and generated files after a
+restart, with downloads and read-only review of interrupted conversations.
 There is no hosted account service, mobile application, JetBrains plugin or native
 team chat service bundled here. Other systems can invoke the CLI or MCP server. Cost accounting is discussed below. The project's capability
 claims describe implemented behavior, with tests and setup boundaries, rather

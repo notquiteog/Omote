@@ -10,7 +10,7 @@ completed.
 |---|---|---|
 | Coding and project work | File edits, patches, shell, Git/worktrees, review, LSP, checkpoints, subagents, background tasks, project instructions and tool approvals | Language servers and project dependencies must be available. Hosted isolated coding environments are not bundled. |
 | Local execution and resources | Package installation, shell/background work, per-command root/admin access, live System panel, managed GGUF and ComfyUI safetensors/workflow downloads with cancel/resume/checksums, disk/memory preflight, live ComfyUI node/model compatibility, owned llama.cpp runtime start/stop and local chat | One transfer per library and one chat runtime; Vulkan/Metal need OS drivers. Linux NVIDIA Qwen chat and Studio SD Turbo image generation tested. ComfyUI can use an existing installation or a managed private runtime. Native Mac/Windows GPU runs and admin dialogs need verification; automatic multi-file diffusion packages and other runtime adapters remain future work. |
-| Continuing responsibilities | Unified Tasks view for active chats, Studio jobs and scheduled runs; attention filters, editable briefing/project/research starters, durable local schedules, run history, approvals, cancellation and background-worker follow-through | Computer and daemon must remain available. No hosted wake-ups, event-triggered jobs or cross-channel delivery. See [Scheduled tasks](SCHEDULES.md). |
+| Continuing responsibilities | Unified Tasks view, searchable saved results, linked project-file and media downloads, read-only interruption review, editable routine starters, durable local schedules, approvals, cancellation and background-worker follow-through | Results are bounded views of existing records, not immutable artifact snapshots. Computer and daemon must remain available for work. No hosted wake-ups, event-triggered jobs or cross-channel delivery. See [Scheduled tasks](SCHEDULES.md). |
 | Business and personal workflows | Browser-driven employee portals, email tools, travel planning, calendar and ledger tools, user questions and MCP integration | Connect each service; authentication, purchases and outbound communication still need the appropriate user action/approval. No universal EMS or booking API. |
 | Jobs and resumes | Role/city/work-mode search records, source-linked job shortlist, application tracking, base/tailored resumes, DOCX/PDF/HTML/TXT exports, DOCX reading and approved browser uploads | Live listings use web/browser tools. PDF creation needs Chromium; PDF reading needs the docs extra. Local-fixture search/upload/application receipt tested; no live employer submission. See [Personal assistant map](PERSONAL-ASSISTANT.md). |
 | Browser and computer use | Playwright browser sessions, page inspection, screenshots, desktop stages and input tools | Browser runtime, desktop platform support and app permissions are required. Website restrictions and inaccessible UI remain limitations. |
@@ -47,6 +47,9 @@ completed.
   a 512 × 512 image through Studio/ComfyUI on an RTX 5060 Ti.
 - Scheduled work and UI: `tests/test_scheduling.py`, `tests/test_task_activity.py`,
   `tests/test_schedules_browser.py`, `tests/test_tasks_browser.py`.
+- Saved results and recovery: `tests/test_results.py`, `tests/test_results_browser.py`
+  cover source persistence, bounded previews, project-file containment, real
+  downloads without a model, pagination, search and interruption review.
 - Creative workspace and node metadata: `tests/test_workbench.py`,
   `tests/test_workbench_review.py`, `tests/test_workflow_diff.py`,
   `tests/test_creative_browser.py` and the ComfyUI bridge tests.
@@ -84,7 +87,7 @@ their advertised behavior, not proof that Omote already matches it.
 | Reference | Useful product pattern | Omote status and remaining work |
 |---|---|---|
 | [Claude Duet](https://support.claude.com/en/articles/17631495-get-started-with-claude-duet) | Ongoing assistant work, briefings, voice, connected services, a cloud computer and a place to review work needing input | Tasks now surfaces requests for input and starter routines. Omote runs locally; a hosted computer that continues after the user's computer shuts down is not bundled. |
-| [ChatGPT dots](https://learn.chatgpt.com/docs/dots/tasks-and-memory) | Persistent responsibilities, delegated background work, relevant memory and visible activity | Local scheduling, background workers and memory exist. Event-triggered responsibilities, hosted execution and a unified deliverables inbox remain gaps. Each chat keeps its own transcript. |
+| [ChatGPT dots](https://learn.chatgpt.com/docs/dots/tasks-and-memory) | Persistent responsibilities, delegated background work, relevant memory and visible activity | Local scheduling, background workers, memory and a saved-results inbox exist. Event-triggered responsibilities, hosted execution and immutable artifact versions remain gaps. Each chat keeps its own transcript. |
 | [OpenClaw](https://docs.openclaw.ai/concepts/features) | Channel adapters, isolated sessions, cron/heartbeats, voice, plugins and paired devices | Omote has tools/MCP, browser and desktop control, voice and local schedules. Native messaging-channel listeners, channel policies, phone pairing and cross-device synchronization need implementation. |
 | [Grok Bot](https://docs.x.ai/grok-bot/overview) and [skills/routines](https://docs.x.ai/grok-bot/skills-routines-and-automations) | Persistent assistants, voice, a cloud computer, routines and skills taught by browser demonstration | Reusable prompts, skills and local routines exist. Recording a demonstrated browser workflow into a reviewable skill, persistent hosted computers and event-triggered routines do not. |
 
@@ -131,8 +134,9 @@ is an ambition, not a tested release criterion.
 
 Prioritize successful everyday tasks over additional top-level panels:
 
-1. **Reliable follow-through.** Add a durable deliverables inbox with clear source
-   chats, recovery after interruption, and explicitly configured notifications.
+1. **Reliable follow-through.** The saved-results inbox now links original chats,
+   downloadable files and read-only interruption review. Next add immutable
+   artifact versions and explicitly configured notifications.
    Extend scheduling to event triggers only with deduplication and visible control.
 2. **Guided connections and resources.** Bring model, browser, creative-app and
    messaging setup into understandable checklists with connection tests. Add

@@ -1,8 +1,10 @@
 """Manage local scheduled work through the same authenticated UI as chat."""
 
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from omote.scheduling import Schedule, Scheduler
 
@@ -33,15 +35,23 @@ async def list_schedules():
     scheduled_chats = {run['session_id'] for run in runs if run['session_id']}
     # A read-only index: opening Tasks never merges conversation context or
     # resumes, retries, or grants permissions to any of the work shown here.
+    chats = manager.list()
     activity = [
         {'id': 'chat-' + item['id'], 'kind': 'chat', 'title': item['title'] or 'Untitled chat',
          'status': 'waiting' if item['waiting_on'] else 'running',
          'note': 'Open this chat to respond.' if item['waiting_on'] else
                  f'{item["background"]} background task(s)' if item['background'] else 'Working in this chat',
          'session_id': item['id']}
-        for item in manager.list()
+        for item in chats
         if item['id'] not in scheduled_chats and (item['busy'] or item['waiting_on'] or item['background'])
     ]
+    active_chats = {item['id'] for item in chats if item['busy'] or item['waiting_on'] or item['background']}
+    for saved in await asyncio.to_thread(manager.stored, limit=100):
+        if saved.get('unfinished') and saved['id'] not in scheduled_chats | active_chats:
+            activity.append({'id': 'chat-' + saved['id'], 'kind': 'chat',
+                             'title': saved.get('title') or 'Untitled chat', 'status': 'interrupted',
+                             'note': 'Omote stopped during this chat. Review it before continuing; work is not retried automatically.',
+                             'session_id': saved['id']})
     if media.service:
         generations = sorted(media.service.jobs.values(), key=lambda job: job.started_at, reverse=True)
         recent = 0
@@ -63,6 +73,44 @@ async def list_schedules():
         'workspace': str(config.workspace),
         'local': True,
     }
+
+
+@router.get('/results')
+async def saved_results(q: str = Query('', max_length=200), offset: int = Query(0, ge=0, le=1500),
+                        limit: int = Query(20, ge=1, le=60)):
+    from omote.agent.manager import manager
+    from omote.results import SOURCE_LIMIT, list_results
+    from omote.routers import media
+
+    active_ids = {item['id'] for item in manager.list()
+                  if item['busy'] or item['waiting_on'] or item['background']}
+    runs = live().store.runs(limit=SOURCE_LIMIT)
+    return await asyncio.to_thread(list_results, manager.store(), media.service.store if media.service else None,
+                                   runs, live_ids=active_ids, q=q, offset=offset, limit=limit)
+
+
+@router.get('/results/chats/{session_id}/files/{file_id}')
+async def result_file(session_id: str, file_id: str):
+    from omote.agent.manager import manager
+    from omote.results import chat_files
+
+    files = await asyncio.to_thread(chat_files, manager.store(), session_id)
+    found = next((item for item in files if item['id'] == file_id), None)
+    if not found:
+        raise HTTPException(404, 'This linked file is no longer available in the original project.')
+    return FileResponse(found['path'], media_type='application/octet-stream', filename=found['name'],
+                        headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
+
+
+@router.get('/results/chats/{session_id}')
+async def saved_chat_preview(session_id: str):
+    from omote.agent.manager import manager
+    from omote.results import chat_preview
+
+    store = manager.store()
+    if store is None:
+        raise HTTPException(404, 'Saved conversations are not available.')
+    return await asyncio.to_thread(chat_preview, store, session_id)
 
 
 @router.post('')

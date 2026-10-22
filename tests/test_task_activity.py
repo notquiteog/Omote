@@ -20,6 +20,7 @@ async def test_activity_keeps_active_work_and_deduplicates_scheduled_chats(monke
                  ('scheduled-chat', True, None, 0), ('idle', False, None, 0),
                  ('approval-chat', True, 'approval', 0), ('background-chat', False, None, 2))]
     monkeypatch.setattr(manager, 'list', lambda: chats)
+    monkeypatch.setattr(manager, 'stored', lambda **kwargs: [])
     jobs = {str(i): Job(id=str(i), kind='image', prompt='A portrait', provider='local', model='test',
                         state='done', started_at=i) for i in range(25)}
     jobs['active'] = Job(id='active', kind='video', prompt='Older render still working', provider='local',

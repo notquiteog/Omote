@@ -1,5 +1,6 @@
 /* Scheduled work has a saved prompt and a separate, inspectable chat per run. */
 import { $, api, el } from './dom.js';
+import { wireResults, showResults, hideResults, loadResults } from './results.js';
 
 let jobs = [];
 let runs = [];
@@ -105,6 +106,9 @@ function paint() {
   }
 }
 function paintActivity() {
+  $('#task-results').hidden = filter !== 'finished';
+  $('#schedule-runs').hidden = filter === 'finished';
+  $('#task-recurring').hidden = filter === 'finished';
   const items = [...runs.map(run => ({ ...run, kind: 'run' })), ...activity];
   const rank = { attention: 0, working: 1, finished: 2 };
   items.sort((a, b) => rank[category(a)] - rank[category(b)] || (b.started || 0) - (a.started || 0));
@@ -136,6 +140,9 @@ function activityCard(item) {
     progress.setAttribute('aria-label', 'Generation progress'); card.append(progress);
   }
   const buttons = el('div', 'schedule-actions');
+  if (item.session_id && item.status === 'interrupted') buttons.append(action('Review saved work', () => {
+    filter = 'finished'; $('#task-results-search').value = item.title; paintActivity(); return showResults();
+  }));
   if (item.session_id) buttons.append(action(item.status === 'waiting' ? 'Review request' : 'Open chat', async () => {
     await openChat(item.session_id); $('#schedules-dialog').close();
   }));
@@ -181,6 +188,7 @@ function fields() {
   $('#schedule-zone-field').hidden = !['daily', 'weekly'].includes(kind);
 }
 function edit(job = null, template = null) {
+  hideResults();
   editing = job?.id || null;
   const spec = job?.spec || { name: '', prompt: '', root: workspace, cadence: 'daily', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     at: '09:00', weekdays: [0,1,2,3,4], interval_minutes: 60, mode: 'ask', max_runtime_minutes: 60, provider: '', model: '', enabled: true };
@@ -197,29 +205,40 @@ function edit(job = null, template = null) {
   $('#schedule-form').hidden = false; $('#task-overview').hidden = true;
   $('#schedule-new').hidden = true; fields(); $('#schedule-name').focus();
 }
-function cancelEdit() { editing = null; $('#schedule-form').hidden = true; $('#task-overview').hidden = false; $('#schedule-new').hidden = false; }
+function cancelEdit() {
+  editing = null; $('#schedule-form').hidden = true; $('#task-overview').hidden = false; $('#schedule-new').hidden = false;
+  if (filter === 'finished') showResults();
+}
 export function wireSchedules({ onOpenChat, onOpenStudio }) {
   openChat = onOpenChat;
   openStudio = onOpenStudio;
+  wireResults({ onOpenChat, onOpenStudio });
   $('#open-schedules').onclick = async () => {
     const opening = ++opened;
     $('#schedules-dialog').showModal(); status('Checking your tasks…');
     try { await refresh(); if (opening === opened) status(); } catch (error) { status(error.message, true); }
     if (opening !== opened || !$('#schedules-dialog').open) return;
+    if (filter === 'finished' && $('#schedule-form').hidden) showResults();
     clearInterval(timer);
     timer = setInterval(async () => {
       // Do not collapse result details, steal focus, or discard edits while reading.
-      if (document.hidden || !$('#schedule-form').hidden || $('#task-overview details[open]')) return;
+      if (document.hidden || filter === 'finished' || !$('#schedule-form').hidden || $('#task-overview details[open]')) return;
       try { await refresh(); } catch { /* explicit Refresh retries and reports */ }
     }, 5000);
   };
   // Closing the panel preserves an unsaved draft; Cancel explicitly discards it.
-  $('#schedules-dialog').addEventListener('close', () => { ++opened; clearInterval(timer); });
+  $('#schedules-dialog').addEventListener('close', () => { ++opened; clearInterval(timer); hideResults(); });
   $('#schedules-close').onclick = () => $('#schedules-dialog').close();
   $('#schedule-new').onclick = () => edit();
   for (const button of document.querySelectorAll('[data-task-template]')) button.onclick = () => edit(null, button.dataset.taskTemplate);
-  for (const button of document.querySelectorAll('[data-task-filter]')) button.onclick = () => { filter = button.dataset.taskFilter; paintActivity(); };
-  $('#schedule-refresh').onclick = async () => { try { await refresh(); status(); } catch (error) { status(error.message, true); } };
+  for (const button of document.querySelectorAll('[data-task-filter]')) button.onclick = () => {
+    filter = button.dataset.taskFilter; paintActivity();
+    if (filter === 'finished') showResults(); else hideResults();
+  };
+  $('#schedule-refresh').onclick = async () => {
+    try { await refresh(); if (filter === 'finished' && $('#schedule-form').hidden) await loadResults(); status(); }
+    catch (error) { status(error.message, true); }
+  };
   $('#schedule-cancel').onclick = cancelEdit;
   $('#schedule-cadence').onchange = fields;
   $('#schedule-form').addEventListener('invalid', event => {

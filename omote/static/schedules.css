@@ -6,6 +6,7 @@
 .schedule-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .schedule-card, .schedule-run { border: 1px solid var(--edge); border-radius: 12px; padding: 16px; margin-top: 12px; overflow-wrap: anywhere; }
 .schedule-heading h3 { font-size: 15px; }
+.schedule-heading .pill { flex: none; white-space: nowrap; }
 .schedule-card .meta, .schedule-run .meta { line-height: 1.6; }
 .schedule-prompt { font-size: 13px; white-space: pre-wrap; max-height: 100px; overflow: auto; }
 .schedule-history { margin-top: 12px; }
@@ -21,6 +22,18 @@
 #schedule-form details > .schedule-grid { margin-top: 12px; }
 #schedule-status { line-height: 1.6; }
 #schedule-status:empty { display: none; }
+#task-results { margin-top: 24px; }
+.task-chat-preview { margin-top: 12px; padding: 12px; background: var(--glass-weak); border-radius: 8px; }
+.task-chat-preview > div + div { border-top: 1px solid var(--edge); padding-top: 12px; }
+.task-results-search { display: block; font-size: 12px; color: var(--dim); }
+.task-results-search input { display: block; box-sizing: border-box; width: 100%; margin-top: 7px; padding: 12px 14px; color: var(--ink); background: var(--raise); border: 1px solid var(--edge); border-radius: 10px; font: inherit; font-size: 14px; }
+.task-result-summary { margin-top: 14px; font-size: 13px; }
+.task-result-summary summary { cursor: pointer; }
+.task-result-files { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.task-result-files > .meta { flex-basis: 100%; }
+.task-file { display: inline-block; max-width: 100%; overflow-wrap: anywhere; border: 1px solid var(--edge); border-radius: 8px; padding: 7px 10px; font-size: 12px; color: var(--ink); text-decoration: none; background: var(--glass-weak); }
+.task-file:hover { background: var(--hover); border-color: var(--accent); }
+#task-results-more { margin-top: 18px; }
 .task-eyebrow { color: var(--dim); font-size: 10px; letter-spacing: .12em; margin: 0 0 8px; }
 .task-filters { display: flex; gap: 5px; flex-wrap: wrap; padding: 4px; margin: 22px 0 8px; border-radius: 12px; background: var(--glass-weak); }
 .task-filters button { flex: 1; background: transparent; border-color: transparent; padding: 10px; box-shadow: none; white-space: nowrap; }

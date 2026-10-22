@@ -18,6 +18,10 @@ def test_activity_filters_and_studio_navigation(workspace):
         dict(id='result', kind='media', title='Portrait ready', status='completed'),
     ]
     page.route('**/api/schedules', lambda route: route.fulfill(json=data))
+    page.route('**/api/schedules/results?*', lambda route: route.fulfill(json={
+        'results': [dict(id='result', kind='media', title='Portrait ready', status='saved',
+                         created=1, files=[], summary='', error='', session_id='')],
+        'total': 1, 'has_more': False, 'limited': False}))
     page.get_by_role('button', name='Tasks', exact=True).click()
     cards = page.locator('#schedule-runs .schedule-run')
     expect(cards).to_have_count(3)
@@ -31,6 +35,7 @@ def test_activity_filters_and_studio_navigation(workspace):
     expect(cards).to_have_count(1)
     expect(cards.first.locator('progress')).to_have_attribute('value', '0.4')
     page.locator('[data-task-filter="finished"]').click()
+    cards = page.locator('#task-results-list .schedule-run')
     expect(cards).to_have_count(1)
     expect(cards.first).to_contain_text('Portrait ready')
     cards.first.get_by_role('button', name='Open Studio').click()
