@@ -31,10 +31,12 @@ def workspace(tmp_path):
         'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH',
     ) if key in os.environ}
     env.update(OMOTE_ENV=os.devnull, OMOTE_DATA_DIR=str(tmp_path), OMOTE_UPDATE_CHECK='false')
-    process = subprocess.Popen(
-        [sys.executable, '-m', 'uvicorn', 'omote.main:app', '--host', '127.0.0.1', '--port', str(port)],
-        cwd=Path(__file__).resolve().parents[1], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    log_path = tmp_path / 'workspace-daemon.log'
+    with log_path.open('w', encoding='utf-8') as output:
+        process = subprocess.Popen(
+            [sys.executable, '-m', 'uvicorn', 'omote.main:app', '--host', '127.0.0.1', '--port', str(port)],
+            cwd=Path(__file__).resolve().parents[1], env=env, stdout=output, stderr=subprocess.STDOUT,
+        )
     url = f'http://127.0.0.1:{port}'
     try:
         deadline = time.monotonic() + 15
@@ -44,7 +46,8 @@ def workspace(tmp_path):
                 break
             except urllib.error.URLError:
                 if process.poll() is not None or time.monotonic() > deadline:
-                    pytest.fail('isolated workspace daemon did not start')
+                    diagnostics = log_path.read_text(encoding='utf-8', errors='replace')[-8000:]
+                    pytest.fail(f'Isolated workspace daemon did not start (exit={process.poll()}).\n{diagnostics}')
                 time.sleep(.05)
         with playwright.sync_playwright() as engine:
             try:
