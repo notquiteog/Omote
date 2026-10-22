@@ -50,7 +50,8 @@ PAGE = ['/static/brand/omote-32.png', '/static/brand/omote-64.png', '/', '/stati
         '/static/vendor/three/GLTFLoader.js', '/static/vendor/three/OrbitControls.js',
         '/static/vendor/three/OBJLoader.js', '/static/vendor/three/STLLoader.js',
         '/static/vendor/three/BufferGeometryUtils.js',
-        '/static/omote-comfyui-bridge.zip', '/static/companions/picker.css']
+        '/static/omote-comfyui-bridge.zip', '/static/companions/picker.css',
+        '/static/commerce.js', '/static/commerce.css']
 
 
 class Failed(Exception):

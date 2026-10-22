@@ -2,7 +2,7 @@
   "name": "omote",
   "displayName": "Omote",
   "description": "A panel for a running Omote daemon, the same client as omote chat.",
-  "version": "0.11.8",
+  "version": "0.11.9",
   "publisher": "notquiteog",
   "license": "Apache-2.0",
   "galleryBanner": {

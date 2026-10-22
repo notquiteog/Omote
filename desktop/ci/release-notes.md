@@ -1,4 +1,4 @@
-## Omote 0.11.8
+## Omote 0.11.9
 
 ### Shop, saved browser logins and controlled eBay replies
 
@@ -19,7 +19,7 @@ Studio's separate character, source-video and speech inputs, **Tasks → Results
 3. Save a supplier quote or listing draft, select **Review**, and use **Continue with Omote** to work on it in chat.
 4. If you have an eBay API token, open **Replies**, connect the account, and enable a narrowly defined answer rule. Pause it from the same screen.
 
-Automated tests cover storage boundaries, reply limits, duplicate prevention, uncertain sends, token redaction, desktop/mobile Shop flows, and persistent browser login with separate tabs. Marketplace tests use simulated services and accounts; no real seller was contacted and no live listing was published. See [the Shop guide](https://github.com/notquiteog/Omote/blob/v0.11.8/docs/COMMERCE.md) for setup and current limitations.
+Automated tests cover storage boundaries, reply limits, duplicate prevention, uncertain sends, token redaction, desktop/mobile Shop flows, and persistent browser login with separate tabs. Marketplace tests use simulated services and accounts; no real seller was contacted and no live listing was published. See [the Shop guide](https://github.com/notquiteog/Omote/blob/v0.11.9/docs/COMMERCE.md) for setup and current limitations.
 
 Each installer includes the app and its own Python runtime. Existing data remains in `~/.omote`. If you run a separate daemon on port 8477, the desktop app uses it; update or restart that daemon separately to test the new server code.
 
