@@ -44,6 +44,7 @@ import { wireWorkbench } from './workbench.js';
 import { wireCreative } from './creative.js';
 import { wireMemory } from './memory.js';
 import { wireSystem } from './system.js';
+import { wireCommerce } from './commerce.js';
 import { wireLocalModels } from './local-models.js';
 import { openToolSetup } from './tool-setup.js';
 import { Voice } from './voice.js';
@@ -451,6 +452,7 @@ const VERBS = {
   inspect_export: 'Checking exported files',
   comfy_workflow: 'Editing a ComfyUI workflow',
   career: 'Preparing career documents and applications',
+  commerce: 'Preparing suppliers and listings',
   browser_upload: 'Uploading reviewed documents',
   media_edit_params: 'Asked what can be edited',
   agent: 'Delegated',
@@ -2359,7 +2361,7 @@ function wireMobileNavigation() {
   sidebar.addEventListener('click', (event) => {
     if (!open) return;
     const action = event.target.closest('[data-mode], #nav-new, #new-session, #nav-rewind, #nav-review, '
-      + '#open-memory, #open-schedules, #open-system, #open-settings, #worktree-open, #hooks-open, #sessions li[aria-current]');
+      + '#open-memory, #open-schedules, #open-shop, #open-system, #open-settings, #worktree-open, #hooks-open, #sessions li[aria-current]');
     if (action && !action.disabled) queueMicrotask(() => {
       const dialog = document.querySelector('dialog[open]');
       if (dialog) dialog.addEventListener('close', () => {
@@ -2463,6 +2465,16 @@ wireSystem({
     $('#input').focus();
   },
   onOpenChat: async id => { await selectSession(id); go('chat'); },
+});
+wireCommerce({
+  getRoot: () => state.info?.root,
+  onCompose: (prompt, root) => {
+    if (state.info?.root && state.info.root !== root) throw new Error('Open a chat in this project before continuing.');
+    go('chat');
+    const input = $('#input');
+    input.value = input.value.trim() ? `${input.value}\n\n${prompt}` : prompt;
+    input.dispatchEvent(new Event('input', { bubbles: true })); input.focus();
+  },
 });
 wireWorkbench();
 wireComfyUI();

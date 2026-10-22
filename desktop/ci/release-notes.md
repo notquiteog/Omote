@@ -1,21 +1,25 @@
-## Omote 0.11.7
+## Omote 0.11.8
 
-### Separate characters, source video and speech in Studio
+### Shop, saved browser logins and controlled eBay replies
 
-Imported ComfyUI workflows now expose native image, mask, video and audio loaders as individual file controls. Multiple character references stay separate, and files reach ComfyUI with their actual formats. Project references fill compatible image controls in order; models with too few reference slots show a clear message before rendering. Project-managed controls clearly identify where their files come from.
+Open **Shop** in the sidebar to save supplier quotes and listing drafts, review costs and estimated profit, and continue the work in chat. Website shortcuts cover Facebook Marketplace, eBay, Etsy, Depop, Alibaba, Made-in-China and DHgate. Browser assistance works without marketplace API credentials; sending messages, publishing and purchases use the existing approval policy.
 
-ComfyUI's source-video previews are no longer mistaken for generated results. Missing or mismatched input files fail before the workflow is queued.
+Compatible chats now share the browser's saved account login while keeping separate tabs, navigation and element references. Closing one chat leaves the others open. A new chat starts on a blank page, and a busy or incompatible profile produces a clear message instead of silently opening an unsigned temporary profile. Expired website sessions can still require sign-in.
 
-This release also includes **Tasks → Results** and read-only interrupted-chat recovery from 0.11.6, so you can search saved replies, download linked project files, export conversations and review work after restarting.
+**Shop → Replies** adds the first unattended inbox connector through eBay's official Message API. Advanced setup requires an eBay user access token. You explicitly enable an exact question-and-answer rule for an item, with a daily limit and expiry. Account checks and a persistent outgoing ledger prevent blind retries after uncertain sends. Expired tokens pause replies and require reconnecting; automatic token refresh is not included yet.
+
+Other marketplaces use assisted browser workflows. This release does not add unattended replies to Facebook Marketplace, Etsy or Depop. Supplier records and readiness checks help prepare work; they do not guarantee product eligibility, margins or successful transactions.
+
+Studio's separate character, source-video and speech inputs, **Tasks → Results**, and interrupted-chat recovery from previous releases remain included.
 
 ### What to try
 
-1. Import a working ComfyUI API workflow with separate character, source-video and audio inputs.
-2. Prepare a Remix project with two reference images and a source clip, then add speech in Generate when the workflow exposes audio input.
-3. Check each reference preview before generating. Only generated outputs should appear as new takes.
-4. Open **Tasks → Results** to find saved work from earlier sessions.
+1. Open **Shop**, choose a website and select **Open with Omote**. Send the prepared chat request to begin.
+2. Sign in through Omote's browser when asked, then try another chat using the same account.
+3. Save a supplier quote or listing draft, select **Review**, and use **Continue with Omote** to work on it in chat.
+4. If you have an eBay API token, open **Replies**, connect the account, and enable a narrowly defined answer rule. Pause it from the same screen.
 
-Three independent local ComfyUI tests preserved two distinct images, all 24 frames of a test clip and an audible track. Backend and browser regression tests cover binding, uploads and saved-result recovery. These validate the media pipeline; they do not certify full-length identity replacement, lip sync or every model/provider. A compatible generation workflow and its model weights are still required.
+Automated tests cover storage boundaries, reply limits, duplicate prevention, uncertain sends, token redaction, desktop/mobile Shop flows, and persistent browser login with separate tabs. Marketplace tests use simulated services and accounts; no real seller was contacted and no live listing was published. See [the Shop guide](https://github.com/notquiteog/Omote/blob/v0.11.8/docs/COMMERCE.md) for setup and current limitations.
 
 Each installer includes the app and its own Python runtime. Existing data remains in `~/.omote`. If you run a separate daemon on port 8477, the desktop app uses it; update or restart that daemon separately to test the new server code.
 

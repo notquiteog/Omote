@@ -1,0 +1,20 @@
+#shop-dialog { width: min(820px, calc(100vw - 28px)); min-width: 0; max-height: calc(100dvh - 36px); overflow-y: auto; }
+.shop-head, .shop-tabs, .shop-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.shop-head { justify-content: space-between; }
+.shop-head h2 { margin: 0; font-size: 26px; }
+.shop-tabs { margin: 22px 0 14px; border-bottom: 1px solid var(--edge); padding-bottom: 12px; }
+.shop-tabs [aria-pressed="true"] { background: var(--solid); color: var(--on-solid); }
+#shop-refresh { margin-left: auto; }
+#shop-dialog .shop-card { border: 1px solid var(--edge); border-radius: 14px; padding: 16px; margin: 12px 0; background: var(--glass); overflow-wrap: anywhere; }
+.shop-card p { white-space: pre-wrap; }
+.shop-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; margin-top: 14px; }
+#shop-dialog input, #shop-dialog select, #shop-dialog textarea { max-width: 100%; box-sizing: border-box; }
+#shop-dialog textarea { display: block; width: 100%; min-height: 82px; margin-top: 6px; resize: vertical; }
+#shop-dialog details, #shop-rule-form { margin: 20px 0; }
+#shop-dialog summary { cursor: pointer; margin-bottom: 12px; }
+#shop-dialog #shop-project { overflow-wrap: anywhere; font-size: 11px; }
+#shop-status { min-height: 20px; font-size: 13px; color: var(--dim); }
+#shop-preview { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 14px; border: 1px solid var(--edge); border-radius: 12px; padding: 18px; }
+#shop-dialog .shop-consent { display: flex; gap: 10px; align-items: start; }
+#shop-dialog .shop-consent input { margin-top: 3px; flex: none; }
+@media (max-width: 560px) { #shop-dialog { padding: 18px; } .shop-grid { grid-template-columns: 1fr; } #shop-refresh { margin-left: 0; } }

@@ -75,6 +75,7 @@ _BUYING = re.compile(
     # button does not say "pay" anywhere on it.
     r'free\s+trial|start\s+free|try\s+free|'
     r'donate|place\s+bid|bid\s+now|rent\s+now|book\s+now|reserve\s+now|'
+    r'(?:accept|make|submit|send|confirm)\s+(?:(?:the|an?|counter)\s+)?offer|accept\s+(?:the\s+)?deal|'
     r'checkout|check\s+out|purchase|pay\b'
     r')', re.I,
 )
@@ -96,6 +97,7 @@ _BUYING_LOCAL = re.compile(unicodedata.normalize('NFKC', (
 _SENDING = re.compile(unicodedata.normalize('NFKC', (
     r'\b(?:send(?:\s+(?:an?\s+)?(?:email|e mail|message|reply|invitation))?|reply|reply all|'
     r'publish|post comment|post message|submit (?:comment|message)|'
+    r'(?:list|relist)\s+(?:this\s+|the\s+|my\s+)?item|relist|post\s+(?:a\s+)?listing|mark\s+(?:as\s+)?sold|'
     r'(?:submit|send|complete|confirm)\s+(?:my\s+|your\s+|the\s+|job\s+)?application|'
     r'apply now|submit (?:my |your |the )?resume|'
     r'envoyer|répondre|publier|senden|abschicken|antworten|veröffentlichen|'
@@ -202,6 +204,8 @@ class BrowserNavigateTool(_BrowserTool):
     description = (
         'Open a URL in the browser. The browser keeps its cookies and logins between '
         'sessions, so you may already be signed in to sites the person uses. '
+        'Each chat has its own tab. Check the live page and account; a saved profile does not prove the login is still valid. '
+        'Use browser_hand_over if sign-in is required. '
         'Follow with browser_read to see what is on the page.'
     )
     input_schema = {
@@ -225,8 +229,8 @@ class BrowserNavigateTool(_BrowserTool):
         return Assessment(risk=Risk.NETWORK, summary=f'open {url[:90]}')
 
     async def run(self, args: dict[str, Any], ctx: ToolContext) -> Output:
-        page = await self.browser.page()
         try:
+            page = await self.browser.page()
             await page.goto(args['url'], wait_until=args.get('wait_for') or 'domcontentloaded')
         except Exception as exc:  # noqa: BLE001
             raise ToolError(f'could not open {args["url"]}: {exc}') from exc
@@ -249,7 +253,7 @@ class BrowserNavigateTool(_BrowserTool):
         return Output(
             content=f'Opened {page.url}\nTitle: {await page.title()}\n\n{len(elements)} interactive elements. '
                     f'Use browser_read to see the page.{note}',
-            display={'url': page.url, 'signed_in': self.browser.signed_in_profile},
+            display={'url': page.url, 'persistent_profile': self.browser.signed_in_profile},
         )
 
 
@@ -592,7 +596,10 @@ class BrowserAskHumanTool(_BrowserTool):
         return Assessment(risk=Risk.READ, summary=f'hand the browser over: {what[:80]}')
 
     async def run(self, args: dict[str, Any], ctx: ToolContext) -> Output:
-        page = await self.browser.page()
+        try:
+            page = await self.browser.show_for_login()
+        except RuntimeError as exc:
+            raise ToolError(str(exc)) from exc
         answer = await ctx.ask(
             f'The agent needs you to do this in the browser yourself:\n\n{args["what"]}\n\n'
             f'The page is {page.url}. Say "done" when you have finished, or "skip" to refuse.',

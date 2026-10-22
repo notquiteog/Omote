@@ -52,6 +52,7 @@ TOOLSETS: dict[str, tuple[str, ...]] = {
     'finance': ('finance',),
     'trip': ('trip',),
     'career': ('career',),
+    'commerce': ('commerce', 'browser_navigate', 'browser_read', 'browser_click', 'browser_type', 'browser_upload', 'browser_hand_over'),
     'photocraft': ('photocraft',),
     'creative': ('studio_project', 'creative_library', 'creative_apps', 'inspect_export', 'comfy_workflow'),
     'artcraft': ('creative_apps', 'inspect_export'),
@@ -100,6 +101,8 @@ def default_tools() -> list[Tool]:
     from omote.agent.tools.discovery import LazyTool
 
     return [
+        LazyTool('commerce', 'Source suppliers on Alibaba, Made-in-China and DHgate; prepare listings, relist, negotiate deals and handle buyer messages on eBay, Etsy, Depop and Facebook Marketplace. Shop drafts and eBay automatic reply setup.',
+                 'omote.agent.tools.commerce', 'CommerceTool'),
         LazyTool('setup_local', 'Automatically install, configure, start, repair or stop local ComfyUI and Playwright browser automation on macOS, Linux and Windows.',
                  'omote.agent.tools.setup', 'SetupLocalTool'),
         LazyTool('career', 'Save job searches by role and city, build resumes, export editable DOCX/PDF/HTML/TXT, and track application evidence.',

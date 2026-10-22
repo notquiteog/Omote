@@ -23,6 +23,7 @@ from omote.routers import autopilot as autopilot_router
 from omote.routers import browser as browser_router
 from omote.routers import comfy_assets as comfy_assets_router
 from omote.routers import comfyui as comfyui_router
+from omote.routers import commerce as commerce_router
 from omote.routers import creative as creative_router
 from omote.routers import git as git_router
 from omote.routers import history as history_router
@@ -202,6 +203,10 @@ async def lifespan(app: FastAPI):
                                         finish_session=finish_scheduled_session)
     schedules_router.service.start()
     app.state.scheduler = schedules_router.service
+    from omote.commerce.service import ReplyService
+
+    commerce_router.service = ReplyService()
+    commerce_router.service.start()
     from omote.local_models.service import LocalModels
 
     try:
@@ -215,6 +220,8 @@ async def lifespan(app: FastAPI):
     except (OSError, ValueError, RuntimeError):
         log.exception('Local tool setup could not start')
     yield
+    await commerce_router.service.close()
+    commerce_router.service = None
     if media_router.service:
         await media_router.service.close()
     if setup_router.service:
@@ -299,6 +306,7 @@ app.include_router(comfyui_router.router)
 app.include_router(comfy_assets_router.router)
 app.include_router(workbench_router.router)
 app.include_router(creative_router.router)
+app.include_router(commerce_router.router)
 app.include_router(search_router.router)
 app.include_router(system_router.router)
 app.include_router(schedules_router.router)

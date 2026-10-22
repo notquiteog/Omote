@@ -15,18 +15,10 @@ numbers. Coordinates go stale the moment a page reflows, an ad loads or a
 banner appears, and a stale coordinate does not fail — it clicks whatever is
 there now, which on a checkout page is exactly the wrong failure mode.
 
-**One browser per agent session.** Two sessions sharing a page would fight
-over navigation, and a page's state is part of the conversation's state.
-
-That last point has a consequence that took a second session to notice.
-Chromium locks a profile directory, so the *second* session to open a browser
-cannot have the signed-in one — and since sessions outlive their client here,
-"the second session" includes one somebody left open yesterday. Failing would
-be wrong (the answer to "look something up" should not be "close your other
-tab"), and silently sharing is impossible. So the second one gets a fresh
-profile, and is *told* it is not signed in to anything — because an agent that
-does not know it is logged out will read a login wall as the site being
-broken.
+**One page per agent session.** Compatible sessions share the persistent
+browser login, while navigation, page history and element references stay on
+separate tabs. A busy or incompatible profile is reported, never replaced by
+a throwaway profile that silently loses the user's login.
 """
 
 from __future__ import annotations
@@ -34,12 +26,23 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import shutil
+import weakref
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 log = logging.getLogger(__name__)
+
+# Event-loop local: pytest and embedded clients may run several independent
+# loops. A lock/context created on one loop must never be reused on another.
+_POOLS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
+def _pool():
+    loop = asyncio.get_running_loop()
+    if loop not in _POOLS:
+        _POOLS[loop] = (asyncio.Lock(), {})
+    return _POOLS[loop]
 
 # What a page hands back, after being asked what is on it.
 INTERACTIVE_JS = """
@@ -149,7 +152,7 @@ class BrowserConfig:
 
 
 class BrowserSession:
-    """Owns one browser for one agent session."""
+    """Owns one private tab, with a reference-counted persistent browser."""
 
     def __init__(self, config: BrowserConfig | None = None) -> None:
         self.config = config or BrowserConfig()
@@ -157,11 +160,9 @@ class BrowserSession:
         self._context: Any = None
         self._page: Any = None
         self._lock = asyncio.Lock()
-        # False once this session has had to fall back to a throwaway profile
-        # because another one holds the signed-in one. Read by the tools, so
-        # the model is told rather than left to work it out from a login page.
+        # This means persistent profile, not proof a particular site is logged in.
         self.signed_in_profile = True
-        self._temp_profile: Any = None
+        self._entry: Any = None
         # What the last read saw, keyed by ref. The click and type tools grade
         # their risk from this without awaiting, which they must: `assess` is
         # synchronous by design, so that an approval decision cannot itself
@@ -175,82 +176,74 @@ class BrowserSession:
         200 MB for one that is not used is a poor trade.
         """
         async with self._lock:
+            if self._entry and self._entry.get('closed'):
+                self._pw = self._context = self._page = self._entry = None
+                self.last_elements.clear()
             if self._page is not None and not self._page.is_closed():
                 return self._page
 
             if self._context is None:
-                from omote.setup.browser import activate
-                activate()
-                from playwright.async_api import async_playwright
+                await self._acquire()
 
-                self._pw = await async_playwright().start()
-                self.config.profile_dir.mkdir(parents=True, exist_ok=True)
-                width, height = self.config.viewport
-                # A persistent context rather than launch()+new_context(): it is
-                # what keeps cookies, logins and local storage across runs.
-                # Which browser, and how to ask for it. A fork given by path
-                # is still Chromium as far as the tools are concerned — the
-                # element refs, the JS, the risk grading are all the same.
-                from omote.agent.browsers import current
-
-                choice = self.config.choice or current()
-                launch: dict[str, Any] = {
-                    'headless': self.config.headless,
-                    'viewport': {'width': width, 'height': height},
-                    'user_agent': self.config.user_agent,
-                    'args': ['--disable-blink-features=AutomationControlled'],
-                    **choice.launch_kwargs(),
-                }
-                if choice.engine != 'chromium':
-                    # Chromium switches are not Firefox or WebKit switches, and
-                    # Playwright passes them straight to the binary — which
-                    # refuses to start rather than ignoring them.
-                    launch.pop('args', None)
-                launch['user_data_dir'] = str(await self._profile_dir())
-                if self.config.env:
-                    # Inherited and overlaid rather than replaced: a bare
-                    # environment loses PATH, HOME and the XDG variables, and
-                    # Chromium fails to start in ways that read as a Playwright
-                    # bug rather than as a missing variable.
-                    #
-                    # An empty value means remove. That is how a stage says
-                    # "there is no Wayland here" — and it has to be able to,
-                    # because Chromium prefers Wayland when it finds it and
-                    # would put its window on the screen the person is using
-                    # while the agent screenshots an empty X display.
-                    merged = {**os.environ, **self.config.env}
-                    launch['env'] = {k: v for k, v in merged.items() if v != ''}
-                    if self.config.env.get('DISPLAY'):
-                        # Told rather than inferred. Chromium's own detection
-                        # reads the environment we have just edited, and being
-                        # explicit costs nothing and removes a guess.
-                        launch['args'] = [*launch['args'], '--ozone-platform=x11']
-                engine = getattr(self._pw, choice.engine)
-                log.info('browser: launching %s', choice.label())
-                self._context = await engine.launch_persistent_context(**launch)
-                self._context.set_default_timeout(self.config.timeout_ms)
-
-            pages = self._context.pages
-            self._page = pages[0] if pages else await self._context.new_page()
+            # Never reuse another conversation's page or a restored old tab.
+            self._page = await self._context.new_page()
+            await self._page.set_viewport_size({'width': self.config.viewport[0], 'height': self.config.viewport[1]})
+            self._page.set_default_timeout(self.config.timeout_ms)
+            self.last_elements.clear()
 
             # A new page means the old refs are meaningless. Clearing here
             # rather than trusting callers means a stale ref grades as unknown
             # — which escalates — instead of inheriting the old element's
             # harmless-looking label.
-            self._page.on('framenavigated', lambda frame: self.last_elements.clear()
-                          if frame == self._page.main_frame else None)
+            owned_page = self._page
+            owned_page.on('framenavigated', lambda frame: self.last_elements.clear()
+                          if self._page is owned_page and frame == owned_page.main_frame else None)
             return self._page
 
-    async def _profile_dir(self) -> Path:
-        """The shared profile, or a throwaway when something else holds it.
+    async def _acquire(self):
+        from omote.agent.browsers import current
+        from omote.setup.browser import activate
 
-        Chromium's lock is a file in the directory and it is not advisory —
-        launching against a locked profile fails with a message about "an
-        existing browser session", which reads like a bug in this program.
-        Checking first and stepping aside turns that into a fact the agent can
-        work with.
-        """
-        import tempfile
+        choice = self.config.choice or current()
+        key = str(self.config.profile_dir.resolve())
+        signature = (choice.engine, repr(choice.launch_kwargs()),
+                     self.config.user_agent, tuple(sorted(self.config.env.items())))
+        lock, entries = _pool()
+        async with lock:
+            entry = entries.get(key)
+            if entry and entry.get('closed'):
+                await entry['pw'].stop()
+                entries.pop(key, None)
+                entry = None
+            if entry:
+                if entry['signature'] != signature or (not self.config.headless and entry['headless']):
+                    raise RuntimeError('The saved browser login is in use with different browser/display settings. Close that browser chat before continuing; your login has been kept.')
+                entry['users'] += 1
+            else:
+                directory = await self._profile_dir()
+                activate()
+                from playwright.async_api import async_playwright
+                pw = await async_playwright().start()
+                launch = {'headless': self.config.headless, 'user_agent': self.config.user_agent,
+                          'user_data_dir': str(directory), **choice.launch_kwargs()}
+                if self.config.env:
+                    launch['env'] = {key: value for key, value in {**os.environ, **self.config.env}.items() if value != ''}
+                    if self.config.env.get('DISPLAY') and choice.engine == 'chromium':
+                        launch['args'] = ['--ozone-platform=x11']
+                try:
+                    context = await getattr(pw, choice.engine).launch_persistent_context(**launch)
+                except BaseException:
+                    await pw.stop()
+                    raise
+                entry = {'context': context, 'pw': pw, 'users': 1, 'signature': signature, 'key': key,
+                         'headless': self.config.headless, 'closed': False}
+                context.on('close', lambda: entry.update(closed=True))
+                entries[key] = entry
+            self._entry = entry
+            self._context, self._pw = entry['context'], entry['pw']
+
+    async def _profile_dir(self) -> Path:
+        """Refuse an externally held profile instead of discarding its login."""
 
         shared = self.config.profile_dir
         shared.mkdir(parents=True, exist_ok=True)
@@ -260,10 +253,7 @@ class BrowserSession:
         # at a pid that is gone, so it is checked rather than trusted.
         lock = shared / 'SingletonLock'
         if _profile_is_busy(lock):
-            self.signed_in_profile = False
-            self._temp_profile = tempfile.mkdtemp(prefix='omote-browser-')
-            log.info('the signed-in browser profile is in use; this session gets a fresh one')
-            return Path(self._temp_profile)
+            raise RuntimeError('The saved browser profile is open in another process. Close that browser and retry; Omote will keep your login.')
         return shared
 
     async def elements(self) -> list[dict[str, Any]]:
@@ -288,21 +278,47 @@ class BrowserSession:
         return locator.first
 
     async def close(self) -> None:
+        async with self._lock:
+            lock, entries = _pool()
+            async with lock:
+                entry = self._entry
+                try:
+                    if self._page is not None and not self._page.is_closed():
+                        await self._page.close()
+                finally:
+                    self.last_elements.clear()
+                    self._pw = self._context = self._page = self._entry = None
+                    if entry:
+                        entry['users'] -= 1
+                        if entry['users'] == 0:
+                            if entries.get(entry['key']) is entry:
+                                entries.pop(entry['key'])
+                            try:
+                                await entry['context'].close()
+                            finally:
+                                await entry['pw'].stop()
+
+    async def show_for_login(self):
+        """Make a headless page visible without exporting cookies or passwords."""
+        page = await self.page()
+        if self._entry and not self._entry['headless']:
+            await page.bring_to_front()
+            return page
+        if self._entry and self._entry['users'] > 1:
+            raise RuntimeError('Other chats are using this browser. Close their browser sessions before opening a visible sign-in window.')
+        url = page.url
+        await self.close()  # Flush persistent cookies before relaunching.
+        self.config.headless = False
         try:
-            if self._context is not None:
-                await self._context.close()
-            if self._pw is not None:
-                await self._pw.stop()
-        except Exception:  # noqa: BLE001
-            log.debug('browser teardown was not clean', exc_info=True)
-        finally:
-            self._pw = self._context = self._page = None
-            if self._temp_profile:
-                # A throwaway profile is exactly that: it holds whatever was
-                # signed into during this session and nothing anyone asked to
-                # keep, and it is a few hundred megabytes.
-                shutil.rmtree(self._temp_profile, ignore_errors=True)
-                self._temp_profile = None
+            page = await self.page()
+            if url != 'about:blank':
+                await page.goto(url, wait_until='domcontentloaded')
+            await page.bring_to_front()
+            return page
+        except Exception:
+            self.config.headless = True
+            await self.close()
+            raise RuntimeError('Could not open a visible sign-in window. A desktop display is required; your saved browser login is still on disk.') from None
 
 
 def _profile_is_busy(lock: Path) -> bool:

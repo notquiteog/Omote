@@ -108,6 +108,7 @@ const TOOL_STATES = {
   inspect_export: 'reading',
   comfy_workflow: 'writing',
   career: 'writing',
+  commerce: 'writing',
   browser_upload: 'browsing',
   desktop_click: 'desktop',
   desktop_type: 'desktop',
