@@ -1,62 +1,28 @@
-## Omote 0.11.4
+## Omote 0.11.5
 
-### A simpler home and one place to follow work
+### Find your saved work
 
-The home screen puts your message box before suggestions, with compact actions and scrolling on small screens. **Tasks** brings active chats, requests for your input, Studio generations and scheduled runs together, with **Needs you**, **Working** and **Finished** filters. Each chat keeps its own conversation.
+Open **Tasks → Results** to search saved chat replies, scheduled reports and generated Studio files, including work saved before restarting Omote. Expand a reply, download linked project files, export a conversation or return to its original chat. Browsing and downloading work without a connected AI model.
 
-Start a recurring task from **Morning briefing**, **Project check-in** or **Research update**. These fill an editable draft with **Ask first** permissions; they do not start work. Advanced folder, model and tool settings stay available in expandable sections. Closing Tasks preserves the draft until the page reloads; Cancel discards it. Schedules run on your computer while Omote is available.
+Results load on demand, with pagination and no background polling while you read. Search and loading handle late responses, and the layout fits narrow screens.
 
-### Studio opens without waiting for optional editors
+### Review interrupted chats before continuing
 
-Studio loads its generation controls and connection action independently of local editor discovery. Editor detection also runs outside the server event loop, fixing a startup dependency exposed by the Windows release UI tests.
+Interrupted chats appear under **Needs you**. Choose **Review saved work**, then **Review saved conversation**, to read recent saved messages without starting an agent. **Continue in chat** opens the original conversation; work starts only when you send a message. Each chat keeps its own context.
 
-### Chat stays responsive during Git checks
+### Download files from the original project
 
-Opening a chat outside a Git repository no longer lets a slow Git check block chat and provider settings. Git and worktree checks run outside the server's event loop, and Git being absent is handled normally. Regression checks run on Windows, macOS, and Linux. This addresses a blocking path identified while investigating [the Windows no-response report](https://github.com/notquiteog/Omote/issues/1); verification on the reporter's machine is still pending.
+File downloads are limited to existing files explicitly linked in a saved reply and located inside that chat's project. The boundary is checked again when downloading. These downloads use the current file version, not an immutable historical copy. Conversation exports include the full saved transcript; inbox previews are bounded views of recent text.
 
-### Reliable model switching
+The release also preserves daemon startup logs when a browser test fails, so intermittent platform startup problems can be diagnosed.
 
-Chat finishes saving a reply before enabling model changes. Switching immediately after a reply now uses the selected model for the next message, and a completed conversation stays marked complete after restarting. Release checks also exercise real video encoding on Linux.
+### What to try
 
-Clip inspection works with the bundled video tools when a separate FFprobe is absent. Release validation now checks the Rust lockfile version as well as the app, daemon, and extension manifests.
+1. Open **Tasks → Results**, search for a saved reply and download a linked file or conversation.
+2. Restart Omote and check that saved results remain available.
+3. Review an interrupted chat through **Needs you** before choosing to continue.
 
-### Local setup, no terminal
-
-**Studio → Tools** installs and configures ComfyUI or Playwright with no shell, pip, administrator account or Python install. ComfyUI gets a private runtime, detects the device, connects Studio and managed model folders, and restarts with Omote. Playwright installs and tests a version-matched browser. Start is asynchronous; poll status until ready or failed. Cancel keeps reusable downloads, and stop only stops Omote-owned ComfyUI while refusing while creations are queued or running.
-
-### Video export
-
-**Studio → Make final video** assembles shots into an H.264/AAC MP4 at 30 fps through local FFmpeg, with burned-in captions, voiceover replacing original audio, and mixed aspect ratios fitted without cropping. When FFmpeg is missing, **Set up video export** downloads a checksum-pinned native binary for Linux x64/ARM64, macOS Intel/Apple Silicon, or Windows x64, tests H.264 encoding and libass captions, and installs into Omote's data directory — no shell, system Python or administrator access needed. Existing FFmpeg on PATH is preferred.
-
-### Guided Studio projects
-
-**Studio → Create a project** offers six starting points — cinematic story, remix a video, stage in 3D, product campaign, visual effects, narrated short — with shared character and image references, per-shot direction, plans stored per configured user with `base_revision` conflict protection, and exports that survive daemon restarts. Generated takes and exports keep their provenance; a stale revision is rejected before work starts and an interrupted job is shown explicitly, never automatically resubmitted.
-
-### Creative apps
-
-**Studio → Creative apps** shows detected engines and configured creative MCP connectors. The `creative_apps` tool supports all 13 native ArtCraft engines (PhotoCraft, VectorCraft, FilmCraft, EffectCraft, LightCraft, PdfCraft, DesignCraft, FigCraft, WordCraft, SoundCraft, DeckCraft, CADCraft, GridCraft): `status`, `tools` with actual schemas and pagination, and `call` invoking a discovered tool with its original arguments. Keep the returned session ID across edits; up to four editor sessions can be open. Adobe and other apps can use an operator-installed MCP bridge with `"creative": true` in the server's `.mcp.json`.
-
-### Reference media
-
-Uploads now accept video and audio references as well as images, up to 32 MB each. Video references are validated before storage, and image/video/audio generator parameters carry `multiple` and `max_images` so a model receives one reference or several exactly as its schema allows.
-
-### Local models
-
-The device mode gained `auto` alongside `gpu` and `cpu`, and runtime operations gained `prepare` (warm a model without starting generation) and `cancel_setup`.
-
-### Memory
-
-Automatic chat context now searches personal memories plus the current project's memories, filtered before ranking so unrelated projects cannot crowd out relevant results. Explicit recall can still search other subjects, and a manually entered project label must match the project root to take part in that project's automatic recall.
-
-### System
-
-The system tool now reports the machine's architecture and any foreign architectures the package manager serves (Debian multiarch, e.g. `i386` for Steam and Wine), so a library installed for the native architecture alone is not mistaken for one that serves 32-bit programs. It also reports what is already installed — by package manager and by app-menu entry, including programs unpacked by hand — before installing anything twice. A new `setup_local` agent tool offers the same ComfyUI/Playwright setup from the agent. Telegram joins the install recipes (flatpak on Linux, winget on Windows, cask on macOS), with a note about where its flatpak keeps its data.
-
-### Provider and reasoning controls
-
-Reasoning limits load immediately after system boot, and controls show the actual reasoning levels for models with fixed minimums. Model and effort choices persist across restarts, survive a failed switch, and apply when reopening a stored conversation.
-
-Each installer contains the Omote app and its daemon, with its own Python runtime. Optional tools and services have the setup requirements above. It keeps its data, its logs and an optional `.env` in `~/.omote`. If a daemon is already running on port 8477, one you started yourself, the app uses that one and leaves it running when it quits.
+Each installer includes the app and its own Python runtime. Existing data remains in `~/.omote`. If you run a separate daemon on port 8477, the desktop app uses it; update or restart that daemon separately to test the new server code.
 
 ## Windows
 
