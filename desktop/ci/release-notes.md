@@ -1,26 +1,21 @@
-## Omote 0.11.6
+## Omote 0.11.7
 
-### Find your saved work
+### Separate characters, source video and speech in Studio
 
-Open **Tasks → Results** to search saved chat replies, scheduled reports and generated Studio files, including work saved before restarting Omote. Expand a reply, download linked project files, export a conversation or return to its original chat. Browsing and downloading work without a connected AI model.
+Imported ComfyUI workflows now expose native image, mask, video and audio loaders as individual file controls. Multiple character references stay separate, and files reach ComfyUI with their actual formats. Project references fill compatible image controls in order; models with too few reference slots show a clear message before rendering. Project-managed controls clearly identify where their files come from.
 
-Results load on demand, with pagination and no background polling while you read. Search and loading handle late responses, and the layout fits narrow screens.
+ComfyUI's source-video previews are no longer mistaken for generated results. Missing or mismatched input files fail before the workflow is queued.
 
-### Review interrupted chats before continuing
-
-Interrupted chats appear under **Needs you**. Choose **Review saved work**, then **Review saved conversation**, to read recent saved messages without starting an agent. **Continue in chat** opens the original conversation; work starts only when you send a message. Each chat keeps its own context.
-
-### Download files from the original project
-
-File downloads are limited to existing files explicitly linked in a saved reply and located inside that chat's project. The boundary is checked again when downloading. These downloads use the current file version, not an immutable historical copy. Conversation exports include the full saved transcript; inbox previews are bounded views of recent text.
-
-The release also preserves daemon startup logs when a browser test fails, so intermittent platform startup problems can be diagnosed.
+This release also includes **Tasks → Results** and read-only interrupted-chat recovery from 0.11.6, so you can search saved replies, download linked project files, export conversations and review work after restarting.
 
 ### What to try
 
-1. Open **Tasks → Results**, search for a saved reply and download a linked file or conversation.
-2. Restart Omote and check that saved results remain available.
-3. Review an interrupted chat through **Needs you** before choosing to continue.
+1. Import a working ComfyUI API workflow with separate character, source-video and audio inputs.
+2. Prepare a Remix project with two reference images and a source clip, then add speech in Generate when the workflow exposes audio input.
+3. Check each reference preview before generating. Only generated outputs should appear as new takes.
+4. Open **Tasks → Results** to find saved work from earlier sessions.
+
+Three independent local ComfyUI tests preserved two distinct images, all 24 frames of a test clip and an audible track. Backend and browser regression tests cover binding, uploads and saved-result recovery. These validate the media pipeline; they do not certify full-length identity replacement, lip sync or every model/provider. A compatible generation workflow and its model weights are still required.
 
 Each installer includes the app and its own Python runtime. Existing data remains in `~/.omote`. If you run a separate daemon on port 8477, the desktop app uses it; update or restart that daemon separately to test the new server code.
 

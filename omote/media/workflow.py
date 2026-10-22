@@ -32,7 +32,7 @@ import copy
 import json
 import logging
 import re
-from dataclasses import fields
+from dataclasses import fields, replace
 from pathlib import Path
 from typing import Any
 
@@ -46,7 +46,8 @@ def user_directory() -> Path:
 
     return config.data_dir / 'workflows'
 
-TOKEN = re.compile(r'%([a-z_]+)%')
+TOKEN = re.compile(r'%([a-z_][a-z0-9_]*)%')
+MEDIA_TOKEN = re.compile(r'(image|mask|video|audio)_([2-9]|[1-9][0-9]+)\Z')
 
 # Every token a template may use, and the control it turns into. Adding a row
 # here is what makes a new knob available to every template at once.
@@ -96,7 +97,21 @@ TOKENS: dict[str, Param] = {
                         'The file is uploaded to ComfyUI and the graph is given its name.'),
     'mask': Param('mask', 'Mask', 'image', group='prompt', advanced=True,
                   help='For an inpainting template. White is repainted, black is kept.'),
+    'video': Param('video', 'Source video', 'video', group='prompt',
+                   help='Upload the clip used by this workflow, such as motion, pose or depth guidance.'),
+    'audio': Param('audio', 'Speech or audio', 'audio', group='prompt',
+                   help='Upload the audio used by this workflow. Lip sync requires a graph designed for it.'),
 }
+
+
+def parameter(name: str) -> Param | None:
+    if name in TOKENS:
+        return TOKENS[name]
+    numbered = MEDIA_TOKEN.fullmatch(name)
+    if numbered:
+        base = TOKENS[numbered[1]]
+        return replace(base, name=name, label=f'{base.label} {numbered[2]}')
+    return None
 
 # What each token is worth when nobody says. Kept separate from the Param
 # defaults so that a sidecar overriding a label cannot accidentally move a
@@ -110,7 +125,7 @@ TOKENS: dict[str, Param] = {
 FALLBACKS: dict[str, object] = {
     name: p.default for name, p in TOKENS.items() if p.default is not None
 }
-FALLBACKS.update({'prompt': '', 'negative': '', 'checkpoint': '', 'image': '', 'mask': ''})
+FALLBACKS.update({'prompt': '', 'negative': '', 'checkpoint': '', 'image': '', 'mask': '', 'video': '', 'audio': ''})
 
 
 def tokens_in(graph: Any) -> set[str]:
@@ -128,7 +143,7 @@ def tokens_in(graph: Any) -> set[str]:
             found.update(TOKEN.findall(node))
 
     walk(graph)
-    return found & set(TOKENS)
+    return {name for name in found if parameter(name) is not None}
 
 
 def describe(graph: Any, overrides: dict[str, Any] | None = None) -> list[Param]:
@@ -139,7 +154,7 @@ def describe(graph: Any, overrides: dict[str, Any] | None = None) -> list[Param]
     change model is a panel nobody trusts.
     """
     order = ['prompt', 'shape', 'motion', 'sampling', 'quality', 'output']
-    params = [TOKENS[name] for name in tokens_in(graph)]
+    params = [parameter(name) for name in tokens_in(graph)]
 
     for param in params:
         patch = (overrides or {}).get(param.name)
@@ -154,7 +169,12 @@ def describe(graph: Any, overrides: dict[str, Any] | None = None) -> list[Param]
             k: v for k, v in patch.items() if k in allowed
         }})
 
-    return sorted(params, key=lambda p: (order.index(p.group) if p.group in order else 99, p.name))
+    def position(param: Param) -> tuple[int, str, int]:
+        numbered = MEDIA_TOKEN.fullmatch(param.name)
+        return (order.index(param.group) if param.group in order else 99,
+                numbered[1] if numbered else param.name, int(numbered[2]) if numbered else 1)
+
+    return sorted(params, key=position)
 
 
 def inject(graph: Any, values: dict[str, Any]) -> Any:
@@ -202,6 +222,8 @@ _SAMPLER_INPUTS = {
 }
 _LATENT_INPUTS = {'width': 'width', 'height': 'height', 'length': 'frames', 'batch_size': 'batch'}
 _SAVE_INPUTS = {'fps': 'fps', 'frame_rate': 'fps'}
+_MEDIA_INPUTS = {'LoadImage': ('image', 'image'), 'LoadImageMask': ('image', 'mask'),
+                 'LoadVideo': ('file', 'video'), 'LoadAudio': ('audio', 'audio')}
 
 
 def tokenise(graph: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
@@ -217,6 +239,7 @@ def tokenise(graph: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """
     graph = copy.deepcopy(graph)
     found: list[str] = []
+    used = tokens_in(graph)
 
     def node_id_of(link: Any) -> str | None:
         # A wired input is ["<node id>", <output index>].
@@ -229,6 +252,19 @@ def tokenise(graph: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
             continue
         cls = node.get('class_type', '')
         inputs = node.get('inputs') or {}
+
+        if cls in _MEDIA_INPUTS:
+            field, base = _MEDIA_INPUTS[cls]
+            value = inputs.get(field)
+            if isinstance(value, str) and not TOKEN.search(value):
+                token = base
+                index = 2
+                while token in used:
+                    token = f'{base}_{index}'
+                    index += 1
+                inputs[field] = f'%{token}%'
+                used.add(token)
+                found.append(token)
 
         if cls in _SAMPLER_CLASSES:
             for key, token in _SAMPLER_INPUTS.items():
@@ -255,7 +291,7 @@ def tokenise(graph: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
                     inputs[key] = f'%{token}%'
                     found.append(token)
 
-    return graph, sorted(set(found))
+    return graph, sorted(set(found) | tokens_in(graph))
 
 
 def install(

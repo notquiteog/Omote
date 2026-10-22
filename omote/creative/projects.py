@@ -303,16 +303,23 @@ def bind_references(prepared, schema, params):
     out = dict(params)
     images = prepared['reference_media_ids']
     if images:
-        target = next((p for p in schema if p.kind == 'image' and
-                       not any(s in p.name.lower() for s in ('mask', 'last', 'end', 'tail'))), None)
-        if not target:
+        targets = [p for p in schema if p.kind == 'image' and
+                   not any(s in p.name.lower() for s in ('mask', 'last', 'end', 'tail'))]
+        if not targets:
             raise ValueError('This model has no image reference input. Choose a model that supports references.')
-        if target.max_images is not None and len(images) > target.max_images:
-            raise ValueError(f'This model accepts {target.max_images} reference image(s); your shot has {len(images)}.')
-        expected = ','.join(images)
-        if out.get(target.name) and out[target.name] != expected:
-            raise ValueError('The project references changed. Prepare this shot again before generating.')
-        out[target.name] = expected
+        remaining = list(images)
+        for target in targets:
+            if not remaining:
+                break
+            count = target.max_images if target.max_images is not None else len(remaining)
+            expected = ','.join(remaining[:count])
+            remaining = remaining[count:]
+            if out.get(target.name) and out[target.name] != expected:
+                raise ValueError('The project references changed. Prepare this shot again before generating.')
+            out[target.name] = expected
+        if remaining:
+            raise ValueError(f'This model accepts {len(images) - len(remaining)} reference image(s); '
+                             f'your shot has {len(images)}. Reduce references or choose another model.')
     if prepared['template'] == 'remix':
         if not prepared['source_media_id']:
             raise ValueError('Add a source video to remix this shot.')

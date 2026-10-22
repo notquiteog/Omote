@@ -41,6 +41,22 @@ model must accept all required image/video inputs before generation can proceed.
 Format and duration map only to supported controls; camera/look choices are
 prompt direction, not guaranteed physical camera settings or proprietary models.
 
+Imported ComfyUI workflows expose separate image, mask, source-video and audio
+inputs. A project distributes its ordered reference images across the workflow's
+reference controls, respecting each control's limit and keeping mask/end-frame
+inputs separate. The generator previews each assigned reference. Workflows with
+separate character controls therefore receive separate files; a model with too
+few reference slots is rejected before a render starts. Speech can be uploaded
+to a declared audio input. The workflow must implement lip sync itself.
+
+`tools/validate_comfy_media_inputs.py` checks an installed ComfyUI using tiny
+synthetic files and native nodes, without loading model weights. On Linux with
+ComfyUI 0.42.0, three independent runs each preserved two distinct images, decoded
+all 24 video frames and retained an audible audio track. It caught and now guards
+against input previews being mistaken for generated outputs. These checks verify
+media delivery and codecs; they do not certify character identity, lip sync,
+full-clip replacement quality or native GPU generation on Windows/macOS.
+
 Generate starts one reviewed shot through the existing cancellable job pipeline.
 **Show takes** retains its plan revision, submitted prompt, reference IDs, selected
 provider, model, state and outputs. Deleting a plan keeps its generated files and

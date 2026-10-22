@@ -28,15 +28,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import aiohttp
 
 from omote.media import workflow as workflow_mod
 from omote.media.params import Param
+from omote.media.store import EXTENSIONS
 from omote.net.transport import Transport
 from omote.providers.base import GeneratedMedia, VideoProvider, refused
+from omote.providers.hosted_media import sniff
 
 log = logging.getLogger(__name__)
 
@@ -122,7 +124,8 @@ class ComfyUIProvider(VideoProvider):
         import random
 
         graph, overrides = self._load_workflow(model)
-        defaults = {param.name: param.default for param in workflow_mod.describe(graph, overrides.get('params')) if param.default is not None}
+        schema = workflow_mod.describe(graph, overrides.get('params'))
+        defaults = {param.name: param.default for param in schema if param.default is not None}
 
         seed = kw.pop('seed', None)
         if seed is None:
@@ -133,14 +136,26 @@ class ComfyUIProvider(VideoProvider):
             # result is recorded and the result can be reproduced.
             seed = random.randint(0, 2**31 - 1)
 
-        # A picture has to exist on the ComfyUI box before a graph can name
-        # it, so any image-shaped value is uploaded and replaced by the
-        # filename that comes back. Done here rather than in the workflow
-        # module because it is the one part of this that needs the network.
-        for field in ('image', 'mask'):
-            blob = kw.get(field)
-            if isinstance(blob, bytes | bytearray):
-                kw[field] = await self._upload(bytes(blob), field)
+        # Every declared media input gets its own filename, including separate
+        # characters, source/pose/depth videos and a lip-sync audio track.
+        for param in schema:
+            if param.kind not in ('image', 'video', 'audio'):
+                continue
+            value = kw.get(param.name, defaults.get(param.name))
+            if value is None or value == '':
+                raise ValueError(f'Choose a file for {param.label} before generating.')
+            values = value if isinstance(value, list) else [value]
+            if not values:
+                raise ValueError(f'Choose a file for {param.label} before generating.')
+            if param.max_images is not None and len(values) > param.max_images:
+                raise ValueError(f'{param.label} accepts at most {param.max_images} file(s).')
+            uploaded = []
+            for blob in values:
+                if not isinstance(blob, (bytes, bytearray, str)) or not blob:
+                    raise ValueError(f'{param.label} needs a file reference.')
+                uploaded.append(await self._upload(bytes(blob), param.name, param.kind)
+                                if isinstance(blob, (bytes, bytearray)) else blob)
+            kw[param.name] = uploaded if param.multiple or len(uploaded) > 1 else uploaded[0]
 
         values = {
             **defaults,
@@ -215,29 +230,41 @@ class ComfyUIProvider(VideoProvider):
                 return 'next in the queue' if index == 0 else f'number {index + 1} in the queue'
         return 'rendering'
 
-    async def _upload(self, data: bytes, field: str) -> str:
-        """Put a picture where a LoadImage node can find it.
+    async def _upload(self, data: bytes, field: str, kind: str = 'image') -> str:
+        """Put media in ComfyUI's input directory with its actual file type.
 
         ComfyUI's `/upload/image` writes into the server's input directory and
         returns the name it stored it under, which is what the graph needs.
         The name it returns is not always the name it was sent — a collision
         gets a suffix — so the answer is used rather than the request.
         """
+        media_type = sniff(data)
+        extension = EXTENSIONS.get(media_type)
+        if not extension or not media_type.startswith(kind + '/'):
+            raise ValueError(f'{field} needs a recognized {kind} file.')
         form = aiohttp.FormData()
-        form.add_field('image', data, filename=f'omote-{uuid.uuid4().hex[:8]}-{field}.png',
-                       content_type='image/png')
+        # ComfyUI uses the image multipart field for all input media.
+        form.add_field('image', data, filename=f'omote-{uuid.uuid4().hex[:8]}-{field}{extension}',
+                       content_type=media_type)
         form.add_field('overwrite', 'false')
+        form.add_field('type', 'input')
         headers = {k: v for k, v in self._headers().items() if k.lower() != 'content-type'}
         async with self.transport.session(120) as session:
             async with session.post(f'{self.base_url}/upload/image', data=form, headers=headers) as resp:
                 if resp.status != 200:
                     raise RuntimeError(
-                        f'{self.provider_id}: could not upload the input image: HTTP {resp.status}'
+                        f'{self.provider_id}: could not upload {field}: HTTP {resp.status}'
                     )
                 body = await resp.json()
         name = body.get('name') or ''
         subfolder = body.get('subfolder') or ''
-        return f'{subfolder}/{name}' if subfolder else str(name)
+        if not isinstance(name, str) or not name or not isinstance(subfolder, str):
+            raise ValueError('ComfyUI returned an invalid input filename.')
+        path = PurePosixPath(subfolder) / name
+        if ('/' in name or '\\' in name
+                or path.is_absolute() or '..' in path.parts or '\\' in str(path) or '\x00' in str(path)):
+            raise ValueError('ComfyUI returned an invalid input filename.')
+        return str(path)
 
     async def _collect(
         self, session: aiohttp.ClientSession, outputs: dict[str, Any], seed: int
@@ -248,6 +275,11 @@ class ComfyUIProvider(VideoProvider):
             # depending on the save node; an image one writes under 'images'.
             for key in ('gifs', 'videos', 'images'):
                 for item in node.get(key) or []:
+                    # Native LoadVideo includes an input preview in history.
+                    # Returning it here makes an unchanged source clip look
+                    # like a generated take alongside the real saved result.
+                    if item.get('type') == 'input':
+                        continue
                     params = {
                         'filename': item['filename'],
                         'subfolder': item.get('subfolder', ''),

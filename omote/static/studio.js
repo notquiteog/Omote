@@ -81,9 +81,9 @@ function applyProjectInputs() {
   if (!projectShot) return;
   const p = projectShot;
   const messages = [`${p.name} · ${p.title} · Plan v${p.revision}`];
-  const image = schema.find(s => s.kind === 'image' && !/(mask|last|end|tail)/i.test(s.name));
+  const references = projectReferenceBindings(p.reference_media_ids);
   const video = schema.find(s => s.kind === 'video');
-  if (p.reference_media_ids.length && image && !values.has(image.name)) values.set(image.name, p.reference_media_ids.join(','));
+  for (const [name, ids] of references.bindings) if (!values.has(name)) values.set(name, ids);
   if (p.source_media_id && video && !values.has(video.name)) values.set(video.name, p.source_media_id);
   for (const param of schema) {
     const candidate = param.name === 'aspect_ratio' ? p.aspect_ratio
@@ -110,8 +110,9 @@ function applyProjectInputs() {
     }
   }
   let blocked = '';
-  if (p.reference_media_ids.length && !image) blocked = 'Choose a model with image reference input to use this shot’s references.';
-  else if (image && p.reference_media_ids.length > imageLimit(image)) blocked = `This model accepts ${imageLimit(image)} reference image(s); reduce references in the plan or choose another model.`;
+  if (references.remaining) blocked = references.bindings.size
+    ? `This model accepts ${p.reference_media_ids.length - references.remaining} reference image(s); reduce references in the plan or choose another model.`
+    : 'Choose a model with image reference input to use this shot’s references.';
   if (p.template === 'remix' && (!p.source_media_id || !video || kind !== 'video')) blocked = !p.source_media_id
     ? 'Add a source video in your project before generating.' : 'Choose a video-input model, or use Ask AI in the project to build a ComfyUI workflow.';
   if (kind === 'music') blocked = 'Project shots produce images or video. Restore your previous draft to make music.';
@@ -140,6 +141,18 @@ async function restoreStudioDraft() {
 
 function imageLimit(param) {
   return param.max_images === null ? Infinity : Math.max(1, Number(param.max_images) || 1);
+}
+
+function projectReferenceBindings(ids) {
+  const bindings = new Map();
+  let remaining = [...ids];
+  for (const param of schema.filter(s => s.kind === 'image' && !/(mask|last|end|tail)/i.test(s.name))) {
+    if (!remaining.length) break;
+    const count = imageLimit(param);
+    bindings.set(param.name, remaining.slice(0, count).join(','));
+    remaining = remaining.slice(count);
+  }
+  return { bindings, remaining: remaining.length };
 }
 
 function applyCharacterReferences() {
@@ -228,12 +241,13 @@ function status(text, tone = '') {
 function control(param) {
   if (param.kind === 'image' || param.kind === 'video' || param.kind === 'audio') {
     const row = imageControl(param);
-    const boundImage = schema.find(s => s.kind === 'image' && !/(mask|last|end|tail)/i.test(s.name));
+    const boundImages = projectShot ? projectReferenceBindings(projectShot.reference_media_ids).bindings : new Map();
     const boundVideo = schema.find(s => s.kind === 'video');
-    if (projectShot && ((projectShot.reference_media_ids.length && param === boundImage) ||
+    if (projectShot && (boundImages.has(param.name) ||
       (projectShot.source_media_id && param === boundVideo))) {
       for (const input of row.querySelectorAll('button,input')) input.disabled = true;
       const drop = row.querySelector('.dropzone'); drop.onclick = null; drop.ondrop = e => e.preventDefault();
+      drop.querySelector('.hint').textContent = 'From your project';
       row.append(el('p', 'meta', 'Managed by your project. Use Continue project to change references.'));
     }
     return row;

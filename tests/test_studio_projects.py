@@ -123,6 +123,29 @@ def generator(monkeypatch, impl):
     return service
 
 
+def test_project_binds_distinct_character_inputs_without_using_mask_or_end_frame():
+    from omote.creative.projects import bind_references
+
+    prepared = {'reference_media_ids': ['first', 'second'], 'template': 'cinema'}
+    schema = [Param('mask', 'Mask', 'image'), Param('image', 'First character', 'image'),
+              Param('end_image', 'Ending frame', 'image'), Param('image_2', 'Second character', 'image')]
+    assert bind_references(prepared, schema, {}) == {'image': 'first', 'image_2': 'second'}
+    with pytest.raises(ValueError, match='references changed'):
+        bind_references(prepared, schema, {'image_2': 'first'})
+    prepared['reference_media_ids'].append('third')
+    with pytest.raises(ValueError, match='accepts 2 reference'):
+        bind_references(prepared, schema, {})
+
+
+def test_project_can_fill_multiple_reference_groups_without_discarding_any():
+    from omote.creative.projects import bind_references
+
+    prepared = {'reference_media_ids': ['a', 'b', 'c'], 'template': 'cinema'}
+    schema = [Param('image', 'Views', 'image', multiple=True, max_images=2),
+              Param('image_2', 'Second subject', 'image')]
+    assert bind_references(prepared, schema, {}) == {'image': 'a,b', 'image_2': 'c'}
+
+
 def test_remix_requires_video_capability_before_a_render_starts(client, monkeypatch):
     impl = Generator(video=False)
     service = generator(monkeypatch, impl)

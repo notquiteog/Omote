@@ -25,6 +25,20 @@ put `%prompt%` into the text node yourself.
 
 `prompt` `negative` `seed` `steps` `cfg` `denoise` `sampler` `scheduler`
 `width` `height` `frames` `fps` `motion` `batch` `checkpoint`
+`image` `mask` `video` `audio`
+
+Media inputs also accept numbered tokens: `%image_2%`, `%image_3%`,
+`%video_2%`, `%audio_2%`, and so on. Import recognizes native `LoadImage`,
+`LoadImageMask`, `LoadVideo`, and `LoadAudio` nodes and gives each its own file
+control. For custom nodes, put these tokens in the corresponding file inputs
+of a working API graph. Use sidecar labels such as “First character”, “Second
+character”, “Motion guide” and “Speech track” to explain each input.
+
+Studio uploads every file using its actual format and uses the filename returned
+by the connected ComfyUI server. A missing file or wrong media type is reported
+before queueing. Source previews emitted by loader nodes are excluded from the
+generated results. This input support does not add lip sync, identity tracking
+or background preservation to a workflow that lacks those operations.
 
 A token standing alone as a whole value becomes a number where a number
 belongs; one inside a longer string is substituted textually, so
