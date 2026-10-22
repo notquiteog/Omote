@@ -735,14 +735,29 @@ def test_a_clip_is_trimmed(tmp_path):
 
 
 @pytest.mark.skipif(edit_ops.ffmpeg() is None, reason='ffmpeg is not installed')
-def test_what_a_clip_is_gets_reported_before_it_is_trimmed(tmp_path):
+@pytest.mark.parametrize('without_ffprobe', [False, True])
+def test_what_a_clip_is_gets_reported_before_it_is_trimmed(tmp_path, monkeypatch, without_ffprobe):
     """"How long is the clip I just imported" is the question before every trim,
     and answering it by opening the file in a player is a worse answer."""
     from omote.media.edit import probe
 
+    if without_ffprobe:
+        which = edit_ops.shutil.which
+        monkeypatch.setattr(edit_ops.shutil, 'which', lambda name: None if name == 'ffprobe' else which(name))
     found = probe(str(_clip(tmp_path)))
     assert 1.9 <= found['duration'] <= 2.1
     assert found['has_video'] and found['has_audio']
+    assert (found['width'], found['height']) == (160, 120)
+
+
+@pytest.mark.skipif(edit_ops.ffmpeg() is None, reason='ffmpeg is not installed')
+def test_bundled_encoder_rejects_unreadable_clip(tmp_path, monkeypatch):
+    which = edit_ops.shutil.which
+    monkeypatch.setattr(edit_ops.shutil, 'which', lambda name: None if name == 'ffprobe' else which(name))
+    broken = tmp_path / 'broken.mp4'
+    broken.write_text('not a video')
+    with pytest.raises(edit_ops.EditRefused, match='Could not read this clip'):
+        edit_ops.probe(str(broken))
 
 
 @pytest.mark.skipif(edit_ops.ffmpeg() is None, reason='ffmpeg is not installed')

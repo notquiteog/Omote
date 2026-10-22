@@ -24,6 +24,8 @@ ROOT = Path(__file__).resolve().parents[2]
 def versions() -> dict[str, str]:
     pyproject = tomllib.loads((ROOT / 'pyproject.toml').read_text())
     cargo = tomllib.loads((ROOT / 'desktop/src-tauri/Cargo.toml').read_text())
+    locked = tomllib.loads((ROOT / 'desktop/src-tauri/Cargo.lock').read_text())
+    app = next(package for package in locked['package'] if package['name'] == cargo['package']['name'])
     package_version = pyproject['project'].get('version')
     if package_version is None:
         source = ROOT / pyproject['tool']['hatch']['version']['path']
@@ -40,6 +42,7 @@ def versions() -> dict[str, str]:
     found = {
         'pyproject.toml': package_version,
         'desktop/src-tauri/Cargo.toml': cargo['package']['version'],
+        'desktop/src-tauri/Cargo.lock': app['version'],
         'ide/vscode/package.json': json.loads((ROOT / 'ide/vscode/package.json').read_text())['version'],
     }
     conf = json.loads((ROOT / 'desktop/src-tauri/tauri.conf.json').read_text())

@@ -1,4 +1,4 @@
-## Omote 0.11.2
+## Omote 0.11.3
 
 ### Chat stays responsive during Git checks
 
@@ -7,6 +7,8 @@ Opening a chat outside a Git repository no longer lets a slow Git check block ch
 ### Reliable model switching
 
 Chat finishes saving a reply before enabling model changes. Switching immediately after a reply now uses the selected model for the next message, and a completed conversation stays marked complete after restarting. Release checks also exercise real video encoding on Linux.
+
+Clip inspection works with the bundled video tools when a separate FFprobe is absent. Release validation now checks the Rust lockfile version as well as the app, daemon, and extension manifests.
 
 ### Local setup, no terminal
 

@@ -34,6 +34,7 @@ the day the file moves.
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -280,9 +281,9 @@ def probe(path: str) -> dict[str, Any]:
     I just imported" is the question before every trim, and answering it by
     opening the file in a player is a worse answer.
     """
-    binary = shutil.which('ffprobe') or ffmpeg()
+    binary = shutil.which('ffprobe')
     if not binary:
-        raise EditUnavailable('this needs ffprobe and there is none')
+        return _probe_with_ffmpeg(path)
     try:
         done = subprocess.run(  # noqa: S603 - a fixed binary with a list of arguments
             [
@@ -304,10 +305,44 @@ def probe(path: str) -> dict[str, Any]:
                 found['duration'] = round(float(value), 3)
             except ValueError:
                 pass
-        elif key == 'codec_type':
+        elif key == 'codec_type' and value in ('video', 'audio'):
             found['has_video' if value == 'video' else 'has_audio'] = True
         elif key in ('width', 'height'):
             found[key] = int(value) if value.isdigit() else None
+    return found
+
+
+def _probe_with_ffmpeg(path: str) -> dict[str, Any]:
+    """Inspect with the bundled encoder when no standalone FFprobe exists.
+
+    With only an input FFmpeg prints its headers, then exits without decoding
+    or writing any media. Its expected nonzero exit is not a corrupt-file
+    signal; recognizable input streams are required before accepting it.
+    """
+    binary = ffmpeg()
+    if not binary:
+        raise EditUnavailable('Set up video export in Studio to inspect this clip.')
+    try:
+        done = subprocess.run(
+            [binary, '-hide_banner', '-nostdin', '-i', path],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise EditUnavailable(f'could not read that file: {exc}') from None
+    streams = re.findall(r'^\s*Stream #\d+:\d+[^:\n]*: (Video|Audio): (.+)$', done.stderr, re.MULTILINE)
+    if not streams:
+        raise EditRefused(f'Could not read this clip: {(done.stderr or "").strip()[:200]}')
+    found: dict[str, Any] = {'duration': 0.0, 'has_video': False, 'has_audio': False}
+    duration = re.search(r'Duration: (\d+):(\d{2}):(\d{2}(?:\.\d+)?)', done.stderr)
+    if duration:
+        hours, minutes, seconds = map(float, duration.groups())
+        found['duration'] = round(hours * 3600 + minutes * 60 + seconds, 3)
+    for kind, description in streams:
+        found['has_video' if kind == 'Video' else 'has_audio'] = True
+        if kind == 'Video' and 'width' not in found:
+            size = re.search(r'(?:^|,\s+)(\d+)x(\d+)(?:\s|,|$)', description)
+            if size:
+                found['width'], found['height'] = map(int, size.groups())
     return found
 
 

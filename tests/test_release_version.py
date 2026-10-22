@@ -29,20 +29,27 @@ def test_release_tag_mismatch_is_rejected(release_version, monkeypatch, capsys):
     assert 'does not match the tag' in capsys.readouterr().err
 
 
-def test_extension_version_drift_is_rejected(release_version, tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize('manifest', ['ide/vscode/package.json', 'desktop/src-tauri/Cargo.lock'])
+def test_manifest_version_drift_is_rejected(release_version, tmp_path, monkeypatch, capsys, manifest):
     root = release_version.ROOT
     for name in ('pyproject.toml', 'omote/_version.py', 'desktop/src-tauri/Cargo.toml',
-                 'desktop/src-tauri/tauri.conf.json', 'ide/vscode/package.json'):
+                 'desktop/src-tauri/Cargo.lock', 'desktop/src-tauri/tauri.conf.json', 'ide/vscode/package.json'):
         dest = tmp_path / name
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text((root / name).read_text())
-    manifest = tmp_path / 'ide/vscode/package.json'
-    data = json.loads(manifest.read_text())
-    data['version'] = '999.0.0'
-    manifest.write_text(json.dumps(data))
+    path = tmp_path / manifest
+    if path.suffix == '.json':
+        data = json.loads(path.read_text())
+        data['version'] = '999.0.0'
+        path.write_text(json.dumps(data))
+    else:
+        from omote._version import __version__
+        before = f'name = "omote-desktop"\nversion = "{__version__}"'
+        assert before in path.read_text()
+        path.write_text(path.read_text().replace(before, 'name = "omote-desktop"\nversion = "999.0.0"'))
     monkeypatch.setattr(release_version, 'ROOT', tmp_path)
     monkeypatch.setattr(release_version.sys, 'argv', ['version.py'])
     with pytest.raises(SystemExit) as failure:
         release_version.main()
     assert failure.value.code == 1
-    assert 'ide/vscode/package.json says 999.0.0' in capsys.readouterr().err
+    assert f'{manifest} says 999.0.0' in capsys.readouterr().err
