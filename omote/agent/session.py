@@ -532,7 +532,7 @@ class AgentSession:
                 text='[the daemon stopped while this turn was running; it is not in the transcript]'
             )]))
 
-    async def _persist(self) -> None:
+    async def _persist(self, *, finished: bool = False) -> None:
         """Write the conversation down, if there is somewhere to put it.
 
         **In a thread.** Serialising a transcript is measured at 89ms of
@@ -545,6 +545,8 @@ class AgentSession:
             return
         try:
             stored = self._stored()
+            if finished:
+                stored.unfinished = False
             await asyncio.to_thread(self.store.save, stored)
         except Exception:  # noqa: BLE001 - losing a transcript is bad, ending a turn is worse
             log.exception('the conversation for %s could not be written', self.id)
@@ -1050,10 +1052,9 @@ class AgentSession:
         # know whether this is the first one.
         if needs_title(self.title, self.root.name):
             self.title = title_for(text, fallback=self.title or self.root.name)
-            # Fire and forget, like the auto-learn bookkeeping above: a title
-            # that reaches disk a few milliseconds late is still correct, and
-            # nothing in this turn is waiting on it.
-            asyncio.create_task(self._persist())
+            # Finish this write before the final transcript save. An earlier
+            # background write can otherwise land last and restore stale state.
+            await self._persist()
 
         blocks: list[Any] = [TextBlock(text=prompt or text)]
         for att in attachments:
@@ -1104,18 +1105,6 @@ class AgentSession:
         if self.checkpoints is not None:
             self.checkpoints.commit()
 
-        # The context report is computed here rather than on request because
-        # the point is to know it at the moment the turn ended — "how full was
-        # it before that" is a different and much less useful number.
-        await self._emit(
-            TurnCompleted(
-                session_id=self.id,
-                turn_id=turn_id,
-                stop_reason=stop_reason,
-                usage=usage_total,
-                context=self.context_report(),
-            )
-        )
         # `Stop`, once the turn is genuinely over. Advisory by construction —
         # a non-zero exit is reported to the person and not to the model,
         # because there is no next step for the model to take. A `Stop` hook
@@ -1131,7 +1120,19 @@ class AgentSession:
                     )
                 )
 
-        await self._persist()
+        # The completion event unlocks model switching in attached clients.
+        # Finish hooks and the transcript write before publishing it, so a
+        # client cannot switch while this turn is still saving its old model.
+        await self._persist(finished=True)
+        await self._emit(
+            TurnCompleted(
+                session_id=self.id,
+                turn_id=turn_id,
+                stop_reason=stop_reason,
+                usage=usage_total,
+                context=self.context_report(),
+            )
+        )
         self._drain_queue()
 
     async def _loop(self, turn_id: str, usage: dict[str, int]) -> str:

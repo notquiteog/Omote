@@ -1,6 +1,6 @@
 [package]
 name = "omote-desktop"
-version = "0.11.0"
+version = "0.11.1"
 description = "Desktop app for Omote, an open-source digital twin"
 edition = "2021"
 rust-version = "1.77.2"

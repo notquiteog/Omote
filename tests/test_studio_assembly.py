@@ -189,6 +189,8 @@ def test_original_audio_and_short_video_hold_last_frame(client, service, tmp_pat
 
 
 def test_export_rejects_stale_cross_user_and_unrelated_media_before_voice(client, service, monkeypatch):
+    # These checks stop before rendering, even on machines without FFmpeg.
+    monkeypatch.setattr(assembly, 'ffmpeg', lambda: sys.executable)
     voice = Voice()
     register_voice(service, voice)
     project = plan(client, 1)
@@ -214,6 +216,7 @@ def test_export_rejects_stale_cross_user_and_unrelated_media_before_voice(client
 
 
 def test_local_only_and_explicit_voice_selection(client, service, monkeypatch):
+    monkeypatch.setattr(assembly, 'ffmpeg', lambda: sys.executable)
     register_voice(service, Voice(), local=False)
     project = plan(client, 1)
     project['shots'][0]['narration'] = 'Read this'
@@ -248,7 +251,9 @@ async def test_cancel_terminates_and_reaps_ffmpeg_process(tmp_path, monkeypatch)
     assert processes[0].returncode is not None
 
 
-def test_cancel_voice_export_closes_stream_and_records_terminal_state(client, service):
+def test_cancel_voice_export_closes_stream_and_records_terminal_state(client, service, monkeypatch):
+    # Cancellation happens during speech, before any encoder is invoked.
+    monkeypatch.setattr(assembly, 'ffmpeg', lambda: sys.executable)
     class WaitingVoice(Voice):
         closed = False
 

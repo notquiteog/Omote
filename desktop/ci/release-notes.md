@@ -1,4 +1,8 @@
-## Omote 0.11.0
+## Omote 0.11.1
+
+### Reliable model switching
+
+Chat finishes saving a reply before enabling model changes. Switching immediately after a reply now uses the selected model for the next message, and a completed conversation stays marked complete after restarting. Release checks also exercise real video encoding on Linux.
 
 ### Local setup, no terminal
 

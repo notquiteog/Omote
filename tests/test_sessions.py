@@ -21,7 +21,9 @@ a turn that was half-done and letting the model believe it finished.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
 
 import pytest
 
@@ -34,6 +36,55 @@ from omote.providers.base import (
     ToolUseBlock,
 )
 from omote.sessions import SessionStore, Stored, TranscriptError, decode_block, encode_block, to_markdown
+
+
+async def test_completion_waits_for_saved_transcript_and_allows_immediate_model_switch(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from omote.agent.runtime import build_session
+    from omote.protocol.agent import TurnCompleted
+    from omote.providers.base import StreamDone, StreamText
+    from omote.routers.agent import ChangeModel, change_model
+    from tests.test_agent import ScriptedProvider, drain
+
+    loop = asyncio.get_running_loop()
+    saving = asyncio.Event()
+    release = threading.Event()
+    snapshots = []
+
+    def save(snapshot):
+        snapshots.append(snapshot)
+        if not snapshot.messages or snapshot.messages[-1]['role'] != 'assistant':
+            return
+        loop.call_soon_threadsafe(saving.set)
+        if not release.wait(5):
+            raise TimeoutError('Test did not release transcript save')
+
+    provider = ScriptedProvider([[StreamText(text='Done'), StreamDone()]])
+    session = build_session(root=tmp_path, provider=provider, model='original',
+                            store=SimpleNamespace(save=save, load=lambda ident: None))
+    await session.start()
+    completion = asyncio.create_task(drain(session))
+    session.submit('Reply and save this conversation')
+    try:
+        await asyncio.wait_for(saving.wait(), 3)
+        await asyncio.sleep(0)
+        assert session.busy
+        assert not completion.done(), 'Completion must not unlock controls before the transcript is saved'
+    finally:
+        release.set()
+        events = await completion
+    assert not session.busy
+    assert any(isinstance(event, TurnCompleted) for event in events)
+    assert snapshots[-1].unfinished is False
+
+    async def resolve(provider, model):
+        return session.provider, model, provider
+
+    monkeypatch.setattr('omote.routers.agent.manager', SimpleNamespace(get=lambda ident: session))
+    monkeypatch.setattr('omote.providers.registry.resolve_chat', resolve)
+    changed = await change_model(session.id, ChangeModel(provider='local', model='alternate'))
+    assert changed['model'] == session.model == snapshots[-1].model == 'alternate'
 
 
 @pytest.fixture
