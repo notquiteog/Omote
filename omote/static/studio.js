@@ -1231,14 +1231,15 @@ export function stopPolling() {
 }
 
 export async function openStudio() {
-  await loadGallery(true);
-  await loadEditors();
+  // Optional local editor discovery can be slow (especially PATH on Windows).
+  // The generation form and its setup action must become usable independently.
+  await Promise.all([loadGallery(true), loadEditors(), !schema.length ? describe() : Promise.resolve()]);
   // The file picker needs the gallery, so it is filled from what is already
   // there rather than asking again.
   // `shots` is what the gallery holds; `gallery` is the filter, which is a
   // string. Easy to confuse and the picker would come up empty.
   editState.files = shots.map((one) => ({ id: one.id, filename: one.filename, kind: one.kind }));
-  if (!schema.length) await describe();
+  if (editState.editors.length) paintEditors();
   // A job started here and left running — by switching to Code mode, or by
   // reloading the page — is still running on the server, so the strip picks it
   // back up rather than pretending the work was lost with the view of it.

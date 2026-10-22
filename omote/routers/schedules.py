@@ -25,11 +25,41 @@ def validate_root(spec):
 
 @router.get('')
 async def list_schedules():
+    from omote.agent.manager import manager
     from omote.config import config
+    from omote.routers import media
+
+    runs = live().store.runs()
+    scheduled_chats = {run['session_id'] for run in runs if run['session_id']}
+    # A read-only index: opening Tasks never merges conversation context or
+    # resumes, retries, or grants permissions to any of the work shown here.
+    activity = [
+        {'id': 'chat-' + item['id'], 'kind': 'chat', 'title': item['title'] or 'Untitled chat',
+         'status': 'waiting' if item['waiting_on'] else 'running',
+         'note': 'Open this chat to respond.' if item['waiting_on'] else
+                 f'{item["background"]} background task(s)' if item['background'] else 'Working in this chat',
+         'session_id': item['id']}
+        for item in manager.list()
+        if item['id'] not in scheduled_chats and (item['busy'] or item['waiting_on'] or item['background'])
+    ]
+    if media.service:
+        generations = sorted(media.service.jobs.values(), key=lambda job: job.started_at, reverse=True)
+        recent = 0
+        for job in generations:
+            if job.state not in ('queued', 'running'):
+                recent += 1
+                if recent > 20:
+                    continue
+            activity.append({'id': 'media-' + job.id, 'job_id': job.id, 'kind': 'media',
+                             'title': job.prompt[:160] or 'Studio creation',
+                             'status': {'queued': 'starting', 'done': 'completed'}.get(job.state, job.state),
+                             'note': job.note, 'error': job.error, 'started': job.started_at,
+                             'progress': job.progress})
 
     return {
         'schedules': live().store.list(),
-        'runs': live().store.runs(),
+        'runs': runs,
+        'activity': activity,
         'workspace': str(config.workspace),
         'local': True,
     }

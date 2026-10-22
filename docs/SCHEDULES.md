@@ -1,7 +1,10 @@
 # Scheduled tasks
 
-Open **Scheduled** in the sidebar and choose **New task**. Give the task a name,
-instructions and an existing project folder, then choose when it should run.
+Open **Tasks** in the sidebar and choose **New recurring task**, or start with
+**Morning briefing**, **Project check-in** or **Research update**. Starters only
+prepare an editable draft; they never start work or change permissions. Give the
+task a name and instructions, then choose when it should run. The current default
+workspace is filled in; change it under **Project folder and run limit**.
 A connected chat provider is needed to execute a task. Saving a task does not call
 that provider. **Run now** starts a run immediately, including for a paused task.
 
@@ -13,7 +16,7 @@ use the date and time shown in your device's zone. Their offset is saved with th
 Each run is a normal Omote agent chat with the chosen project, tools, model and
 permissions. It can use configured coding, browser, desktop, creative and MCP
 tools. **Ask first** is the default. Questions and tool approvals appear in the
-run's chat; **Recent runs → Open chat** brings you to them. A schedule does not
+run's chat; **Needs you → Open chat** brings you to them. A schedule does not
 approve purchases, messages or credentials on your behalf. Providers may charge
 for model and tool usage. The run time limit includes time waiting for your input.
 
@@ -28,7 +31,12 @@ the tool's instructions prohibit unsolicited follow-ups.
 
 ## Following and controlling work
 
-- **Recent runs** shows status, result summaries and errors. **Run history** on a
+- **Tasks** combines active chats, Studio jobs and scheduled runs. Filter by
+  **Needs you**, **Working** or **Finished**; requests for input and failures appear
+  first. Studio includes all active generations and the 20 newest finished jobs.
+  Ordinary idle chats stay in conversation history. This index displays status
+  and links; it never copies messages between chats or grants approvals.
+- Scheduled runs show status, result summaries and errors. **Run history** on a
   task shows up to 100 recent runs. Open the corresponding chat for the transcript,
   tool results and approvals; completed chats can be reopened after a restart.
 - **Pause** prevents future automatic runs. It does not cancel work already running.
@@ -40,6 +48,9 @@ the tool's instructions prohibit unsolicited follow-ups.
   close its chat and use `omote sessions delete <session-id>`.
 - The runner follows background work to completion and asks the model to report
   its results. The time limit also applies to background work.
+- Closing Tasks keeps an unsaved form draft for this page session. **Cancel**
+  discards it. A page reload does not preserve an unsaved draft. Automatic refresh
+  pauses while editing or reading expanded results, and stops when Tasks closes.
 
 ## Local execution and recovery
 
@@ -71,5 +82,8 @@ information, just like chat. Avoid putting secrets into instructions.
 missed schedules, approvals, cancellation, background completion and tool scope.
 `tests/test_schedules_browser.py` exercises task creation/editing/pause/deletion,
 responsive forms, completed results and reopening a saved chat against an isolated
-daemon and local fake model. These tests do not prove a particular third-party
+daemon and local fake model. `tests/test_tasks_browser.py` covers status filters,
+editable starters, draft preservation, polling cleanup and small-screen navigation.
+`tests/test_task_activity.py` covers active-job retention and scheduled-chat
+deduplication. These tests do not prove a particular third-party
 website will allow an unattended workflow.

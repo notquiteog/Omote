@@ -9,11 +9,12 @@ completed.
 | Area | Implemented in Omote | Setup or remaining gap |
 |---|---|---|
 | Coding and project work | File edits, patches, shell, Git/worktrees, review, LSP, checkpoints, subagents, background tasks, project instructions and tool approvals | Language servers and project dependencies must be available. Hosted isolated coding environments are not bundled. |
-| Local execution and resources | Package installation, shell/background work, per-command root/admin access, live System panel, managed GGUF and ComfyUI safetensors/workflow downloads with cancel/resume/checksums, disk/memory preflight, live ComfyUI node/model compatibility, owned llama.cpp runtime start/stop and local chat | One transfer per library and one chat runtime; Vulkan/Metal need OS drivers. Linux NVIDIA Qwen chat and Studio SD Turbo image generation tested. ComfyUI uses an existing installation plus managed model paths. Native Mac/Windows GPU runs and admin dialogs need verification; automatic multi-file diffusion packages and other runtime adapters remain future work. |
-| Continuing responsibilities | Durable local scheduled tasks, recurring civil times, run history, visible approvals, cancellation and background-worker follow-through | Computer and daemon must remain available. No hosted wake-ups, event-triggered jobs or cross-channel delivery. See [Scheduled tasks](SCHEDULES.md). |
+| Local execution and resources | Package installation, shell/background work, per-command root/admin access, live System panel, managed GGUF and ComfyUI safetensors/workflow downloads with cancel/resume/checksums, disk/memory preflight, live ComfyUI node/model compatibility, owned llama.cpp runtime start/stop and local chat | One transfer per library and one chat runtime; Vulkan/Metal need OS drivers. Linux NVIDIA Qwen chat and Studio SD Turbo image generation tested. ComfyUI can use an existing installation or a managed private runtime. Native Mac/Windows GPU runs and admin dialogs need verification; automatic multi-file diffusion packages and other runtime adapters remain future work. |
+| Continuing responsibilities | Unified Tasks view for active chats, Studio jobs and scheduled runs; attention filters, editable briefing/project/research starters, durable local schedules, run history, approvals, cancellation and background-worker follow-through | Computer and daemon must remain available. No hosted wake-ups, event-triggered jobs or cross-channel delivery. See [Scheduled tasks](SCHEDULES.md). |
 | Business and personal workflows | Browser-driven employee portals, email tools, travel planning, calendar and ledger tools, user questions and MCP integration | Connect each service; authentication, purchases and outbound communication still need the appropriate user action/approval. No universal EMS or booking API. |
 | Jobs and resumes | Role/city/work-mode search records, source-linked job shortlist, application tracking, base/tailored resumes, DOCX/PDF/HTML/TXT exports, DOCX reading and approved browser uploads | Live listings use web/browser tools. PDF creation needs Chromium; PDF reading needs the docs extra. Local-fixture search/upload/application receipt tested; no live employer submission. See [Personal assistant map](PERSONAL-ASSISTANT.md). |
 | Browser and computer use | Playwright browser sessions, page inspection, screenshots, desktop stages and input tools | Browser runtime, desktop platform support and app permissions are required. Website restrictions and inaccessible UI remain limitations. |
+| Guided tool setup | In-app ComfyUI and Playwright installation/configuration, private runtimes, progress, cancellation, service start/stop and connection checks | Install recipes cover macOS, Linux and Windows; native CI verifies installers and UI. Actual GPU/driver compatibility on every device and ComfyUI extension is not established. |
 | Team interaction | Browser and configured MCP connections can reach supported communication services | No native Slack/Teams bot identity, channel listener, channel-level policy store or enterprise team account service is bundled. |
 | Voice | LLM + STT + TTS pipeline and OpenAI Realtime integration with agent tools | Requires compatible services, microphone permission and audio hardware. This is not a login to the ChatGPT Instant consumer application. |
 | Memory / Brain | Opt-in vector memory, personal/project filters, local text search across pages, offline manual saves, correction, export and deletion; deduplicated automatic fact capture | Connect a compatible embedding model for semantic recall. Automatic capture uses conservative patterns; no background model-led reconciliation of contradictions or hierarchical memory browser. |
@@ -31,6 +32,9 @@ completed.
 - Local resources and administrator access: `tests/test_resources.py`,
   `tests/test_elevation.py`, `tests/test_system.py`, and desktop/mobile System
   coverage in `tests/test_workspace_browser.py`.
+- Guided setup: `tests/test_tool_setup.py`, `tests/test_tool_setup_browser.py`;
+  `tests/test_onboarding_browser.py` holds editor discovery pending while checking
+  that Studio's connection action is usable.
 - Managed models: `tests/test_local_models.py` covers persistent ranged transfers,
   corruption, interrupted connections, disk limits, archive safety, process control,
   approval enforcement and chat reconnection; `tests/test_local_models_browser.py`
@@ -41,8 +45,8 @@ completed.
   covers simple Studio controls, cancel/resume, mobile layout and preserved drafts.
   A separate live smoke test resumed the actual SD Turbo download and generated
   a 512 × 512 image through Studio/ComfyUI on an RTX 5060 Ti.
-- Scheduled work and UI: `tests/test_scheduling.py`,
-  `tests/test_schedules_browser.py`.
+- Scheduled work and UI: `tests/test_scheduling.py`, `tests/test_task_activity.py`,
+  `tests/test_schedules_browser.py`, `tests/test_tasks_browser.py`.
 - Creative workspace and node metadata: `tests/test_workbench.py`,
   `tests/test_workbench_review.py`, `tests/test_workflow_diff.py`,
   `tests/test_creative_browser.py` and the ComfyUI bridge tests.
@@ -72,6 +76,23 @@ completed.
 
 Reviewed against the requested product categories on October 15, 2026. This is
 a category audit, not an exhaustive enumeration of every product feature.
+
+The Duet, dots, OpenClaw and Grok Bot comparison below was refreshed on October 22,
+2026. These products change quickly; the linked documentation is the source for
+their advertised behavior, not proof that Omote already matches it.
+
+| Reference | Useful product pattern | Omote status and remaining work |
+|---|---|---|
+| [Claude Duet](https://support.claude.com/en/articles/17631495-get-started-with-claude-duet) | Ongoing assistant work, briefings, voice, connected services, a cloud computer and a place to review work needing input | Tasks now surfaces requests for input and starter routines. Omote runs locally; a hosted computer that continues after the user's computer shuts down is not bundled. |
+| [ChatGPT dots](https://learn.chatgpt.com/docs/dots/tasks-and-memory) | Persistent responsibilities, delegated background work, relevant memory and visible activity | Local scheduling, background workers and memory exist. Event-triggered responsibilities, hosted execution and a unified deliverables inbox remain gaps. Each chat keeps its own transcript. |
+| [OpenClaw](https://docs.openclaw.ai/concepts/features) | Channel adapters, isolated sessions, cron/heartbeats, voice, plugins and paired devices | Omote has tools/MCP, browser and desktop control, voice and local schedules. Native messaging-channel listeners, channel policies, phone pairing and cross-device synchronization need implementation. |
+| [Grok Bot](https://docs.x.ai/grok-bot/overview) and [skills/routines](https://docs.x.ai/grok-bot/skills-routines-and-automations) | Persistent assistants, voice, a cloud computer, routines and skills taught by browser demonstration | Reusable prompts, skills and local routines exist. Recording a demonstrated browser workflow into a reviewable skill, persistent hosted computers and event-triggered routines do not. |
+
+The October 22 UI changes prioritize one message box on the home screen, a Tasks
+view with filters and editable routine starters, and advanced settings behind
+disclosures. Opening a task index does not resume work, approve actions or merge
+chat context. Studio's setup action loads independently of local editor discovery;
+editor probing runs outside the server event loop, including on Windows.
 
 The reference products overlap but have different deployment and account models.
 Their documented behaviors identify gaps; their private internals and every live
@@ -108,6 +129,24 @@ is an ambition, not a tested release criterion.
 
 ## Next implementation milestones
 
+Prioritize successful everyday tasks over additional top-level panels:
+
+1. **Reliable follow-through.** Add a durable deliverables inbox with clear source
+   chats, recovery after interruption, and explicitly configured notifications.
+   Extend scheduling to event triggers only with deduplication and visible control.
+2. **Guided connections and resources.** Bring model, browser, creative-app and
+   messaging setup into understandable checklists with connection tests. Add
+   resource limits to managed inference across platforms; the Linux test launcher
+   is not yet a cross-platform in-app memory guarantee.
+3. **Memory users can trust.** Link every captured fact to its source, propose
+   corrections and resolve conflicts visibly. Personal-plus-active-project recall
+   already exists; automatic contradiction review and reversible edit history do not.
+4. **Speech and reach.** Verify interruption, wake-word behavior and recovery with
+   real microphones and providers, then add opt-in channel adapters and paired
+   devices with explicit per-channel context boundaries.
+
+Earlier engineering milestones remain applicable:
+
 Extend managed chat and ComfyUI assets to automatic multi-file dependency bundles
 and additional runtime adapters. Single-file diffusion models and workflow JSON
 are implemented and tested with real GPU inference; automatic dependency resolution
@@ -119,7 +158,7 @@ and native Mac/Windows diffusion verification remain.
    plan mode and approvals across that change.
 2. **Improve memory continuity.** Add provenance links to the originating chat,
    model-assisted proposals for corrections, duplicate/contradiction review and
-   personal-plus-active-project recall. Test opt-out during in-flight work and
+   memory change history. Test opt-out during in-flight work and
    keep every change visible and reversible in Brain.
 3. **Reach shared work.** Add explicitly connected team-channel listeners,
    channel-scoped context and event-triggered work with durable recovery. Verify

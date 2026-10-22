@@ -310,6 +310,18 @@ def test_explore_does_not_force_tutorial_and_studio_has_setup_action(workspace):
     expect(page.locator('#connection-advanced')).to_have_attribute('open', '')
 
 
+def test_studio_setup_does_not_wait_for_optional_editor_discovery(workspace):
+    page, _ = workspace
+    held = []
+    page.route('**/api/media/editors', lambda route: held.append(route))
+    page.locator('#start-studio').click()
+    expect(page.locator('#studio-connection-help')).to_be_visible()
+    expect(page.locator('#studio-make')).to_be_disabled()
+    assert held, 'The optional editor request should still be pending'
+    held[0].fulfill(json={'editors': []})
+    expect(page.locator('#studio-connection-help')).to_be_visible()
+
+
 def test_connected_desktop_new_chat_and_tour(workspace, chat_provider):
     page, _ = workspace
     use_fake(page, chat_provider)

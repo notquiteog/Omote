@@ -94,7 +94,7 @@
     <button class="nav-row" id="nav-new">
       <svg class="ic"><use href="#i-new"></use></svg><span>New chat</span>
     </button>
-    <button class="nav-row" id="open-schedules" type="button"><svg class="ic"><use href="#i-list"></use></svg><span>Scheduled</span></button>
+    <button class="nav-row" id="open-schedules" type="button"><svg class="ic"><use href="#i-list"></use></svg><span>Tasks</span></button>
     <button class="nav-row" id="nav-rewind" disabled>
       <svg class="ic"><use href="#i-undo"></use></svg><span>Rewind</span>
     </button>
@@ -211,26 +211,6 @@
       <div id="hero-pet"></div>
       <h2 id="hero-ask">What would you like to work on?</h2>
       <p id="hero-sub" class="meta"></p>
-      <div class="workspace-starters" aria-label="Start a task">
-        <button type="button" class="workspace-starter" data-start="Explore this project, explain how it works, and help me build ">
-          <svg class="ic"><use href="#i-code"></use></svg><strong>Build something</strong><span>Code, fix, test and review</span>
-        </button>
-        <button type="button" class="workspace-starter" data-start="Search the web and compare sources for ">
-          <svg class="ic"><use href="#i-browser"></use></svg><strong>Research the web</strong><span>Browse and find answers</span>
-        </button>
-        <button type="button" class="workspace-starter" data-start="Help me work on my computer. First inspect the screen, then ">
-          <svg class="ic"><use href="#i-list"></use></svg><strong>Work in my apps</strong><span>Desktop tasks and creative tools</span>
-        </button>
-        <button type="button" class="workspace-starter" id="start-studio">
-          <svg class="ic"><use href="#i-wand"></use></svg><strong>Create an image or video</strong><span>Generate or build a ComfyUI graph</span>
-        </button>
-        <button type="button" class="workspace-starter" data-start="Help me find jobs by role and city, build a truthful resume, and prepare applications. Use the job-search workflow and keep a shortlist. First ask which roles and city I want and what experience I have. Prepare everything for review before sending applications.">
-          <svg class="ic"><use href="#i-list"></use></svg><strong>Find jobs &amp; build a résumé</strong><span>Local roles, tailored documents and applications</span>
-        </button>
-        <button type="button" class="workspace-starter" data-start="Help me plan and book travel using the world-travel workflow. Compare current flights and hotels, keep an itinerary and total costs, then prepare the selected booking for review. First ask for my origin, destination, dates, travelers and budget. Confirm the final booking details with me.">
-          <svg class="ic"><use href="#i-browser"></use></svg><strong>Plan &amp; book travel</strong><span>Compare flights, hotels and total costs</span>
-        </button>
-      </div>
     </div>
   </div>
 
@@ -327,6 +307,27 @@
       </button>
     </div>
   </form>
+
+  <div id="workspace-suggestions" class="workspace-starters" aria-label="Start a task">
+    <button type="button" class="workspace-starter" data-start="Explore this project, explain how it works, and help me build ">
+      <svg class="ic"><use href="#i-code"></use></svg><strong>Build something</strong><span>Code, fix, test and review</span>
+    </button>
+    <button type="button" class="workspace-starter" data-start="Search the web and compare sources for ">
+      <svg class="ic"><use href="#i-browser"></use></svg><strong>Research the web</strong><span>Browse and find answers</span>
+    </button>
+    <button type="button" class="workspace-starter" data-start="Help me work on my computer. First inspect the screen, then ">
+      <svg class="ic"><use href="#i-list"></use></svg><strong>Work in my apps</strong><span>Desktop tasks and creative tools</span>
+    </button>
+    <button type="button" class="workspace-starter" id="start-studio">
+      <svg class="ic"><use href="#i-wand"></use></svg><strong>Create an image or video</strong><span>Generate or build a ComfyUI graph</span>
+    </button>
+    <button type="button" class="workspace-starter" data-start="Help me find jobs by role and city, build a truthful resume, and prepare applications. Use the job-search workflow and keep a shortlist. First ask which roles and city I want and what experience I have. Prepare everything for review before sending applications.">
+      <svg class="ic"><use href="#i-list"></use></svg><strong>Find jobs &amp; build a résumé</strong><span>Local roles, tailored documents and applications</span>
+    </button>
+    <button type="button" class="workspace-starter" data-start="Help me plan and book travel using the world-travel workflow. Compare current flights and hotels, keep an itinerary and total costs, then prepare the selected booking for review. First ask for my origin, destination, dates, travelers and budget. Confirm the final booking details with me.">
+      <svg class="ic"><use href="#i-browser"></use></svg><strong>Plan &amp; book travel</strong><span>Compare flights, hotels and total costs</span>
+    </button>
+  </div>
 
   <div id="starters" hidden></div>
 
@@ -478,7 +479,7 @@
         </button>
         <div id="studio-advanced-params" class="studio-params" hidden></div>
         <div class="studio-go">
-          <button id="studio-make" class="primary" type="submit">Generate image</button>
+          <button id="studio-make" class="primary" type="submit" disabled>Generate image</button>
           <span id="studio-status" class="meta"></span>
         </div>
       </form>
@@ -987,15 +988,31 @@
 <script src="/static/native.js" type="module"></script>
 
 <dialog id="schedules-dialog" aria-labelledby="schedules-title">
-  <div class="schedule-top"><h2 id="schedules-title">Scheduled tasks</h2><button id="schedules-close" type="button" class="ghost" aria-label="Close scheduled tasks">Close</button></div>
-  <p class="schedule-intro">Save a task once and let Omote return to it. Runs use your connected models and tools, with the permissions you choose. Keep this computer awake and Omote running. Missed times are combined into one catch-up run.</p>
-  <div class="schedule-actions"><button id="schedule-new" type="button" class="primary">New task</button><button id="schedule-refresh" type="button">Refresh</button></div>
+  <div class="schedule-top"><div><p class="task-eyebrow">YOUR WORK, IN ONE PLACE</p><h2 id="schedules-title">Tasks</h2></div><button id="schedules-close" type="button" class="ghost" aria-label="Close tasks">Close</button></div>
+  <p class="schedule-intro">See what needs you, follow work in progress, and make useful tasks repeat.</p>
+  <div class="schedule-actions"><button id="schedule-new" type="button" class="primary" disabled>New recurring task</button><button id="schedule-refresh" type="button">Refresh</button></div>
   <p id="schedule-status" class="setup-status" role="status"></p>
+  <div id="task-overview">
+    <div class="task-filters" role="group" aria-label="Filter tasks">
+      <button type="button" data-task-filter="all" aria-pressed="true">All <span id="task-count-all">0</span></button>
+      <button type="button" data-task-filter="attention" aria-pressed="false">Needs you <span id="task-count-attention">0</span></button>
+      <button type="button" data-task-filter="working" aria-pressed="false">Working <span id="task-count-working">0</span></button>
+      <button type="button" data-task-filter="finished" aria-pressed="false">Finished <span id="task-count-finished">0</span></button>
+    </div>
+    <div id="schedule-runs" aria-label="Task activity"></div>
+    <div class="task-section-heading"><h3>Recurring tasks</h3><span class="meta">Run on this computer</span></div>
+    <div id="schedule-templates" class="task-templates" aria-label="Start with a task">
+      <button type="button" data-task-template="brief" disabled><strong>Morning briefing</strong><span>Start the day with a clear plan</span></button>
+      <button type="button" data-task-template="project" disabled><strong>Project check-in</strong><span>Progress, loose ends and next steps</span></button>
+      <button type="button" data-task-template="research" disabled><strong>Research update</strong><span>Follow a topic with fresh sources</span></button>
+    </div>
+    <div id="schedule-list"></div>
+    <p class="schedule-intro task-local-note">Keep this computer awake and Omote running for scheduled work. Missed times are combined into one catch-up run.</p>
+  </div>
   <form id="schedule-form" hidden>
     <h3 id="schedule-form-title">New scheduled task</h3>
     <label>Task name<input id="schedule-name" required maxlength="120" placeholder="Morning briefing"></label>
     <label>What should Omote do?<textarea id="schedule-prompt" required maxlength="32000" placeholder="Review yesterday’s notes and prepare a concise briefing with sources."></textarea></label>
-    <label>Project folder<input id="schedule-root" required placeholder="Folder on the computer running Omote"></label>
     <div class="schedule-grid">
       <label>Repeat<select id="schedule-cadence"><option value="daily">Daily</option><option value="weekly">Selected weekdays</option><option value="interval">Every few minutes or hours</option><option value="once">Once</option><option value="manual">Only when I run it</option></select></label>
       <label id="schedule-time-field">Time<input id="schedule-time" type="time" value="09:00" required></label>
@@ -1004,14 +1021,13 @@
       <label id="schedule-once-field" hidden>Date and time (your device’s time zone)<input id="schedule-once" type="datetime-local"></label>
     </div>
     <fieldset id="schedule-days" hidden><legend>Days</legend><label><input type="checkbox" value="0">Mon</label><label><input type="checkbox" value="1">Tue</label><label><input type="checkbox" value="2">Wed</label><label><input type="checkbox" value="3">Thu</label><label><input type="checkbox" value="4">Fri</label><label><input type="checkbox" value="5">Sat</label><label><input type="checkbox" value="6">Sun</label></fieldset>
-    <div class="schedule-grid"><label>Permissions<select id="schedule-mode"><option value="ask">Ask first</option><option value="read_only">Read only</option><option value="auto_edit">Allow file edits; ask before commands</option><option value="trusted">Allow commands; ask before destructive actions</option></select></label><label>Run time limit (minutes)<input id="schedule-limit" type="number" min="1" max="1440" value="60" required></label></div>
-    <p class="schedule-intro">Questions and approval requests wait in the run’s chat. Pause prevents future runs; Stop ends an active run. Connected providers may charge for usage.</p>
+    <label>Permissions<select id="schedule-mode"><option value="ask">Ask first</option><option value="read_only">Read only</option><option value="auto_edit">Allow file edits; ask before commands</option><option value="trusted">Allow commands; ask before destructive actions</option></select></label>
+    <p class="schedule-intro">Requests for your input appear in Tasks. Connected models may charge for usage. This computer needs to stay awake with Omote running.</p>
+    <details id="schedule-workspace-options"><summary>Project folder and run limit</summary><div class="schedule-grid"><label>Project folder<input id="schedule-root" required placeholder="Folder on the computer running Omote"></label><label>Run time limit (minutes)<input id="schedule-limit" type="number" min="1" max="1440" value="60" required></label></div></details>
     <details><summary>Model and tools</summary><div class="schedule-grid"><label>Provider ID (optional)<input id="schedule-provider" placeholder="Use my default provider"></label><label>Model (optional)<input id="schedule-model" placeholder="Use my default model"></label></div><label>Tool names or groups (optional)<input id="schedule-tools" placeholder="All available tools"></label><p class="schedule-intro">Separate names with commas, for example read_file, glob, grep. Leave blank to use all available tools. Your permission mode still applies.</p></details>
     <label><input id="schedule-enabled" type="checkbox" checked> Schedule enabled</label>
     <div class="schedule-actions"><button id="schedule-save" type="submit" class="primary">Save task</button><button id="schedule-cancel" type="button">Cancel</button></div>
   </form>
-  <div id="schedule-list"></div>
-  <h3>Recent runs</h3><div id="schedule-runs"></div>
 </dialog>
 
 </body>

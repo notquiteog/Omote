@@ -1,4 +1,14 @@
-## Omote 0.11.3
+## Omote 0.11.4
+
+### A simpler home and one place to follow work
+
+The home screen puts your message box before suggestions, with compact actions and scrolling on small screens. **Tasks** brings active chats, requests for your input, Studio generations and scheduled runs together, with **Needs you**, **Working** and **Finished** filters. Each chat keeps its own conversation.
+
+Start a recurring task from **Morning briefing**, **Project check-in** or **Research update**. These fill an editable draft with **Ask first** permissions; they do not start work. Advanced folder, model and tool settings stay available in expandable sections. Closing Tasks preserves the draft until the page reloads; Cancel discards it. Schedules run on your computer while Omote is available.
+
+### Studio opens without waiting for optional editors
+
+Studio loads its generation controls and connection action independently of local editor discovery. Editor detection also runs outside the server event loop, fixing a startup dependency exposed by the Windows release UI tests.
 
 ### Chat stays responsive during Git checks
 

@@ -21,6 +21,7 @@ is a genuinely baffling thing to debug.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -99,7 +100,7 @@ async def editors(kind: str = '') -> dict[str, Any]:
     is not a provider in the registry, and this endpoint is where the panel
     asks what it has.
     """
-    return {'editors': _service().editors(kind)}
+    return {'editors': await asyncio.to_thread(_service().editors, kind)}
 
 
 class Edit(BaseModel):

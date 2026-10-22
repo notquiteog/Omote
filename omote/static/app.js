@@ -2505,7 +2505,7 @@ wireWorktrees({ sessionId });
 refreshWorktrees();
 wireFiles({ sessionId, request: (path) => json(path) });
 wireAttachments();
-wireSchedules({ onOpenChat: async id => {
+wireSchedules({ onOpenStudio: () => go('studio'), onOpenChat: async id => {
   const listing = await json('/api/sessions');
   let target = listing?.sessions?.find(s => s.id === id);
   if (!target) {

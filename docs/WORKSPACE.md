@@ -218,7 +218,7 @@ See [platform notes](INSTALL.md#platform-notes) for routes and limitations.
 
 ## Work that returns on a schedule
 
-Open **Scheduled → New task** to save a daily briefing, weekly project review,
+Open **Tasks → New recurring task**, or choose an editable starter, to save a daily briefing, weekly project review,
 one-time follow-up or recurring research task. Each run has its own chat, uses the
 chosen permissions and exposes questions, approvals and results. Keep Omote running
 on an awake computer. **Pause** prevents future runs; **Stop run** ends current work.

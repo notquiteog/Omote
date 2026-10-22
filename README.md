@@ -108,8 +108,9 @@ commercial agent, and a saved workflow cannot supply missing model weights or
 custom nodes. The ComfyUI workbench adds versioning, validation and an asset library
 around the installed native editor; it does not replace its renderer.
 
-**Scheduled** adds durable local recurring work, run history, questions and approvals
-in chat. See [Scheduled tasks](docs/SCHEDULES.md) for time zones, recovery and controls.
+**Tasks** brings active chats, Studio jobs and scheduled runs together, with filters
+for work that needs you and editable recurring-task starters. See
+[Scheduled tasks](docs/SCHEDULES.md) for time zones, recovery and controls.
 There is no hosted account service, mobile application, JetBrains plugin or native
 team chat service bundled here. Other systems can invoke the CLI or MCP server. Cost accounting is discussed below. The project's capability
 claims describe implemented behavior, with tests and setup boundaries, rather
