@@ -63,15 +63,23 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Install video test tools
+      - name: Install test dependencies and bundled video encoder
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev,video]'
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import imageio_ffmpeg
+          tools = Path(os.environ['RUNNER_TEMP']) / 'video-test-tools'
+          tools.mkdir(exist_ok=True)
+          (tools / 'ffmpeg').symlink_to(imageio_ffmpeg.get_ffmpeg_exe())
+          with open(os.environ['GITHUB_PATH'], 'a') as path:
+              path.write(str(tools) + '\n')
+          PY
 
       - name: The daemon's tests
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e '.[dev]'
           python -m pytest -q
 
   ide:

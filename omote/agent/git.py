@@ -326,7 +326,7 @@ async def run(
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            git_exe(),
+            await asyncio.to_thread(git_exe),
             *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -363,10 +363,9 @@ async def run(
 def is_repo(cwd: Path) -> bool:
     """Whether this directory is inside a work tree.
 
-    Deliberately synchronous and cheap: it runs from `assess`, which must not
-    block the event loop, and `git rev-parse` on an existing repository is a
-    single stat of `.git`. A directory that is not a repository costs one
-    failed exec, which is the only way to be sure.
+    This synchronous probe may wait for Git startup or filesystem access.
+    Async callers must run it in a worker thread, including the commit bar
+    loaded automatically when opening a chat outside a repository.
     """
     if not cwd.is_dir():
         return False
@@ -380,7 +379,7 @@ def is_repo(cwd: Path) -> bool:
             stderr=subprocess.DEVNULL,
             timeout=10,
         )
-    except (OSError, subprocess.SubprocessError):
+    except (GitError, OSError, subprocess.SubprocessError):
         return False
     return result.returncode == 0 and result.stdout.strip() == b'true'
 
@@ -569,7 +568,7 @@ async def commit(cwd: Path, message: str) -> dict[str, Any]:
     if not message.strip():
         raise GitError('a commit needs a message')
     proc = await asyncio.create_subprocess_exec(
-        git_exe(), 'commit', '-F', '-', '--cleanup=strip',
+        await asyncio.to_thread(git_exe), 'commit', '-F', '-', '--cleanup=strip',
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,

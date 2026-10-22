@@ -32,6 +32,7 @@ unstaged remainder is frequently code that does not compile yet.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from pathlib import Path
@@ -164,7 +165,7 @@ def _clean(raw: str) -> str:
 
 @router.get('/status')
 async def read_status(root: str) -> dict[str, Any]:
-    path = _root(root)
+    path = await asyncio.to_thread(_root, root)
     state = await core.status(path)
     return {
         'root': str(path),
@@ -182,14 +183,14 @@ async def read_status(root: str) -> dict[str, Any]:
 
 @router.get('/diff')
 async def read_diff(root: str, staged: bool = True, path: str = '', stat_only: bool = False) -> dict[str, Any]:
-    path_root = _root(root)
+    path_root = await asyncio.to_thread(_root, root)
     text, clipped = await core.diff(path_root, staged=staged, path=path, stat_only=stat_only)
     return {'root': str(path_root), 'staged': staged, 'diff': text, 'truncated': clipped}
 
 
 @router.get('/log')
 async def read_log(root: str, limit: int = 15, path: str = '') -> dict[str, Any]:
-    path_root = _root(root)
+    path_root = await asyncio.to_thread(_root, root)
     text = await core.log(path_root, limit=limit, path=path)
     return {'root': str(path_root), 'log': text}
 
@@ -205,7 +206,7 @@ async def propose_message(body: ProposeRequest) -> dict[str, Any]:
     into a fallback message, because "AI wrote your commit message" should
     never be something that was not written by the AI.
     """
-    path = _root(body.root)
+    path = await asyncio.to_thread(_root, body.root)
     text, clipped = await core.diff(path, staged=True)
     if not text.strip():
         # Nothing staged is not a provider failure and must not be reported
@@ -232,7 +233,7 @@ async def make_commit(body: CommitRequest) -> dict[str, Any]:
     interface growing a staging UI, and it is an explicit list rather than a
     boolean so that "commit everything" is something somebody typed.
     """
-    path = _root(body.root)
+    path = await asyncio.to_thread(_root, body.root)
     if body.stage:
         try:
             await core.stage(path, [p for p in body.stage if p.strip()])
@@ -255,7 +256,7 @@ class StageRequest(BaseModel):
 
 @router.post('/stage')
 async def stage_paths(body: StageRequest) -> dict[str, Any]:
-    path = _root(body.root)
+    path = await asyncio.to_thread(_root, body.root)
     try:
         what = await core.stage(path, [p for p in (body.paths or []) if p.strip()])
     except core.GitError as exc:
@@ -266,7 +267,7 @@ async def stage_paths(body: StageRequest) -> dict[str, Any]:
 
 @router.post('/unstage')
 async def unstage_paths(body: StageRequest) -> dict[str, Any]:
-    path = _root(body.root)
+    path = await asyncio.to_thread(_root, body.root)
     try:
         what = await core.unstage(path, [p for p in (body.paths or []) if p.strip()])
     except core.GitError as exc:

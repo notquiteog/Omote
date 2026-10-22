@@ -122,6 +122,14 @@ character references, tracked subject masks and pose controls with MiniMax H3
 and its Fun ControlNet patch. The managed model downloader now accepts the
 `model_patches` folder used by that native ComfyUI workflow.
 
+For Linux validation, launch the managed server through
+`tools/run_memory_limited.py -- <server command>`. It uses a systemd user scope
+to cap the server and its children, reserves memory for the desktop, and disables
+swap for that job. Unsupported hosts fail before launch. A large model that
+exceeds the budget must fail within the scope; do not rerun it without a cap or
+create swap files on a RAM-backed temporary filesystem. This developer launcher
+does not add a cross-platform memory guarantee to Studio.
+
 `tools/finish_subject_replacement.py` copies source pixels outside the union of
 original and generated subject masks, writes an FFV1 lossless master, then
 independently decodes both the original source and delivered master to compare

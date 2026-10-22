@@ -1,4 +1,8 @@
-## Omote 0.11.1
+## Omote 0.11.2
+
+### Chat stays responsive during Git checks
+
+Opening a chat outside a Git repository no longer lets a slow Git check block chat and provider settings. Git and worktree checks run outside the server's event loop, and Git being absent is handled normally. Regression checks run on Windows, macOS, and Linux. This addresses a blocking path identified while investigating [the Windows no-response report](https://github.com/notquiteog/Omote/issues/1); verification on the reporter's machine is still pending.
 
 ### Reliable model switching
 

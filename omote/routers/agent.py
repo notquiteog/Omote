@@ -330,7 +330,7 @@ async def list_worktrees(session_id: str) -> dict[str, object]:
     session = manager.get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail='no such session')
-    root = wt.repository_root(session.root)
+    root = await asyncio.to_thread(wt.repository_root, session.root)
     if root is None:
         return {'available': False, 'why': 'this is not a git repository, so there is no branch to put anywhere',
                 'worktrees': []}
@@ -343,7 +343,9 @@ async def list_worktrees(session_id: str) -> dict[str, object]:
         'available': not blocked,
         'why': blocked,
         'root': str(root),
-        'worktrees': [{**w.public(), **wt.changes(_Path(w.path))} for w in wt.list_worktrees(root)],
+        'worktrees': await asyncio.to_thread(
+            lambda: [{**w.public(), **wt.changes(_Path(w.path))} for w in wt.list_worktrees(root)],
+        ),
     }
 
 
@@ -374,11 +376,11 @@ async def make_worktree(session_id: str, body: WorktreeBody) -> dict[str, object
             status_code=409,
             detail='worktrees are off on this install (OMOTE_WORKTREES=1 to allow them)',
         )
-    root = wt.repository_root(session.root)
+    root = await asyncio.to_thread(wt.repository_root, session.root)
     if root is None:
         raise HTTPException(status_code=409, detail='this is not a git repository, so there is no branch to put anywhere')
     try:
-        made = wt.create(root, branch=body.branch, label=body.label)
+        made = await asyncio.to_thread(wt.create, root, branch=body.branch, label=body.label)
     except wt.WorktreeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -407,11 +409,11 @@ async def drop_worktree(session_id: str, path: str = '') -> dict[str, object]:
         raise HTTPException(status_code=404, detail='no such session')
     if not path:
         raise HTTPException(status_code=400, detail='path is required')
-    root = wt.repository_root(session.root)
+    root = await asyncio.to_thread(wt.repository_root, session.root)
     if root is None:
         raise HTTPException(status_code=409, detail='not a git repository')
     try:
-        wt.remove(root, path)
+        await asyncio.to_thread(wt.remove, root, path)
     except wt.WorktreeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {'ok': True}

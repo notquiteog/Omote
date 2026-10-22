@@ -29,6 +29,7 @@ other people that nobody can take back.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from omote.agent import git as core
@@ -293,7 +294,7 @@ class GitTool(Tool):
         target = str(args.get('path') or '').strip()
         paths = [str(p) for p in (args.get('paths') or []) if str(p).strip()]
 
-        if not core.is_repo(root):
+        if not await asyncio.to_thread(core.is_repo, root):
             # The common case is a session pointed at a directory that is not
             # under version control, and the answer is a sentence the model can
             # act on rather than a stack trace it has to interpret.
