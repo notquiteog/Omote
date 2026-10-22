@@ -2391,7 +2391,7 @@ dependencies = [
 
 [[package]]
 name = "omote-desktop"
-version = "0.11.5"
+version = "0.11.6"
 dependencies = [
  "serde",
  "serde_json",

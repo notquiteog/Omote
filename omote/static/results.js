@@ -1,4 +1,6 @@
-/* Saved work is read on demand; browsing it never sends a model a prompt. */
+/* Saved work is read on demand; browsing it never sends a model a prompt.
+ * session-id-exempt: Export links use the original session ID returned with each saved result, never the currently selected chat.
+ */
 import { $, api, el } from './dom.js';
 
 let revision = 0;

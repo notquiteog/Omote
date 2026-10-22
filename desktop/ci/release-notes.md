@@ -1,4 +1,4 @@
-## Omote 0.11.5
+## Omote 0.11.6
 
 ### Find your saved work
 

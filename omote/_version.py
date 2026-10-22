@@ -27,6 +27,6 @@ Kept deliberately dependency-free and deliberately boring: this file is imported
 before anything else in the process, including on a build machine.
 """
 
-__version__ = '0.11.5'
+__version__ = '0.11.6'
 
 __all__ = ['__version__']
