@@ -14,7 +14,9 @@ dependencies = [
   "fastapi>=0.115",
   "uvicorn[standard]>=0.30",
   "pydantic>=2.9",
-  "aiohttp>=3.10",
+  "aiohttp>=3.14.4",
+  "certifi>=2026.10.19",  # Refresh the CA bundle after the October 2026 advisory.
+  "multidict>=6.9.1",  # Patched HTTP header parsing for aiohttp.
   "httpx>=0.27",  # Official marketplace APIs, also used by the packaged desktop app.
   "websockets>=13.0",
   "tzdata>=2024.1",  # IANA time zones on Windows and frozen desktop installs.
@@ -25,15 +27,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "ruff>=0.6", "httpx>=0.27", "pillow>=10.0"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "ruff>=0.6", "httpx>=0.27", "pillow>=13.0.0"]
 # Routing a provider's traffic through Tor. An extra rather than a dependency:
 # an install that never turns it on should not carry a SOCKS stack, and the
 # error when it is missing names this extra.
 tor = ["aiohttp-socks>=0.9"]
 # Seeing and driving the screen. Needed for the desktop tools and for the
 # autopilot; the browser tools work without it.
-desktop = ["mss>=9.0", "pillow>=10.0"]
-browser = ["playwright>=1.45"]
+desktop = ["mss>=9.0", "pillow>=13.0.0"]
+browser = ["playwright>=1.64.1"]
 # Editing video and audio. `imageio-ffmpeg` is here rather than `ffmpeg`
 # because it *bundles* a static binary: an extra that shells out to something
 # the user has to install separately is an extra that does not work, and this
@@ -46,7 +48,7 @@ video = ["imageio-ffmpeg>=0.5"]
 # a PDF is a font-and-geometry format, and a hand-written extractor gets the
 # easy cases and garbles the rest, which is worse than a refusal. An extra
 # rather than a dependency: nothing that does not open a PDF should carry it.
-docs = ["pypdf>=4.0"]
+docs = ["pypdf>=6.21.1"]
 # A C scan over the memory index, in process. Optional because it is a loadable
 # SQLite extension and `enable_load_extension` is a COMPILE-TIME Python option
 # that not every build has -- so this cannot be a hard dependency without

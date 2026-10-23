@@ -19,7 +19,7 @@ from omote.local_models.catalog import GIB
 from omote.local_models.downloads import Downloads, DownloadStore, checksum
 from omote.providers.connections import Connection, ConnectionStore, build
 from omote.setup.archive import extract
-from omote.setup.browser import activate
+from omote.setup.browser import activate, version_supported
 from omote.setup.catalog import COMFY_REVISION, COMFY_SOURCE, PLAYWRIGHT_VERSION, comfy_host_error, uv_artifact
 from omote.setup.process import SetupError, SetupHelp, clean, environment, run, spawn, terminate
 
@@ -130,7 +130,7 @@ class ToolSetup:
         if self.state['playwright']['state'] == 'ready':
             try:
                 from playwright._repo_version import version
-                if version != manifest.get('version') or manifest.get('python') != f'{sys.version_info.major}.{sys.version_info.minor}':
+                if not version_supported(version) or version != manifest.get('version') or manifest.get('python') != f'{sys.version_info.major}.{sys.version_info.minor}':
                     self.state['playwright'].update(state='interrupted', note='Browser tools changed. Retry setup to get the matching browser.')
             except ImportError:
                 self.state['playwright'].update(state='interrupted', note='Browser tools are missing. Retry setup to repair them.')
@@ -302,6 +302,8 @@ class ToolSetup:
         try:
             from playwright._repo_version import version
         except ImportError:
+            version = PLAYWRIGHT_VERSION
+        if not version_supported(version):
             version = PLAYWRIGHT_VERSION
         uv = await self.uv()
         abi = f'{sys.version_info.major}.{sys.version_info.minor}'

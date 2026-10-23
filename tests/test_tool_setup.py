@@ -17,7 +17,7 @@ from omote.providers.registry import ProviderRegistry
 from omote.routers import auth, setup
 from omote.setup.archive import extract
 from omote.setup.browser import activate
-from omote.setup.catalog import UV_BUILDS, uv_artifact
+from omote.setup.catalog import PLAYWRIGHT_VERSION, UV_BUILDS, uv_artifact
 from omote.setup.process import SetupError, SetupHelp, environment, run
 from omote.setup.service import COMFY_REVISION, DEVICE_CHECK, PROVIDER, ToolSetup, python_in, read_json, write_json
 
@@ -199,8 +199,15 @@ def test_setup_actions_are_authenticated_and_inputs_are_bounded(monkeypatch):
         assert client.post('/api/setup/unrelated/start', json={}, headers=headers).status_code == 422
 
 
-@pytest.mark.parametrize('abi,outside,activated', [('current', False, True), ('3.10', False, False), ('current', True, False)])
-def test_private_browser_activation_requires_matching_python_and_owned_path(tmp_path, monkeypatch, abi, outside, activated):
+@pytest.mark.parametrize('abi,outside,version,activated', [
+    ('current', False, PLAYWRIGHT_VERSION, True),
+    ('3.10', False, PLAYWRIGHT_VERSION, False),
+    ('current', True, PLAYWRIGHT_VERSION, False),
+    ('current', False, '1.64.0', False),
+    ('current', False, '1.62.0', False),
+    ('current', False, None, False),
+])
+def test_private_browser_activation_requires_matching_python_and_owned_path(tmp_path, monkeypatch, abi, outside, version, activated):
     monkeypatch.setattr(sys, 'path', sys.path.copy())
     monkeypatch.delenv('PLAYWRIGHT_BROWSERS_PATH', raising=False)
     # Track the environment mutation for cleanup even when activation sets it.
@@ -208,7 +215,7 @@ def test_private_browser_activation_requires_matching_python_and_owned_path(tmp_
     root = tmp_path / 'tools/setup'
     packages = tmp_path / 'outside' if outside else root / 'packages'
     packages.mkdir(parents=True)
-    write_json(root / 'browser.json', {'packages': str(packages), 'python':
+    write_json(root / 'browser.json', {'packages': str(packages), 'version': version, 'python':
         f'{sys.version_info.major}.{sys.version_info.minor}' if abi == 'current' else abi})
     activate(tmp_path)
     assert (str(packages) in sys.path) is activated

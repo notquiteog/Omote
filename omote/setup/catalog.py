@@ -5,7 +5,7 @@ from omote.local_models.catalog import Artifact
 
 UV_VERSION = '0.13.3'
 COMFY_REVISION = 'b1a247c9cf9dbfda4b2c0a0c1d50950667eeaa0c'
-PLAYWRIGHT_VERSION = '1.64.0'
+PLAYWRIGHT_VERSION = '1.64.1'
 UV_BUILDS = {
     ('linux', 'x86_64'): ('x86_64-unknown-linux-gnu.tar.gz', 16767662, 'e4f169ec380f1793b898a6f1fcbacd22db25cf7ca0349a6e96ffb85b69998d04'),
     ('linux', 'aarch64'): ('aarch64-unknown-linux-gnu.tar.gz', 15857962, '611ff684f193a84d2fdad29c5f12505d02ece94984c7c982cdde950eba5c95b9'),

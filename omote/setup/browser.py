@@ -2,8 +2,16 @@
 import importlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
+
+
+def version_supported(version):
+    from omote.setup.catalog import PLAYWRIGHT_VERSION
+    if not isinstance(version, str) or not re.fullmatch(r'\d+\.\d+\.\d+', version):
+        return False
+    return tuple(map(int, version.split('.'))) >= tuple(map(int, PLAYWRIGHT_VERSION.split('.')))
 
 
 def activate(data_dir=None):
@@ -14,6 +22,10 @@ def activate(data_dir=None):
     try:
         manifest = json.loads((root / 'browser.json').read_text())
         if not isinstance(manifest, dict) or manifest.get('python') != f'{sys.version_info.major}.{sys.version_info.minor}':
+            return
+        # Private environments survive app updates. Do not reactivate a driver
+        # whose bundled Node predates the October 2026 security fixes.
+        if not version_supported(manifest.get('version')):
             return
         packages = (root / manifest['packages']).resolve()
         if not packages.is_relative_to(root.resolve()) or not packages.is_dir():

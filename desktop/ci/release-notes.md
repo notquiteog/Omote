@@ -1,27 +1,14 @@
-## Omote 0.11.9
+## Omote 0.11.10
 
-### Shop, saved browser logins and controlled eBay replies
+### October 2026 security update
 
-Open **Shop** in the sidebar to save supplier quotes and listing drafts, review costs and estimated profit, and continue the work in chat. Website shortcuts cover Facebook Marketplace, eBay, Etsy, Depop, Alibaba, Made-in-China and DHgate. Browser assistance works without marketplace API credentials; sending messages, publishing and purchases use the existing approval policy.
+Update existing daemon and desktop installations to refresh the HTTP stack, certificate trust bundle, image/PDF parsers and browser tools. This release requires patched aiohttp, multidict, certifi, Pillow and pypdf versions and updates the desktop Tokio lockfile to 1.53.3.
 
-Compatible chats now share the browser's saved account login while keeping separate tabs, navigation and element references. Closing one chat leaves the others open. A new chat starts on a blank page, and a busy or incompatible profile produces a clear message instead of silently opening an unsigned temporary profile. Expired website sessions can still require sign-in.
+Browser Setup now installs Playwright 1.64.1, whose bundled Node 24.22.1 includes the October runtime security fixes. Older private browser environments are refused after an app update. If Browser Setup reports an interrupted or changed installation, choose **Retry setup** to install the matching browser tools. Project Node tooling and extension CI use Node 26.12.1.
 
-**Shop → Replies** adds the first unattended inbox connector through eBay's official Message API. Advanced setup requires an eBay user access token. You explicitly enable an exact question-and-answer rule for an item, with a daily limit and expiry. Account checks and a persistent outgoing ledger prevent blind retries after uncertain sends. Expired tokens pause replies and require reconnecting; automatic token refresh is not included yet.
+The broad Python regression run passed 2,974 checks with 86 skips before the matching-browser download; the missing-browser case and setup regressions then passed in a 51-check follow-up. Extension tests passed. The release workflow validates native installers on Linux, Windows and macOS before publication. Existing upstream GLib 0.18.5 safety and native dependency maintenance warnings remain; this release does not resolve those upstream issues.
 
-Other marketplaces use assisted browser workflows. This release does not add unattended replies to Facebook Marketplace, Etsy or Depop. Supplier records and readiness checks help prepare work; they do not guarantee product eligibility, margins or successful transactions.
-
-Studio's separate character, source-video and speech inputs, **Tasks → Results**, and interrupted-chat recovery from previous releases remain included.
-
-### What to try
-
-1. Open **Shop**, choose a website and select **Open with Omote**. Send the prepared chat request to begin.
-2. Sign in through Omote's browser when asked, then try another chat using the same account.
-3. Save a supplier quote or listing draft, select **Review**, and use **Continue with Omote** to work on it in chat.
-4. If you have an eBay API token, open **Replies**, connect the account, and enable a narrowly defined answer rule. Pause it from the same screen.
-
-Automated tests cover storage boundaries, reply limits, duplicate prevention, uncertain sends, token redaction, desktop/mobile Shop flows, and persistent browser login with separate tabs. Marketplace tests use simulated services and accounts; no real seller was contacted and no live listing was published. See [the Shop guide](https://github.com/notquiteog/Omote/blob/v0.11.9/docs/COMMERCE.md) for setup and current limitations.
-
-Each installer includes the app and its own Python runtime. Existing data remains in `~/.omote`. If you run a separate daemon on port 8477, the desktop app uses it; update or restart that daemon separately to test the new server code.
+Each installer includes the app and its own Python runtime. Existing data remains in `~/.omote`. Restart or update separately managed daemons as well as the desktop app. Existing Shop, saved browser login and controlled eBay reply features remain included; see [the Shop guide](https://github.com/notquiteog/Omote/blob/v0.11.10/docs/COMMERCE.md).
 
 ## Windows
 

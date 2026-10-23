@@ -3,6 +3,11 @@
 Versions follow the daemon's, because a panel that says 0.6.1 against a 0.6.0
 daemon is a support question nobody should have to ask.
 
+## 0.11.10
+
+- Match the October 2026 daemon and desktop security release.
+- Validate extension tooling on patched Node 26.12.1.
+
 ## 0.9.0
 
 - Match the daemon and desktop 0.9.0 release.

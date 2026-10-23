@@ -90,7 +90,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '26.12.1'
 
       # No `npm install`, because there is nothing to install: the extension
       # has no dependencies and no build step, and `src/ws.js` exists precisely
