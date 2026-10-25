@@ -122,6 +122,9 @@ class VoiceReady(_VEvent):
     stt: str
     tts: str
     llm: str
+    session: str | None = None
+    policy: str | None = None
+    model: str | None = None
 
 
 class SpeechStarted(_VEvent):

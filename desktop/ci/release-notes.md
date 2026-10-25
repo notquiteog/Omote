@@ -1,14 +1,16 @@
-## Omote 0.11.10
+## Omote 0.11.11
 
-### October 2026 security update
+### Windows chat, voice and conversation permissions
 
-Update existing daemon and desktop installations to refresh the HTTP stack, certificate trust bundle, image/PDF parsers and browser tools. This release requires patched aiohttp, multidict, certifi, Pillow and pypdf versions and updates the desktop Tokio lockfile to 1.53.3.
+Talk now uses the conversation it was started from, sharing its model, history, working folder, tools and permission mode. Required approvals and questions appear on screen in both Talk and Live, and answers stay synchronized between voice and the screen. Permission changes save immediately and survive reopening the conversation. Ending a call leaves its parent conversation open and does not cancel unrelated typed work.
 
-Browser Setup now installs Playwright 1.64.1, whose bundled Node 24.22.1 includes the October runtime security fixes. Older private browser environments are refused after an app update. If Browser Setup reports an interrupted or changed installation, choose **Retry setup** to install the matching browser tools. Project Node tooling and extension CI use Node 26.12.1.
+Windows microphone capture and headset playback now start together through a shared audio context. Talk rejects brief background noise before interrupting replies, drops explicit non-speech annotations, and reads each new agent answer instead of replaying the first one. Invalid speech model settings produce an actionable error before microphone capture begins.
 
-The broad Python regression run passed 2,974 checks with 86 skips before the matching-browser download; the missing-browser case and setup regressions then passed in a 51-check follow-up. Extension tests passed. The release workflow validates native installers on Linux, Windows and macOS before publication. Existing upstream GLib 0.18.5 safety and native dependency maintenance warnings remain; this release does not resolve those upstream issues.
+This release also fixes Windows hook execution and process cleanup, desktop imports and stale-lock checks. Shell tools explicitly describe Windows cmd.exe syntax. Chat retries transient upstream gateway failures before streaming starts, without replaying tool execution.
 
-Each installer includes the app and its own Python runtime. Existing data remains in `~/.omote`. Restart or update separately managed daemons as well as the desktop app. Existing Shop, saved browser login and controlled eBay reply features remain included; see [the Shop guide](https://github.com/notquiteog/Omote/blob/v0.11.10/docs/COMMERCE.md).
+Regression coverage now includes Windows, Linux and macOS core tests, plus browser tests for microphone capture, rendered audio, call approvals, questions and saved permissions. Native installers are built and smoke-tested on each platform before publication.
+
+Each installer includes the app and its own Python runtime. Existing data remains in `~/.omote`. Restart or update separately managed daemons as well as the desktop app.
 
 ## Windows
 

@@ -55,6 +55,11 @@ def provider_server():
                 ]
             else:
                 chunks = [{'choices': [{'delta': {'content': answer}, 'finish_reason': 'stop'}]}]
+            if tool := state.pop('next_tool', None):
+                chunks = [{'choices': [{'delta': {'tool_calls': [{
+                    'index': 0, 'id': 'call_screen', 'type': 'function',
+                    'function': {'name': tool['name'], 'arguments': json.dumps(tool['input'])},
+                }]}, 'finish_reason': 'tool_calls'}]}]
             return self.respond(''.join('data: ' + json.dumps(c) + '\n\n' for c in chunks), 'text/event-stream')
 
         def log_message(self, *args):

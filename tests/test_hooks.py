@@ -51,6 +51,7 @@ from omote.agent.hooks import (
     run,
 )
 from omote.protocol.agent import Risk, ToolCall
+from tests.commands import python_command
 
 
 def call(name: str = 'shell', summary: str = 'rm -rf build/') -> ToolCall:
@@ -158,14 +159,15 @@ def test_a_project_s_hooks_are_read_even_when_they_cannot_run_yet(tmp_path: Path
 
 
 async def test_a_hook_that_says_nothing_lets_the_call_through(tmp_path: Path):
-    outcome = await run([Hook(event='PreToolUse', command='true')], 'PreToolUse', call(), cwd=tmp_path)
+    command = python_command(tmp_path, 'pass')
+    outcome = await run([Hook(event='PreToolUse', command=command)], 'PreToolUse', call(), cwd=tmp_path)
     assert outcome.ok
-    assert outcome.ran == ['true']
+    assert outcome.ran == [command]
 
 
 async def test_a_hook_that_exits_non_zero_refuses_it(tmp_path: Path):
     outcome = await run(
-        [Hook(event='PreToolUse', command='echo "no editing generated files" >&2; exit 1')],
+        [Hook(event='PreToolUse', command=python_command(tmp_path, "import sys; print('no editing generated files', file=sys.stderr); sys.exit(1)"))],
         'PreToolUse', call(), cwd=tmp_path,
     )
     assert not outcome.ok
@@ -178,8 +180,8 @@ async def test_a_refusal_stops_the_rest_of_the_chain(tmp_path: Path):
     marker = tmp_path / 'ran'
     outcome = await run(
         [
-            Hook(event='PreToolUse', command='exit 3'),
-            Hook(event='PreToolUse', command=f'touch {marker}'),
+            Hook(event='PreToolUse', command=python_command(tmp_path, 'raise SystemExit(3)')),
+            Hook(event='PreToolUse', command=python_command(tmp_path, f'from pathlib import Path; Path({str(marker)!r}).touch()')),
         ],
         'PreToolUse', call(), cwd=tmp_path,
     )
@@ -190,7 +192,7 @@ async def test_a_refusal_stops_the_rest_of_the_chain(tmp_path: Path):
 async def test_only_the_matching_hooks_run(tmp_path: Path):
     other = tmp_path / 'other'
     outcome = await run(
-        [Hook(event='PreToolUse', command=f'touch {other}', tools=['write_file'])],
+        [Hook(event='PreToolUse', command=python_command(tmp_path, f'from pathlib import Path; Path({str(other)!r}).touch()'), tools=['write_file'])],
         'PreToolUse', call('shell'), cwd=tmp_path,
     )
     assert outcome.ok
@@ -200,7 +202,7 @@ async def test_only_the_matching_hooks_run(tmp_path: Path):
 async def test_an_event_only_runs_its_own_hooks(tmp_path: Path):
     marker = tmp_path / 'pre'
     await run(
-        [Hook(event='PreToolUse', command=f'touch {marker}')],
+        [Hook(event='PreToolUse', command=python_command(tmp_path, f'from pathlib import Path; Path({str(marker)!r}).touch()'))],
         'PostToolUse', call(), cwd=tmp_path,
     )
     assert not marker.exists()
@@ -211,10 +213,10 @@ async def test_the_call_arrives_as_json_on_stdin(tmp_path: Path):
     file, so the keys are a tool call's own."""
     out = tmp_path / 'out.json'
     await run(
-        [Hook(event='PreToolUse', command=f'cat > {out}')],
+        [Hook(event='PreToolUse', command=python_command(tmp_path, f"import sys; from pathlib import Path; Path({str(out)!r}).write_text(sys.stdin.read(), encoding='utf-8')"))],
         'PreToolUse', call('shell', 'rm -rf build/'), cwd=tmp_path, session_id='s1',
     )
-    body = json.loads(out.read_text())
+    body = json.loads(out.read_text(encoding='utf-8'))
     assert body['tool'] == 'shell'
     assert body['summary'] == 'rm -rf build/'
     assert body['risk'] == 'execute'
@@ -227,7 +229,7 @@ async def test_a_hook_that_hangs_is_ignored_and_not_turned_into_a_refusal(tmp_pa
     sentences. A timeout that reports the second one turns a slow linter into
     a turn that mysteriously cannot proceed."""
     outcome = await run(
-        [Hook(event='PreToolUse', command='sleep 30')], 'PreToolUse', call(), cwd=tmp_path, seconds=0.3
+        [Hook(event='PreToolUse', command=python_command(tmp_path, 'import time; time.sleep(30)'))], 'PreToolUse', call(), cwd=tmp_path, seconds=0.3
     )
     assert outcome.ok, 'a timeout must not read as a refusal'
     assert outcome.problems and 'longer than' in outcome.problems[0]
@@ -238,7 +240,11 @@ async def test_a_hook_that_hangs_is_actually_stopped(tmp_path: Path):
     is how one bad hook becomes several."""
     marker = tmp_path / 'still-alive'
     outcome = await run(
-        [Hook(event='PreToolUse', command=f'(sleep 2; touch {marker}) & wait')],
+        [Hook(event='PreToolUse', command=python_command(tmp_path,
+            "import subprocess, sys, time\n"
+            f"child = {('import time; from pathlib import Path; time.sleep(2); Path(' + repr(str(marker)) + ').touch()')!r}\n"
+            "subprocess.Popen([sys.executable, '-c', child])\n"
+            "time.sleep(30)\n"))],
         'PreToolUse', call(), cwd=tmp_path, seconds=0.3,
     )
     assert outcome.problems
@@ -246,13 +252,17 @@ async def test_a_hook_that_hangs_is_actually_stopped(tmp_path: Path):
     assert not marker.exists(), 'the hook was left running'
 
 
-async def test_a_hook_that_cannot_start_is_reported_and_does_not_refuse(tmp_path: Path):
+async def test_a_hook_that_cannot_start_is_reported_and_does_not_refuse(tmp_path: Path, monkeypatch):
     """A hook file naming a program that is not installed is a mistake, not a
     refusal. Read as a block, a typo in somebody else's `hooks.json` silently
     stops every call that matches it, and the person is told their formatter
     said no."""
+    async def cannot_start(*args, **kwargs):
+        raise FileNotFoundError('the shell is missing')
+
+    monkeypatch.setattr(asyncio, 'create_subprocess_shell', cannot_start)
     outcome = await run(
-        [Hook(event='PreToolUse', command='/definitely/not/a/program')], 'PreToolUse', call(), cwd=tmp_path
+        [Hook(event='PreToolUse', command='omote-hook-command-that-does-not-exist')], 'PreToolUse', call(), cwd=tmp_path
     )
     assert outcome.ok, 'a hook that could not start has not had an opinion'
     assert outcome.problems and 'could not start' in outcome.problems[0]
@@ -366,7 +376,7 @@ async def test_a_hook_stops_a_real_tool_call_and_the_model_is_told_why(tmp_path)
     from omote.providers.base import StreamDone, StreamText, StreamToolUse
     from tests.test_agent import ScriptedProvider, drain
 
-    script = 'echo "not that folder" >&2; exit 1'
+    script = python_command(tmp_path, "import sys; print('not that folder', file=sys.stderr); sys.exit(1)")
     provider = ScriptedProvider([
         [StreamToolUse(id='t1', name='shell', input={'command': 'echo hi'}), StreamDone(stop_reason='tool_use')],
         [StreamText(text='right, I will not'), StreamDone()],
@@ -405,7 +415,7 @@ async def test_a_hook_cannot_stop_a_call_it_has_not_been_agreed_to(tmp_path):
     from omote.providers.base import StreamDone, StreamText, StreamToolUse
     from tests.test_agent import ScriptedProvider, drain
 
-    script = 'echo blocked >&2; exit 1'
+    script = python_command(tmp_path, "import sys; print('blocked', file=sys.stderr); sys.exit(1)")
     provider = ScriptedProvider([
         [StreamToolUse(id='t1', name='shell', input={'command': 'echo hi'}), StreamDone(stop_reason='tool_use')],
         [StreamText(text='done'), StreamDone()],
@@ -434,7 +444,7 @@ async def test_an_unagreed_hook_asks_once_and_says_what_it_would_run(tmp_path):
     from omote.providers.base import StreamDone, StreamText, StreamToolUse
     from tests.test_agent import ScriptedProvider, drain
 
-    script = 'echo blocked >&2; exit 1'
+    script = python_command(tmp_path, "import sys; print('blocked', file=sys.stderr); sys.exit(1)")
     provider = ScriptedProvider([
         [StreamToolUse(id='t1', name='shell', input={'command': 'echo hi'}), StreamDone(stop_reason='tool_use')],
         [StreamText(text='done'), StreamDone()],
@@ -469,8 +479,8 @@ def test_the_panel_is_told_which_session_it_describes():
     so every URL came out as the function's own source text and every request
     404'd. Found by driving a real project with a real hooks file in it.
     """
-    client = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'hooks.js').read_text()
-    app = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'app.js').read_text()
+    client = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'hooks.js').read_text(encoding='utf-8')
+    app = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'app.js').read_text(encoding='utf-8')
     assert 'const currentSession = () => (state.sessionId ? state.sessionId() : null);' in client
     assert '${currentSession()}' in client
     assert 'wireHooks({ sessionId })' in app
@@ -480,7 +490,7 @@ def test_the_panel_is_told_which_session_it_describes():
 def test_a_hook_that_wants_to_run_is_asked_about_once_per_command():
     """Per command, not per file: a project that ships one hook today and a
     different one tomorrow must not inherit yesterday's answer."""
-    client = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'hooks.js').read_text()
+    client = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'hooks.js').read_text(encoding='utf-8')
     assert 'state.asked' in client
     assert 'if (state.asked.has(hook.command)) return;' in client
 
@@ -488,7 +498,7 @@ def test_a_hook_that_wants_to_run_is_asked_about_once_per_command():
 def test_the_question_does_not_cover_the_turn():
     """A dialog over live work is a dialog that gets dismissed without being
     read, which is the one thing this feature cannot be."""
-    index = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'index.html').read_text()
+    index = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'index.html').read_text(encoding='utf-8')
     assert 'id="hooks-banner"' in index
     # It lives above the transcript, not inside it.
     assert index.index('id="hooks-banner"') < index.index('id="transcript"')
@@ -497,7 +507,7 @@ def test_the_question_does_not_cover_the_turn():
 
 def test_the_strip_says_a_hook_can_only_take_away():
     """The asymmetry, said where the person makes the decision."""
-    client = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'hooks.js').read_text()
+    client = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'hooks.js').read_text(encoding='utf-8')
     assert 'never allow one' in client
 
 
@@ -514,20 +524,17 @@ async def test_a_prompt_hook_can_stop_a_turn_before_it_starts(tmp_path):
 
     # A script, because that is what a real hook is, and because a one-liner
     # full of `&&` and braces is a quoting problem rather than a test.
-    guard = tmp_path / 'guard.sh'
-    guard.write_text(
-        '#!/bin/sh\n'
-        'grep -q deploy || exit 0\n'
-        'echo "no deployments from here" >&2\n'
-        'exit 1\n'
-    )
-    guard.chmod(0o755)
+    guard = python_command(tmp_path,
+        "import sys\n"
+        "if 'deploy' in sys.stdin.read():\n"
+        "    print('no deployments from here', file=sys.stderr)\n"
+        "    sys.exit(1)\n")
     provider = ScriptedProvider([[StreamText(text='deploying'), StreamDone()]])
     session = build_session(
         root=str(tmp_path), provider=provider, model='x', mode=Mode.TRUSTED,
-        hooks=[Hook(event='UserPromptSubmit', command=str(guard))],
+        hooks=[Hook(event='UserPromptSubmit', command=guard)],
     )
-    session.hooks_agreed.add(str(guard))
+    session.hooks_agreed.add(guard)
     await session.start()
     session.submit('deploy the thing')
     await asyncio.wait_for(drain(session), timeout=10)
@@ -548,7 +555,7 @@ async def test_a_prompt_hook_can_add_context_the_model_uses(tmp_path):
     from tests.test_agent import ScriptedProvider, drain
 
     # The note comes back on stdout, and `run` reads stdout for exactly this.
-    command = 'grep -q check && echo "the staging box is offline"'
+    command = python_command(tmp_path, "import sys; print('the staging box is offline' if 'check' in sys.stdin.read() else '')")
     provider = ScriptedProvider([
         [StreamToolUse(id='t1', name='list_dir', input={}), StreamDone(stop_reason='tool_use')],
         [StreamText(text='noted'), StreamDone()],
@@ -581,7 +588,7 @@ async def test_a_stop_hook_is_reported_and_changes_nothing(tmp_path):
     from omote.providers.base import StreamDone, StreamText
     from tests.test_agent import ScriptedProvider, drain
 
-    command = 'echo "remember to run the migrations" >&2; exit 1'
+    command = python_command(tmp_path, "import sys; print('remember to run the migrations', file=sys.stderr); sys.exit(1)")
     provider = ScriptedProvider([[StreamText(text='all done'), StreamDone()]])
     session = build_session(
         root=str(tmp_path), provider=provider, model='x', mode=Mode.TRUSTED,
@@ -617,7 +624,7 @@ def test_every_event_the_docs_say_can_refuse_actually_can():
             assert interpret(event, 1, '', 'because', Hook(event=event, command='x')).ok, event
 
     # And the docs and the code agree about which are which.
-    docs = (Path(__file__).resolve().parents[1] / 'docs' / 'HOOKS.md').read_text()
+    docs = (Path(__file__).resolve().parents[1] / 'docs' / 'HOOKS.md').read_text(encoding='utf-8')
     for event in EVENTS:
         row = next((ln for ln in docs.splitlines() if f'`{event}`' in ln and '|' in ln), '')
         says_yes = '**yes**' in row
@@ -630,7 +637,7 @@ def test_every_toolset_group_is_offered_in_the_new_session_dialog():
     """
     import re
 
-    index = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'index.html').read_text()
+    index = (Path(__file__).resolve().parents[1] / 'omote' / 'static' / 'index.html').read_text(encoding='utf-8')
     from omote.agent.runtime import TOOLSETS
 
     block = index[index.index('name="tools"'):]

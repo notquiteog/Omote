@@ -54,6 +54,7 @@ from omote.protocol.agent import (
     HookApproval,
     PolicyChanged,
     QuestionAsked,
+    QuestionResolved,
     Risk,
     SessionEnded,
     SessionStarted,
@@ -499,6 +500,7 @@ class AgentSession:
             provider=str(getattr(self.provider, 'provider_id', '') or ''),
             toolset=list(self.toolset),
             effort=self.effort,
+            policy=self.policy.mode.value,
             messages=[
                 {'role': message.role, 'content': [encode_block(b) for b in message.content]}
                 for message in self.messages
@@ -724,6 +726,16 @@ class AgentSession:
 
         return self._start_turn(text, attachments)
 
+    def submit_voice(self, text: str, instructions: str) -> str:
+        """Start a spoken turn without changing the conversation's system prompt."""
+        if self.closed or self.busy:
+            raise RuntimeError('conversation is unavailable')
+        return self._start_turn(text, instructions=instructions)
+
+    @property
+    def active_turn_id(self) -> str | None:
+        return getattr(self, '_active_turn_id', None) if self.busy else None
+
     def _drain_queue(self) -> None:
         """Start the next held message, if there is one.
 
@@ -756,8 +768,10 @@ class AgentSession:
         except Exception as exc:  # noqa: BLE001 - a boundary, and a queued turn is not a request
             log.exception('a held message could not start: %s', exc)
 
-    def _start_turn(self, text: str, attachments: list[dict[str, Any]] | None = None) -> str:
+    def _start_turn(self, text: str, attachments: list[dict[str, Any]] | None = None, *, instructions: str = '') -> str:
         turn_id = uuid.uuid4().hex[:16]
+        self._active_turn_id = turn_id
+        self._turn_instructions = instructions
         name, arguments = _slash(text)
 
         if name in COMMANDS:
@@ -833,6 +847,7 @@ class AgentSession:
         await self._emit(PolicyChanged(
             session_id=self.id, mode=new.value, policy=self.policy.describe(), effort=self.effort,
         ))
+        await self._persist()
 
     async def set_effort(self, level: str | None) -> None:
         """Change how hard the model thinks, from the next request on.
@@ -1237,6 +1252,8 @@ class AgentSession:
             self.messages[-1].content.append(TextBlock(text='\n\n'.join(notes)))
 
         system = self.system_prompt
+        if getattr(self, '_turn_instructions', ''):
+            system = f'{system}\n\n{self._turn_instructions}'
         if self.policy.mode is Mode.PLAN:
             system = f'{system}\n\n{prompt_mod.PLAN_MODE}' if system else prompt_mod.PLAN_MODE
         if self._turn_context:
@@ -1465,7 +1482,13 @@ class AgentSession:
         )
 
         if decision is Decision.ASK and call.name != 'ask_user':
-            allowed, reason, remember = await self._await_approval(call.id)
+            try:
+                allowed, reason, remember = await self._await_approval(call.id)
+            except asyncio.CancelledError:
+                call.status = ToolStatus.CANCELLED
+                await self._emit(ToolDenied(session_id=self.id, turn_id=turn_id,
+                                            call_id=call.id, reason='Turn interrupted'))
+                raise
             if not allowed:
                 call.status = ToolStatus.DENIED
                 await self._emit(
@@ -1972,10 +1995,17 @@ class AgentSession:
                     multi=multi,
                 )
             )
+            answered = False
             try:
-                return await fut
+                result = await fut
+                answered = True
+                return result
             finally:
                 self._questions.pop(question_id, None)
+                await self._emit(QuestionResolved(
+                    session_id=self.id, turn_id=turn_id,
+                    question_id=question_id, answered=answered,
+                ))
 
         async def spawn(kind: Any, task: str, title: str, background: bool) -> Output:
             return await self._spawn(kind, task, title, background, turn_id, call_id)

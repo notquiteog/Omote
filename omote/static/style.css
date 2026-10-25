@@ -2122,3 +2122,7 @@ button.ghost.danger:hover { border-color: var(--danger); }
 .companion-setting { display: flex; align-items: center; justify-content: space-between; padding: 4px 18px; min-height: 40px; gap: 12px; color: var(--dim); font-size: 13px; }
 .companion-setting #brand-pet .pet { min-width: 36px; min-height: 36px; display: grid; place-items: center; }
 .companion-setting #brand-pet.off .empty { opacity: .65; }
+
+#call-permissions { padding: 8px 16px; }
+#call-prompts { flex: 0 1 auto; max-height: 40vh; overflow: auto; padding: 0 16px 12px; }
+#call-prompts .tool, #call-prompts .question { margin: 8px 0; }

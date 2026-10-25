@@ -583,6 +583,9 @@ class ShellTool(Tool):
         'Linux polkit/sudo, macOS authentication or Windows UAC; never ask for passwords in chat. '
         'Prefer the dedicated file tools for reading and editing files: they are cheaper and '
         'their results are easier to act on.'
+        + (' On Windows commands run under cmd.exe. Use cmd syntax (&&, not semicolons). '
+           'For PowerShell cmdlets or scripts, explicitly run powershell -NoProfile -Command "...".'
+           if WINDOWS else '')
     )
     input_schema = {
         'type': 'object',

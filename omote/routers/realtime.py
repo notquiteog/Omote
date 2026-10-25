@@ -32,7 +32,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from omote.agent.manager import manager
 from omote.config import config
-from omote.protocol.agent import ToolCall
+from omote.protocol.agent import ToolCall, ToolDenied, ToolStatus
 from omote.providers.realtime import (
     SAMPLE_RATE,
     RealtimeConfig,
@@ -92,6 +92,11 @@ async def realtime_socket(
     # nothing more, which is a perfectly reasonable thing to want and is also
     # the only form that is safe to leave running unattended.
     agent = manager.get(session) if session else None
+    if session and (agent is None or agent.closed):
+        await ws.send_json({'type': 'realtime.error', 'message':
+                            'This conversation is no longer open. Reopen it before starting Live.', 'fatal': True})
+        await ws.close(code=4404)
+        return
     offered = {tool.name: tool for tool in agent._visible_tools()} if agent is not None else {}
     tools = tool_specs(offered)
 
@@ -138,6 +143,8 @@ async def realtime_socket(
     speaking = {'item_id': '', 'samples': 0}
     turn_id = uuid.uuid4().hex[:16]
 
+    tool_tasks: set[asyncio.Task] = set()
+
     async def run_tool(call_id: str, name: str, arguments: dict) -> None:
         """Run one tool the model asked for, and hand the result back.
 
@@ -155,6 +162,11 @@ async def realtime_socket(
             payload = result.content
             if result.is_error:
                 payload = f'FAILED: {payload}'
+        except asyncio.CancelledError:
+            if call.status is not ToolStatus.CANCELLED:
+                await agent._emit(ToolDenied(session_id=agent.id, turn_id=turn_id,
+                                             call_id=call_id, reason='Live call ended'))
+            raise
         except Exception as exc:  # noqa: BLE001
             log.exception('realtime tool %s failed', name)
             payload = f'FAILED: {exc}'
@@ -185,7 +197,9 @@ async def realtime_socket(
 
             if kind == 'tool':
                 # Not awaited: see run_tool.
-                asyncio.create_task(run_tool(event['call_id'], event['name'], event['arguments']))
+                task = asyncio.create_task(run_tool(event['call_id'], event['name'], event['arguments']))
+                tool_tasks.add(task)
+                task.add_done_callback(tool_tasks.discard)
                 await _say(ws, {'type': 'realtime.tool', 'name': event['name'], 'arguments': event['arguments']})
                 continue
 
@@ -245,6 +259,10 @@ async def realtime_socket(
         log.exception('realtime socket failed')
     finally:
         upstream.cancel()
+        tasks = [upstream, *tool_tasks]
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         await live.close()
 
 

@@ -15,10 +15,12 @@ over many deltas, and are useless until the last one lands).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
 from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 import aiohttp
@@ -59,6 +61,9 @@ from omote.providers.reasoning import (
 from omote.providers.speech_audio import guard, resample, to_pcm16
 
 log = logging.getLogger(__name__)
+
+CHAT_RETRY_DELAYS = (0.5, 1.0)
+CHAT_RETRY_STATUSES = {502, 503, 504}
 
 
 def _to_openai_messages(messages: list[Message], system: str | None, *, replay_reasoning: bool = False) -> list[dict[str, Any]]:
@@ -209,6 +214,31 @@ class OpenAICompatProvider(ChatProvider, EmbeddingProvider, STTProvider, TTSProv
     async def _reasoning_params(self, req: ChatRequest) -> dict[str, Any]:
         return openai_compat_reasoning(request_level(req.effort, req.extra), req.model, self.base_url)
 
+    @asynccontextmanager
+    async def _chat_response(self, session, payload):
+        """Retry a refused upstream request, never a response already being consumed."""
+        for attempt in range(len(CHAT_RETRY_DELAYS) + 1):
+            async with session.post(
+                f'{self.base_url}/chat/completions', json=payload, headers=self._headers()
+            ) as response:
+                if response.status == 200:
+                    yield response
+                    return
+                status = response.status
+                body = await response.text()
+                if self.api_key:
+                    body = body.replace(self.api_key, '[redacted]')
+                message = f'{self.provider_id}: HTTP {status}: {body[:500]}'
+            # The response has been released before waiting or making another
+            # request. Auth, validation and rate-limit failures stay explicit.
+            if status not in CHAT_RETRY_STATUSES:
+                raise RuntimeError(message)
+            if attempt == len(CHAT_RETRY_DELAYS):
+                raise ConnectionError(message)
+            log.warning('%s: chat HTTP %s; retrying (%d/%d)',
+                        self.provider_id, status, attempt + 1, len(CHAT_RETRY_DELAYS))
+            await asyncio.sleep(CHAT_RETRY_DELAYS[attempt])
+
     async def stream(self, req: ChatRequest) -> AsyncIterator[StreamEvent]:
         payload: dict[str, Any] = {
             'model': req.model,
@@ -263,13 +293,7 @@ class OpenAICompatProvider(ChatProvider, EmbeddingProvider, STTProvider, TTSProv
         stop_reason = 'end_turn'
 
         async with self._session() as session:
-            async with session.post(
-                f'{self.base_url}/chat/completions', json=payload, headers=self._headers()
-            ) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    raise RuntimeError(f'{self.provider_id}: HTTP {resp.status}: {body[:500]}')
-
+            async with self._chat_response(session, payload) as resp:
                 async for raw in resp.content:
                     line = raw.decode('utf-8', 'replace').strip()
                     if not line or not line.startswith('data:'):

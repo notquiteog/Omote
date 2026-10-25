@@ -1075,7 +1075,7 @@ test('the page cannot load anything from outside media/', async () => {
       value.startsWith('https://fake.vscode-cdn.net') || value.startsWith(`${world.vscode.Uri.file('/').toString()}`),
       `${value} is not a webview resource URI`
     );
-    assert.match(value, /\/media\//, `${value} is outside media/`);
+    assert.match(value.replaceAll('\\', '/'), /\/media\//, `${value} is outside media/`);
   }
   assert.equal(
     referenced.some((value) => value.includes('..')),

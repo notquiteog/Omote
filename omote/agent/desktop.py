@@ -24,7 +24,6 @@ the ioctls are three integers and a struct.
 
 from __future__ import annotations
 
-import fcntl
 import os
 import shutil
 import struct
@@ -34,6 +33,9 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+if sys.platform.startswith('linux'):
+    import fcntl
 
 # --- uinput ------------------------------------------------------------------
 # Constants from linux/uinput.h and linux/input-event-codes.h, inlined rather

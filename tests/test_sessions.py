@@ -550,3 +550,27 @@ async def test_a_fork_shares_the_files_and_not_a_copy_of_them(tmp_path):
     assert forked.root == (tmp_path).resolve()
     assert (forked.root / 'a.py').read_text() == 'shared\n'
     await manager.close(forked.id)
+
+
+async def test_permission_changes_are_saved_immediately_and_survive_resume(tmp_path):
+    from omote.agent.approval import Mode
+    from omote.agent.manager import SessionManager
+    from omote.agent.runtime import build_session
+    from omote.providers.base import StreamDone
+    from tests.test_agent import ScriptedProvider
+
+    store = SessionStore(tmp_path / 'sessions')
+    provider = ScriptedProvider([[StreamDone()]])
+    parent = build_session(root=tmp_path, provider=provider, model='test', mode=Mode.ASK,
+                           session_id='permissions', store=store, hooks=[])
+    await parent.start()
+    await parent.set_mode(Mode.UNRESTRICTED)
+    assert store.load(parent.id).policy == 'unrestricted'
+    await parent.close()
+    manager = SessionManager()
+    manager._store = store
+    resumed = await manager.resume(parent.id, provider=provider)
+    try:
+        assert resumed.policy.mode is Mode.UNRESTRICTED
+    finally:
+        await manager.close(parent.id)

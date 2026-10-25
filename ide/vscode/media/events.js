@@ -371,6 +371,7 @@ export function eventLines(event) {
     case 'error':
       return [{ cls: 'error', text: flat(ev.message, 200) }];
 
+    case 'question.resolved':
     case 'policy.changed':
     case 'hook.approval':
       // `hook.approval` is a banner rather than a transcript line, and the
@@ -476,6 +477,7 @@ export function createTranscript(ctx) {
   const todos = $('#todos');
   const state = {
     tools: new Map(),
+    questions: new Map(),
     /** callId -> {call, output, first, count, built, open, result, denied}. */
     decided: new Set(),
     turnNode: null,
@@ -917,12 +919,19 @@ export function createTranscript(ctx) {
     const lines = eventLines(event);
     card.appendChild(el('div', 'q', lines[0].text));
     let settled = false;
+    const resolve = () => {
+      settled = true;
+      card.querySelector('.opts')?.remove();
+      card.querySelector('form')?.remove();
+      state.questions.delete(event.question_id);
+    };
+    state.questions.set(event.question_id, resolve);
 
     const answer = (text) => {
       if (settled) {
         return;
       }
-      settled = true;
+      resolve();
       context.send({ t: 'answer', questionId: String(event.question_id || ''), answer: String(text) });
       card.querySelector('.opts')?.remove();
       card.querySelector('form')?.remove();
@@ -1060,6 +1069,13 @@ export function createTranscript(ctx) {
 
   function handle(event) {
     const ev = event || {};
+    if (ev.type === 'question.resolved') {
+      state.questions.get(ev.question_id)?.();
+      return;
+    }
+    if (ev.type === 'tool.started') {
+      state.tools.get(ev.call_id)?.card.querySelector('.decide')?.remove();
+    }
 
     if (ev.agent) {
       // A subagent's, which nests inside the call that started it.
@@ -1234,6 +1250,7 @@ export function createTranscript(ctx) {
       cancelStream(record.card);
     }
     state.tools.clear();
+    state.questions.clear();
     state.decided.clear();
     state.turnNode = null;
     state.turnStart = 0;

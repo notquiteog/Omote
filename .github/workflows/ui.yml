@@ -10,6 +10,8 @@ on:
       - 'omote/routers/providers.py'
       - 'tests/test_workspace_browser.py'
       - 'tests/test_onboarding_browser.py'
+      - 'tests/test_microphone_browser.py'
+      - 'tests/test_call_prompts_browser.py'
       - 'tests/test_chat_controls_*.py'
       - 'tests/test_update_browser.py'
       - 'tests/test_tasks_browser.py'
@@ -32,6 +34,8 @@ on:
       - 'omote/routers/providers.py'
       - 'tests/test_workspace_browser.py'
       - 'tests/test_onboarding_browser.py'
+      - 'tests/test_microphone_browser.py'
+      - 'tests/test_call_prompts_browser.py'
       - 'tests/test_chat_controls_*.py'
       - 'tests/test_update_browser.py'
       - 'tests/test_tasks_browser.py'
@@ -84,4 +88,4 @@ jobs:
       - name: Install the browser
         run: python -m playwright install --with-deps ${{ matrix.browser }}
       - name: Provider requests, model and reasoning controls, setup and updates
-        run: python -m pytest -q tests/test_chat_controls_providers.py tests/test_reasoning.py tests/test_reasoning_dialects.py tests/test_chat_controls_browser.py tests/test_onboarding_browser.py tests/test_update_browser.py tests/test_git_responsiveness.py tests/test_tasks_browser.py tests/test_schedules_browser.py tests/test_results_browser.py tests/test_studio_media_inputs_browser.py tests/test_commerce.py tests/test_commerce_browser.py tests/test_browser_persistence.py
+        run: python -m pytest -q tests/test_microphone_browser.py tests/test_call_prompts_browser.py tests/test_chat_controls_providers.py tests/test_reasoning.py tests/test_reasoning_dialects.py tests/test_chat_controls_browser.py tests/test_onboarding_browser.py tests/test_update_browser.py tests/test_git_responsiveness.py tests/test_tasks_browser.py tests/test_schedules_browser.py tests/test_results_browser.py tests/test_studio_media_inputs_browser.py tests/test_commerce.py tests/test_commerce_browser.py tests/test_browser_persistence.py

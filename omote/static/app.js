@@ -33,6 +33,7 @@ import { cancel as cancelStream, flush as flushStream, queue } from './stream.js
 import { openStudio, stopPolling, wireStudio } from './studio.js';
 import { resetTalk, wireTalk } from './talk.js';
 import { call, endCall, wireCalls } from './call.js';
+import { wireCallPrompts, restoreCallPrompts } from './call-prompts.js';
 import { renderContext, refreshContext, wireContext } from './context.js';
 import { onHookApproval, resetHooks, wireHooks } from './hooks.js';
 import { refreshWorktrees, wireWorktrees } from './worktree.js';
@@ -244,6 +245,7 @@ function prune() {
 }
 
 function clearTranscript() {
+  restoreCallPrompts();
   /* Everything queued belongs to nodes that are about to be detached, and some
      of it belongs to the session being left. Dropped rather than flushed:
      flushing would write one last frame of a session you have already
@@ -818,6 +820,7 @@ async function undoLast(button) {
 
 function questionCard(ev, host = null) {
   const card = el('div', 'question');
+  card.dataset.questionId = ev.question_id;
   card.appendChild(el('div', 'q', ev.question));
 
   const answer = (text) => {
@@ -1214,6 +1217,14 @@ function connectAgent(sessionId) {
 }
 
 function handleAgentEvent(ev) {
+  if (ev.type === 'tool.started') state.tools.get(ev.call_id)?.querySelector('.decide')?.remove();
+  if (ev.type === 'question.resolved') {
+    for (const card of document.querySelectorAll('.question')) {
+      if (card.dataset.questionId !== ev.question_id) continue;
+      card.querySelector('.opts')?.remove();
+      card.querySelector('form')?.remove();
+    }
+  }
   // Autopilot renders the same events as one line each, so it is fed here
   // rather than opening a second socket onto the same session — two readers
   // of one event stream is two places for the sequence number to drift.
@@ -2498,6 +2509,7 @@ wireLive({ sessionId });
 // The two buttons in the bar. Each one opens the microphone and starts
 // listening; each one pressed again ends the call. There is no mode to switch
 // to first, because that was the only reason the button could not be pressed.
+wireCallPrompts();
 wireCalls({ attach: (id) => selectSession(id) });
 // Autopilot is a tool call now, so its card is drawn by the transcript like any
 // other tool card — and its narration still comes off this socket, which is

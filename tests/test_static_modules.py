@@ -196,7 +196,7 @@ def test_no_module_interpolates_the_session_id_function():
     """
     offenders: list[str] = []
     for path in sorted(STATIC.rglob('*.js')):
-        text = path.read_text()
+        text = path.read_text(encoding='utf-8')
         if 'sessionId' not in text:
             continue
         # A module that *defines* a currentSession() helper is doing the right
@@ -227,7 +227,7 @@ def test_every_module_handed_the_session_id_calls_it_before_using_it():
     offenders: list[str] = []
     exempted: dict[str, str] = {}
     for path in sorted(STATIC.rglob('*.js')):
-        text = path.read_text()
+        text = path.read_text(encoding='utf-8')
         if '/api/sessions/${' not in text:
             continue
         if 'currentSession(' in text:
@@ -266,13 +266,13 @@ def test_the_session_id_exemption_is_not_vacuous():
     for nothing."""
     marker = 'session-id-exempt:'
     used = {
-        path.name: _exemption(path.read_text(), marker)
+        path.name: _exemption(path.read_text(encoding='utf-8'), marker)
         for path in sorted(STATIC.rglob('*.js'))
-        if marker in path.read_text()
+        if marker in path.read_text(encoding='utf-8')
     }
     assert used, 'the exemption mechanism is documented and never used'
     for name, reason in used.items():
-        assert 'currentSession(' not in (STATIC / name).read_text(), (
+        assert 'currentSession(' not in (STATIC / name).read_text(encoding='utf-8'), (
             f'{name} claims an exemption and does the thing it is exempt from'
         )
         assert len(reason) >= 40, f'{name}: its exemption is not a reason'
@@ -287,7 +287,7 @@ def test_every_module_handed_the_session_id_is_handed_the_function():
     `wireReview({ sessionId })` is right and `refreshContext(id)` is wrong in
     the same file, a file that gets it right once gets it wrong the next time.
     """
-    app = (STATIC / 'app.js').read_text()
+    app = (STATIC / 'app.js').read_text(encoding='utf-8')
     select = app[app.index('function selectSession('):]
     select = select[:select.index('\n}\n')]
     assert 'refreshContext(sessionId)' in select, 'refreshContext wants the function, not the id'
@@ -298,7 +298,7 @@ def test_every_module_handed_the_session_id_is_handed_the_function():
 def test_the_context_meter_survives_a_session_change():
     """It is fetched per session and drawn from the answer, so a stale value
     is a meter describing the session you just left."""
-    app = (STATIC / 'app.js').read_text()
+    app = (STATIC / 'app.js').read_text(encoding='utf-8')
     assert 'if (ev.context) renderContext(ev.context);' in app, 'the turn event draws it'
     select = app[app.index('function selectSession('):]
     assert 'refreshContext(sessionId)' in select, 'and a switch re-asks'

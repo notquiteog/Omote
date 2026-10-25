@@ -225,6 +225,13 @@ class QuestionAsked(_Event):
     multi: bool = False
 
 
+class QuestionResolved(_Event):
+    type: Literal['question.resolved'] = 'question.resolved'
+    turn_id: str
+    question_id: str
+    answered: bool = True
+
+
 class TurnCompleted(_Event):
     type: Literal['turn.completed'] = 'turn.completed'
     turn_id: str
@@ -343,7 +350,7 @@ class SessionEnded(_Event):
 
 
 AgentEvent = Annotated[
-    SessionStarted | TurnStarted | TextDelta | ThinkingDelta | ToolProposed | ToolStarted | ToolOutputDelta | ToolCompleted | ToolDenied | QuestionAsked | TurnCompleted | PolicyChanged | TaskUpdated | ContextCompacted | AgentError | SessionEnded,
+    SessionStarted | TurnStarted | TextDelta | ThinkingDelta | ToolProposed | ToolStarted | ToolOutputDelta | ToolCompleted | ToolDenied | QuestionAsked | QuestionResolved | TurnCompleted | PolicyChanged | TaskUpdated | ContextCompacted | AgentError | SessionEnded,
     Field(discriminator='type'),
 ]
 

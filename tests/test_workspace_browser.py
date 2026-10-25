@@ -33,8 +33,11 @@ def workspace(tmp_path):
     env.update(OMOTE_ENV=os.devnull, OMOTE_DATA_DIR=str(tmp_path), OMOTE_UPDATE_CHECK='false')
     log_path = tmp_path / 'workspace-daemon.log'
     with log_path.open('w', encoding='utf-8') as output:
+        daemon = os.getenv('OMOTE_TEST_DAEMON')
+        command = ([daemon, 'serve', '--host', '127.0.0.1', '--port', str(port)] if daemon else
+                   [sys.executable, '-m', 'uvicorn', 'omote.main:app', '--host', '127.0.0.1', '--port', str(port)])
         process = subprocess.Popen(
-            [sys.executable, '-m', 'uvicorn', 'omote.main:app', '--host', '127.0.0.1', '--port', str(port)],
+            command,
             cwd=Path(__file__).resolve().parents[1], env=env, stdout=output, stderr=subprocess.STDOUT,
         )
     url = f'http://127.0.0.1:{port}'
@@ -66,7 +69,13 @@ def workspace(tmp_path):
             assert not errors, errors
             browser.close()
     finally:
-        process.terminate()
+        if daemon and os.name == 'nt' and process.poll() is None:
+            # A one-file PyInstaller launcher owns a child daemon. Terminating
+            # just the launcher leaves that child serving after the test.
+            subprocess.run(['taskkill', '/F', '/T', '/PID', str(process.pid)],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        else:
+            process.terminate()
         try:
             process.wait(timeout=10)
         except subprocess.TimeoutExpired:

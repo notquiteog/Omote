@@ -465,7 +465,8 @@ async def resume_session(session_id: str) -> dict[str, object]:
         impl, model, _info = await _resolve_chat(stored.provider or None, stored.model or None)
     except NoProviderError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    session = await manager.resume(session_id, provider=impl, model=model, mode=config.approval_mode,
+    mode = stored.policy if stored.policy in {m.value for m in Mode} else config.approval_mode
+    session = await manager.resume(session_id, provider=impl, model=model, mode=mode,
                                    memory=memory_router.service, media=media_router.service, user_id=config.default_user)
     if session is None:
         raise HTTPException(status_code=404, detail=f'no stored conversation called {session_id!r}')

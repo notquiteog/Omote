@@ -679,6 +679,11 @@ def _lock_is_stale(lock: Path) -> bool:
         pid = int(lock.read_text().strip())
     except (OSError, ValueError):
         return False        # unreadable or malformed: treat it as occupied
+    if sys.platform == 'win32':
+        # os.kill(pid, 0) terminates the process on Windows.
+        import psutil
+
+        return not psutil.pid_exists(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

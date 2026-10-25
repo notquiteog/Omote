@@ -67,7 +67,7 @@ export async function startTalking() {
       setRunning(true);
       setState('Listening. Just talk — it will answer when you stop.');
       $('#talk-route').textContent = `${ev.stt} → ${ev.llm} → ${ev.tts}`;
-      note(wantsTools ? 'This call can act on the machine.' : 'Talk only — it has no tools in this call.');
+      note(wantsTools ? `This call can act on the machine. ${ev.policy || ''}` : 'Talk only — it has no tools in this call.');
       companion.set('listening');
     },
     listening: () => {

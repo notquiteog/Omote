@@ -206,12 +206,18 @@ def _continues(after: str) -> bool:
 
 def is_meaningful(text: str) -> bool:
     """Whether a transcript is worth sending to the model."""
+    # Explicit non-speech annotations are not instructions. A spoken request
+    # containing the word "music" remains valid.
+    if re.fullmatch(r'\s*(?:\*[^*]*\*|\[[^]]*\]|\([^)]*\))\s*', text):
+        annotation = re.sub(r'[^\w\s]', '', text).strip().lower()
+        if annotation in {'music', 'silence', 'noise', 'background noise', 'applause', 'inaudible'}:
+            return False
     cleaned = re.sub(r'[^\w\s]', '', text).strip().lower()
     if len(cleaned) < MIN_UTTERANCE_CHARS:
         return False
     words = cleaned.split()
-    # All filler: whisper reliably hallucinates 'you' and 'thank you' on
-    # silence, and answering those makes the assistant talk to itself.
+    # Ignore filler, while leaving genuine phrases such as "thank you" valid.
+    # Noise is rejected acoustically rather than by banning polite speech.
     return bool(words) and not all(w in FILLERS for w in words)
 
 
@@ -266,6 +272,8 @@ class VoiceConfig:
     tts_voice: str = 'alloy'
     llm_model: str = ''
     language: str | None = None
+    # Reject brief clicks before cancelling an in-progress spoken reply.
+    barge_in_ms: int = 200
     # Passed through to the chat provider. The default turns reasoning off;
     # override it for a model where thinking is cheap or wanted.
     llm_extra: dict = field(default_factory=lambda: {})
@@ -434,6 +442,7 @@ class VoiceSession:
         emit_event: EmitEvent,
         emit_audio: EmitAudio,
         agent: Any = None,
+        owns_agent: bool = True,
     ) -> None:
         self.stt = stt
         self.tts = tts
@@ -444,6 +453,8 @@ class VoiceSession:
         # When set, transcripts drive an agent session instead of a bare chat
         # model, so a voice call can act on the machine.
         self.agent = agent
+        self.owns_agent = owns_agent
+        self._agent_turn_id: str | None = None
 
         self.vad = Vad(config.vad)
         self.preroll = Ringbuffer(config.sample_rate, ms=400)
@@ -451,6 +462,7 @@ class VoiceSession:
 
         self._utterance = bytearray()
         self._capturing = False
+        self._barge_in_sent = False
         self._muted = False
         self._partial = bytearray()
 
@@ -525,20 +537,12 @@ class VoiceSession:
         if event is VadEvent.SPEECH_START:
             await self.emit_event(SpeechStarted())
 
-            # The decisive moment: they started talking while it was talking.
-            if self.is_speaking:
-                if self._awaiting is not None:
-                    # Answering a question it is still reading out. Stop the
-                    # audio, keep the turn: cancelling here would throw away
-                    # the very work the answer is meant to unblock.
-                    await self._silence('barge_in')
-                else:
-                    await self._cancel_reply('barge_in')
-
             self._capturing = True
+            self._barge_in_sent = False
             # Pre-roll first, so the utterance starts before the detector did.
+            # The triggering frame is already in the pre-roll. Appending it
+            # again repeats 20 ms in the first word sent to recognition.
             self._utterance = bytearray(self.preroll.take())
-            self._utterance.extend(frame)
 
         elif event is VadEvent.SPEECH_END and self._capturing:
             self._capturing = False
@@ -560,6 +564,17 @@ class VoiceSession:
             # its first word already gone.
             self._capturing = False
             self._utterance = bytearray()
+
+        # A VAD start is provisional (60 ms). Wait for enough actual voiced
+        # frames before stopping the assistant; short transients are discarded
+        # by the detector without ever interrupting the reply.
+        if (self._capturing and not self._barge_in_sent and self.is_speaking
+                and self.vad.voiced_ms >= self.config.barge_in_ms):
+            self._barge_in_sent = True
+            if self._awaiting is not None:
+                await self._silence('barge_in')
+            else:
+                await self._cancel_reply('barge_in')
 
     def _transcribe(self, pcm: bytes) -> None:
         if not pcm:
@@ -829,18 +844,27 @@ class VoiceSession:
         turn arrives once an answer does.
         """
         from omote.protocol.agent import (
+            AgentError,
             QuestionAsked,
+            QuestionResolved,
             TextDelta,
             ToolDenied,
             ToolProposed,
+            ToolStarted,
             TurnCompleted,
         )
 
         last = self.history[-1]
         text = ' '.join(b.text for b in last.content if isinstance(b, TextBlock))
-        self.agent.submit(text)
+        if self.agent.busy:
+            await self.agent.wait_for_turn()
+        since = self.agent.seq
+        turn_id = self.agent.submit_voice(text, self.config.system_prompt)
+        self._agent_turn_id = turn_id
 
-        async for event in self.agent.events():
+        async for event in self.agent.events(since=since):
+            if getattr(event, 'turn_id', '') not in ('', turn_id):
+                continue
             if isinstance(event, TextDelta):
                 yield StreamText(text=event.text)
 
@@ -866,13 +890,25 @@ class VoiceSession:
                 )
                 yield StreamText(text=' ' + _spoken_approval(event.call.summary, strict))
 
+            elif isinstance(event, (QuestionResolved, ToolStarted, ToolDenied)) and self._awaiting is not None:
+                resolved_id = getattr(event, 'question_id', None) or event.call_id
+                if self._awaiting.id == resolved_id:
+                    waiting, self._awaiting = self._awaiting, None
+                    await self.emit_event(VoiceAnswered(
+                        kind=waiting.kind, heard='on screen', understood='answer'
+                        if waiting.kind == 'question' else ('no' if isinstance(event, ToolDenied) else 'yes'),
+                    ))
+
             elif isinstance(event, ToolDenied):
                 # Said aloud so a "no" is acknowledged. Without it the only
                 # evidence the refusal landed is the absence of the thing.
                 if self._awaiting is None:
                     yield StreamText(text=" Right, I won't.")
 
+            elif isinstance(event, AgentError):
+                raise RuntimeError(event.message)
             elif isinstance(event, TurnCompleted):
+                self._agent_turn_id = None
                 break
 
     async def _speak(self, utterance_id: str, sentence: str) -> None:
@@ -917,6 +953,7 @@ class VoiceSession:
 
     async def _cancel_reply(self, reason: str) -> None:
         task, utterance_id = self._reply, self._utterance_id
+        agent_turn_id, self._agent_turn_id = self._agent_turn_id, None
         # Cleared before awaiting, so any synthesis still in flight sees the
         # id has moved on and stops sending.
         self._reply = None
@@ -927,6 +964,15 @@ class VoiceSession:
             try:
                 await task
             except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
+
+        if self.agent is not None and self.agent.busy and (
+            self.owns_agent or (agent_turn_id and self.agent.active_turn_id == agent_turn_id)
+        ):
+            self.agent.interrupt()
+            try:
+                await self.agent.wait_for_turn()
+            except asyncio.CancelledError:
                 pass
 
         if utterance_id:
@@ -950,5 +996,5 @@ class VoiceSession:
                 await self._transcriber
             except (asyncio.CancelledError, Exception):  # noqa: BLE001
                 pass
-        if self.agent is not None:
+        if self.agent is not None and self.owns_agent:
             await self.agent.close()

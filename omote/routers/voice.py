@@ -17,10 +17,12 @@ import logging
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
+from omote.agent.manager import manager
 from omote.config import config
 from omote.protocol.voice import AudioFormat, VoiceReady
 from omote.providers.base import Modality
 from omote.providers.registry import NoProviderError, Route, RouteSet, pick_model, registry
+from omote.routers.auth import authorised
 from omote.voice.pipeline import VoiceConfig, VoiceSession
 from omote.voice.vad import VadConfig
 
@@ -31,9 +33,25 @@ router = APIRouter()
 UTTERANCE_PREFIX = 12
 
 
+async def _validate_speech_model(provider, model: str, modality: Modality) -> None:
+    """OpenRouter's speech catalogue uses qualified ids, unlike OpenAI's defaults."""
+    from omote.providers.openrouter import OpenRouterProvider
+
+    if not isinstance(provider, OpenRouterProvider):
+        return
+    models = await provider.models()
+    if model not in {row['id'] for row in models}:
+        label = 'Dictation' if modality is Modality.STT else 'Speech'
+        raise NoProviderError(
+            f'{label} model {model!r} is not available on {provider.provider_id}. '
+            f'Open Settings → Connections → Defaults and choose a {label.lower()} '
+            'model from this provider before starting voice.'
+        )
+
+
 @router.websocket('/ws/voice')
 async def voice_socket(ws: WebSocket, token: str | None = Query(None)) -> None:
-    if config.auth_token and token != config.auth_token:
+    if not authorised(ws.headers, ws.url.query):
         await ws.close(code=4401, reason='unauthorised')
         return
 
@@ -53,6 +71,14 @@ async def voice_socket(ws: WebSocket, token: str | None = Query(None)) -> None:
         await ws.close(code=4400)
         return
 
+    # Use the exact conversation object, including its live permission policy.
+    agent = manager.get(opening['agent_session_id']) if opening.get('agent_session_id') else None
+    if opening.get('agent_session_id') and (agent is None or agent.closed):
+        await ws.send_json({'type': 'voice.error', 'message':
+                            'This conversation is no longer open. Reopen it before starting Talk.', 'fatal': True})
+        await ws.close(code=4404)
+        return
+
     def pick(modality: Modality, named: str | None):
         routes = RouteSet(routes={modality: Route(provider=named)}) if named else None
         return registry.resolve(modality, routes)
@@ -60,14 +86,17 @@ async def voice_socket(ws: WebSocket, token: str | None = Query(None)) -> None:
     try:
         stt, stt_route, stt_info = pick(Modality.STT, opening.get('stt'))
         tts, tts_route, tts_info = pick(Modality.TTS, opening.get('tts'))
-        llm, llm_route, llm_info = pick(Modality.CHAT, opening.get('llm'))
+        if agent is None:
+            llm, llm_route, llm_info = pick(Modality.CHAT, opening.get('llm'))
+        else:
+            llm, llm_route, llm_info = agent.provider, Route(provider=getattr(agent.provider, 'provider_id', 'conversation'), model=agent.model), None
     except NoProviderError as exc:
         await ws.send_json({'type': 'voice.error', 'message': str(exc), 'fatal': True})
         await ws.close(code=4404)
         return
 
     fmt = AudioFormat(**(opening.get('format') or {}))
-    llm_model = opening.get('model') or llm_route.model or config.default_chat_model
+    llm_model = agent.model if agent is not None else (opening.get('model') or llm_route.model or config.default_chat_model)
     if not llm_model:
         # Same rule as the agent socket: not the first model, the first one
         # that can actually hold a conversation. Tools are not required here —
@@ -94,21 +123,17 @@ async def voice_socket(ws: WebSocket, token: str | None = Query(None)) -> None:
         vad=VadConfig(sample_rate=fmt.sample_rate),
     )
 
-    # A voice call that can act on the machine is opt-in per call: consenting
-    # to be listened to is not the same as consenting to have commands run.
-    agent = None
-    if opening.get('agent_session_id'):
-        from omote.agent.approval import Mode
-        from omote.agent.runtime import build_session
-
-        agent = build_session(
-            root=config.workspace,
-            provider=llm,
-            model=llm_model,
-            mode=Mode(config.approval_mode),
-            session_id=opening['agent_session_id'],
-        )
-        await agent.start()
+    # Do not open the microphone successfully and fail only after the user
+    # speaks: OpenAI's built-in model names are not OpenRouter model ids.
+    try:
+        async with asyncio.timeout(30):
+            await _validate_speech_model(stt, cfg.stt_model, Modality.STT)
+            await _validate_speech_model(tts, cfg.tts_model, Modality.TTS)
+    except Exception as exc:  # The setup boundary must answer before closing.
+        message = str(exc) or 'Timed out checking the speech models. Try again.'
+        await ws.send_json({'type': 'voice.error', 'message': message, 'fatal': True})
+        await ws.close(code=4404)
+        return
 
     # Sends are best-effort. The common way to end a call is for the client to
     # vanish, and the teardown that follows still emits — a cancelled synthesis
@@ -128,7 +153,7 @@ async def voice_socket(ws: WebSocket, token: str | None = Query(None)) -> None:
             pass
 
     session = VoiceSession(
-        stt=stt, tts=tts, llm=llm, config=cfg, emit_event=emit_event, emit_audio=emit_audio, agent=agent
+        stt=stt, tts=tts, llm=llm, config=cfg, emit_event=emit_event, emit_audio=emit_audio, agent=agent, owns_agent=False
     )
 
     await ws.send_json(
@@ -137,7 +162,10 @@ async def voice_socket(ws: WebSocket, token: str | None = Query(None)) -> None:
             output_format=AudioFormat(sample_rate=getattr(tts, 'output_sample_rate', 24_000)),
             stt=stt_info.id,
             tts=tts_info.id,
-            llm=llm_info.id,
+            llm=llm_info.id if llm_info else getattr(llm, 'provider_id', 'conversation'),
+            session=agent.id if agent is not None else None,
+            policy=agent.policy.describe() if agent is not None else None,
+            model=llm_model,
         ).model_dump(mode='json')
     )
 

@@ -385,3 +385,9 @@ test('todoLines: the marks are ASCII notation, and the state is kept', () => {
   ]);
   assert.deepEqual(todoLines(null), []);
 });
+
+
+test('question resolution updates controls without adding an unknown event line', () => {
+  assert.deepEqual(eventLines({type: 'question.resolved', question_id: 'q1', answered: true}), []);
+  assert.deepEqual(eventLines({type: 'question.resolved', question_id: 'q1', answered: false}), []);
+});

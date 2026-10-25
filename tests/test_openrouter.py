@@ -399,3 +399,49 @@ def test_naming_the_routed_provider_keeps_the_routed_model():
     # A model named outright still wins, and another provider is not handed this one's.
     assert model_for('openrouter', 'minimax/hailuo-3') == 'minimax/hailuo-3'
     assert model_for('other') == ''
+
+
+@pytest.mark.parametrize(('kind', 'model'), [(Modality.STT, 'whisper-1'), (Modality.TTS, 'tts-1')])
+async def test_voice_rejects_openai_defaults_on_openrouter_before_ready(fake, kind, model):
+    from omote.providers.base import NoProviderError
+    from omote.routers.voice import _validate_speech_model
+
+    with pytest.raises(NoProviderError, match='Settings.*Defaults'):
+        await _validate_speech_model(OpenRouterProvider(fake.base, KEY, kind=kind), model, kind)
+
+
+@pytest.mark.parametrize(('kind', 'model'), [
+    (Modality.STT, 'openai/whisper-large-v3-turbo'),
+    (Modality.TTS, 'hexgrad/kokoro-82m'),
+])
+async def test_voice_accepts_models_from_the_matching_speech_catalogue(fake, kind, model):
+    from omote.routers.voice import _validate_speech_model
+
+    await _validate_speech_model(OpenRouterProvider(fake.base, KEY, kind=kind), model, kind)
+
+
+@pytest.mark.parametrize('invalid_kind', [Modality.STT, Modality.TTS])
+def test_voice_socket_explains_bad_speech_configuration_before_ready(fake, monkeypatch, invalid_kind):
+    from omote.providers.base import ProviderInfo
+    from omote.providers.registry import Route, RouteSet
+    from omote.routers import voice as voice_router
+
+    registry = ProviderRegistry()
+    implementations = {kind: OpenRouterProvider(fake.base, KEY, kind=kind)
+                       for kind in (Modality.CHAT, Modality.STT, Modality.TTS)}
+    registry.register(ProviderInfo(id='test-router', label='Test router', modalities=set(implementations)),
+                      implementations)
+    models = {Modality.CHAT: 'deepseek/deepseek-v4-flash',
+              Modality.STT: 'openai/whisper-large-v3-turbo', Modality.TTS: 'hexgrad/kokoro-82m'}
+    models[invalid_kind] = 'whisper-1' if invalid_kind is Modality.STT else 'tts-1'
+    registry.set_defaults(RouteSet(routes={kind: Route(provider='test-router', model=model)
+                                          for kind, model in models.items()}))
+    monkeypatch.setattr(voice_router, 'registry', registry)
+    app = FastAPI()
+    app.include_router(voice_router.router)
+    with TestClient(app) as client, client.websocket_connect('/ws/voice') as ws:
+        ws.send_json({'type': 'voice.start'})
+        error = ws.receive_json()
+        assert error['type'] == 'voice.error' and error['fatal']
+        assert models[invalid_kind] in error['message'] and 'Defaults' in error['message']
+        assert ws.receive()['code'] == 4404

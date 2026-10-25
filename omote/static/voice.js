@@ -18,9 +18,10 @@ export class Player {
    * That second part is the whole reason this is not an <audio> element:
    * barge-in has to stop what is already queued, and a media element gives
    * you no handle on individual buffers. */
-  constructor(rate) {
+  constructor(rate, context = null) {
     this.rate = rate;
-    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.ownsContext = !context;
+    this.ctx = context || new (window.AudioContext || window.webkitAudioContext)();
     // Every buffer goes through one gain node rather than straight to the
     // speakers, because there was no gain stage at all — `source.connect(ctx
     // .destination)` — and so no way to turn it down from inside the page. The
@@ -162,19 +163,20 @@ export class Player {
   close() {
     this.cancel();
     try { this.gain.disconnect(); } catch { /* already gone */ }
-    try { this.ctx.close(); } catch { /* already closed */ }
+    if (this.ownsContext) { try { this.ctx.close(); } catch { /* already closed */ } }
   }
 }
 
 /* Microphone capture, shared by both kinds of call.
  *
- * Deliberately never connected to the destination: routing the microphone to
- * the speakers is how you get feedback, and it is a one-line mistake. */
+ * A zero-gain output keeps the worklet in the rendered graph without playing
+ * microphone audio through the speakers. */
 export class Capture {
   constructor() {
     this.stream = null;
     this.ctx = null;
     this.node = null;
+    this.sink = null;
     this.muted = false;
     // Bumped by every stop() and every start(). Coming up takes two awaits —
     // the permission prompt and the worklet — and neither caller awaits
@@ -207,8 +209,18 @@ export class Capture {
       node.port.onmessage = (e) => {
         if (!this.muted) onFrame(e.data.buffer);
       };
+      // WebViews may suspend a context created after the voice handshake.
+      // Keep the worklet pulled by the destination, with no microphone feedback.
+      const sink = ctx.createGain();
+      sink.gain.value = 0;
       source.connect(node);
+      node.connect(sink);
+      sink.connect(ctx.destination);
+      await ctx.resume();
+      if (run !== this.run) return;
+      if (ctx.state !== 'running') throw new Error('Audio capture is suspended. Try starting Talk again.');
 
+      this.sink = sink;
       this.stream = stream;
       this.ctx = ctx;
       this.node = node;
@@ -224,9 +236,10 @@ export class Capture {
   stop() {
     this.run++;
     if (this.node) this.node.disconnect();
+    if (this.sink) this.sink.disconnect();
     if (this.ctx) { try { this.ctx.close(); } catch { /* already closed */ } }
     if (this.stream) for (const track of this.stream.getTracks()) track.stop();
-    this.node = this.ctx = this.stream = null;
+    this.node = this.sink = this.ctx = this.stream = null;
   }
 }
 
@@ -304,15 +317,25 @@ export class Voice {
     const ev = JSON.parse(msg.data);
     switch (ev.type) {
       case 'voice.ready':
-        this.player = new Player(ev.output_format.sample_rate);
-        // Resumed here and not lazily on the first buffer, because the first
-        // buffer is the one that has to be scheduled at an instant the context
-        // will actually reach. See `Player.resume`.
-        this.player.resume();
         this.capture.start(ev.format.sample_rate, (buf) => {
           if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(buf);
-        }).catch((err) => { if (this.running) this.fire('error', `the microphone could not start: ${err.message}`); });
-        this.fire('ready', ev);
+        }).then(async () => {
+          if (!this.running || !this.capture.ctx) return;
+          // Opening a headset microphone can change its playback profile.
+          // Share the already-running duplex context instead of leaving an
+          // earlier output-only context suspended on the previous profile.
+          const player = new Player(ev.output_format.sample_rate, this.capture.ctx);
+          this.player = player;
+          const playback = await player.resume();
+          if (!this.running || this.player !== player) return;
+          if (playback !== 'running') throw new Error('Audio playback is suspended. Try starting Talk again.');
+          this.fire('ready', ev);
+        }).catch((err) => {
+          if (this.running) {
+            this.fire('error', `audio could not start: ${err.message}`);
+            this.stop();
+          }
+        });
         break;
 
       case 'vad.speech_started': this.fire('listening'); break;

@@ -115,6 +115,7 @@ class Vad:
     _silence_run: int = field(default=0, init=False)
     _in_speech: bool = field(default=False, init=False)
     _speech_ms: int = field(default=0, init=False)
+    _voiced_ms: int = field(default=0, init=False)
     # Levels of the recent frames that carried signal. The minimum of these
     # is the room.
     _levels: deque[float] = field(default_factory=deque, init=False)
@@ -134,6 +135,11 @@ class Vad:
     def speaking(self) -> bool:
         return self._in_speech
 
+    @property
+    def voiced_ms(self) -> int:
+        """Frames above the speech threshold in the current utterance."""
+        return self._voiced_ms
+
     def reset(self) -> None:
         """Forget the utterance but keep the room.
 
@@ -148,6 +154,7 @@ class Vad:
         self._silence_run = 0
         self._in_speech = False
         self._speech_ms = 0
+        self._voiced_ms = 0
         self._remeasured = False
 
     def _observe(self, level: float) -> None:
@@ -218,15 +225,17 @@ class Vad:
 
         if self._in_speech:
             self._speech_ms += cfg.frame_ms
+            if is_speech:
+                self._voiced_ms += cfg.frame_ms
 
             if self._speech_ms >= cfg.max_speech_ms:
                 self.reset()
                 return VadEvent.SPEECH_END
 
             if self._silence_run * cfg.frame_ms >= cfg.hangover_ms:
-                # The hangover itself is not speech, so it does not count
-                # toward the minimum-length test.
-                spoken = self._speech_ms - self._silence_run * cfg.frame_ms
+                # Pauses between isolated noise bursts must not turn them
+                # into a long enough utterance to send to transcription.
+                spoken = self._voiced_ms
                 self.reset()
                 return VadEvent.SPEECH_END if spoken >= cfg.min_speech_ms else VadEvent.NONE
 
@@ -235,6 +244,7 @@ class Vad:
             # Backdated, so the frames that triggered the start are part of the
             # utterance rather than being counted as having happened before it.
             self._speech_ms = self._speech_run * cfg.frame_ms
+            self._voiced_ms = self._speech_ms
             self._silence_run = 0
             return VadEvent.SPEECH_START
 

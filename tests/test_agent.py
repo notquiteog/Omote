@@ -25,6 +25,7 @@ from omote.protocol.agent import (
     TurnCompleted,
 )
 from omote.providers.base import ChatRequest, StreamDone, StreamText, StreamToolUse
+from tests.commands import python_command
 
 
 class ScriptedProvider:
@@ -294,7 +295,7 @@ async def test_interrupt_cancels_the_turn():
             Path(tmp),
             [
                 [
-                    StreamToolUse(id='c1', name='shell', input={'command': 'sleep 30'}),
+                    StreamToolUse(id='c1', name='shell', input={'command': python_command(Path(tmp), 'import time; time.sleep(30)')}),
                     StreamDone(stop_reason='tool_use'),
                 ],
             ],

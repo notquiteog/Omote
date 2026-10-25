@@ -65,7 +65,7 @@ export async function goLive() {
   ws = connection;
   ws.binaryType = 'arraybuffer';
 
-  ws.onmessage = (msg) => {
+  ws.onmessage = async (msg) => {
     if (ws !== connection) return;
     if (msg.data instanceof ArrayBuffer) {
       // One continuous utterance per response; the id is only used to reset
@@ -77,18 +77,30 @@ export async function goLive() {
     const ev = JSON.parse(msg.data);
     switch (ev.type) {
       case 'realtime.ready':
-        setRunning(true);
         $('#live-state').textContent = 'Live. Talk over it whenever you like.';
         $('#live-model').textContent = `${ev.model} · ${ev.voice}`;
         note(ev.session
           ? `Acting in session ${ev.session}. ${ev.policy}`
           : 'Talk only — it has no tools in this call.');
-        player = new Player(ev.sample_rate || RATE);
-        player.resume();
-        capture = new Capture();
-        capture.start(ev.sample_rate || RATE, (buf) => {
-          if (ws === connection && ws.readyState === WebSocket.OPEN) ws.send(buf);
-        }).catch((err) => { if (ws === connection) note(`the microphone could not start: ${err.message}`); });
+        try {
+          const input = new Capture();
+          capture = input;
+          await input.start(ev.sample_rate || RATE, (buf) => {
+            if (ws === connection && ws.readyState === WebSocket.OPEN) ws.send(buf);
+          });
+          if (ws !== connection) { input.stop(); return; }
+          player = new Player(ev.sample_rate || RATE, input.ctx);
+          await player.resume();
+          if (ws !== connection) return;
+          if (input.ctx.state !== 'running') throw new Error('Audio output is suspended');
+          setRunning(true);
+        } catch (err) {
+          if (ws === connection) {
+            note(`Audio could not start: ${err.message}`);
+            endLive();
+          }
+          return;
+        }
         companion.set('listening');
         break;
 

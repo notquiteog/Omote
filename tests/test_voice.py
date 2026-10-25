@@ -558,3 +558,117 @@ def test_a_quoted_letter_is_still_a_sentence_end():
     done, rest = split_sentences('He said J. Then left.')
     assert done == ['He said J.'], done
     assert rest == 'Then left.'
+
+
+async def test_brief_background_burst_does_not_interrupt_a_reply():
+    session, events, _ = build(SlowLLM('A long answer that should continue. ' * 20))
+    try:
+        await session.feed(noise(600, amplitude=.002))
+        await session.say('go')
+        await asyncio.sleep(.06)
+        await session.feed(tone(80, amplitude=.35) + noise(700, amplitude=.002))
+        assert not any(isinstance(e, SynthesisCancelled) for e in events)
+        assert session.is_speaking
+    finally:
+        await session.close()
+
+
+async def test_short_noise_bursts_never_reach_the_thank_you_transcriber():
+    stt = FakeSTT('Thank you. Thank you.')
+    llm = SlowLLM('Should not answer.')
+    session, events, _ = build(llm, stt=stt)
+    try:
+        await session.feed(noise(600, amplitude=.002) + tone(80, amplitude=.35)
+                           + noise(200, amplitude=.002) + tone(80, amplitude=.35)
+                           + noise(800, amplitude=.002))
+        await session.settle()
+        assert stt.calls == 0
+        assert llm.started == 0
+    finally:
+        await session.close()
+
+
+async def test_a_real_thank_you_is_still_accepted():
+    stt = FakeSTT('Thank you.')
+    session, events, _ = build(SlowLLM('You are welcome.'), stt=stt)
+    try:
+        await session.feed(noise(600, amplitude=.002) + tone(500, amplitude=.35)
+                           + noise(800, amplitude=.002))
+        await session.settle()
+        assert any(isinstance(e, TranscriptFinal) and e.submitted and e.text == 'Thank you.' for e in events)
+    finally:
+        await session.close()
+
+
+async def test_agent_voice_second_turn_does_not_replay_the_first(tmp_path):
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.sessions import SessionStore
+    from tests.test_agent import ScriptedProvider
+
+    provider = ScriptedProvider([[StreamText(text='First answer.'), StreamDone()],
+                                 [StreamText(text='Second answer.'), StreamDone()]])
+    agent = build_session(root=tmp_path, provider=provider, model='test', mode=Mode.ASK,
+                          store=SessionStore(tmp_path / 'transcripts'), hooks=[])
+    await agent.start()
+    tts = FakeTTS()
+    voice, _, _ = build(provider, tts=tts)
+    voice.agent = agent
+    try:
+        await voice.say('First question')
+        assert await voice.settle()
+        await voice.say('Different question')
+        assert await voice.settle()
+        assert tts.spoken == ['First answer.', 'Second answer.']
+    finally:
+        await voice.close()
+
+
+@pytest.mark.parametrize('owns_agent', [True, False])
+async def test_voice_interrupt_cancels_the_underlying_agent(tmp_path, owns_agent):
+    from omote.agent.approval import Mode
+    from omote.agent.runtime import build_session
+    from omote.sessions import SessionStore
+
+    started = asyncio.Event()
+    class Provider:
+        async def stream(self, request):
+            started.set()
+            await asyncio.Event().wait()
+            yield StreamDone()
+    provider = Provider()
+    agent = build_session(root=tmp_path, provider=provider, model='test', mode=Mode.ASK,
+                          store=SessionStore(tmp_path / 'transcripts'), hooks=[])
+    await agent.start()
+    voice, _, _ = build(provider)
+    voice.agent, voice.owns_agent = agent, owns_agent
+    try:
+        await voice.say('Keep working')
+        await asyncio.wait_for(started.wait(), 2)
+        await voice.interrupt()
+        assert not agent.busy
+        await voice.close()
+        assert agent.closed == owns_agent
+    finally:
+        await voice.close()
+        await agent.close()
+
+
+async def test_capture_keeps_the_first_word_waveform_without_duplicating_a_frame():
+    stt = FakeSTT('Hello.')
+    session, _, _ = build(SlowLLM('Hello.'), stt=stt)
+    burst = tone(800, amplitude=.3)
+    try:
+        await session.feed(noise(600, amplitude=.002) + burst + noise(800, amplitude=.002))
+        await session.settle()
+        assert len(stt.seen) == 1
+        assert burst in stt.seen[0][44:]
+    finally:
+        await session.close()
+
+
+@pytest.mark.parametrize('text', ['*music*', '[music]', '(background noise)'])
+def test_non_speech_annotations_are_not_conversation(text):
+    assert not is_meaningful(text)
+    assert is_meaningful('Play music')
+    assert is_meaningful('Thank you.')

@@ -43,6 +43,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from omote.agent.tools.shell import _kill_tree, _spawn_kwargs
+
 log = logging.getLogger(__name__)
 
 # A hook is a command someone else may have written, run on every tool call
@@ -322,23 +324,6 @@ async def run(
     return outcome
 
 
-def _kill_tree(proc: Any) -> None:
-    """Kill a hook and everything it started.
-
-    The group, not the process: a hook is a shell command, and killing the
-    shell leaves its children — the thing actually doing the work — running.
-    """
-    import signal
-
-    try:
-        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-    except (ProcessLookupError, PermissionError, OSError):
-        try:
-            proc.kill()
-        except (ProcessLookupError, OSError):
-            pass
-
-
 def _did_it_start(code: int) -> bool:
     """Whether the command ran at all.
 
@@ -348,7 +333,7 @@ def _did_it_start(code: int) -> bool:
     means a typo in somebody else's `hooks.json` silently stops every tool
     call that matches it, and the person is told their formatter said no.
     """
-    return code not in (126, 127)
+    return code not in ((126, 127, 9009) if os.name == 'nt' else (126, 127))
 
 
 async def _one(
@@ -376,7 +361,7 @@ async def _one(
             stderr=asyncio.subprocess.PIPE,
             cwd=str(cwd),
             env=env,
-            start_new_session=True,
+            **_spawn_kwargs(),
         )
     except OSError as exc:
         return HookOutcome(problems=[f'{hook.name or hook.command}: could not start ({exc})'])
@@ -386,16 +371,17 @@ async def _one(
         async with asyncio.timeout(seconds):
             out, err = await proc.communicate(body.encode('utf-8'))
     except TimeoutError:
-        # The whole group, not just the shell. `start_new_session=True` makes
-        # the child a process-group leader precisely so this can be done, and
-        # killing only the shell leaves a hook's children running into the next
-        # turn — which is how one bad hook becomes several, and the reason the
-        # first version of this leaked.
-        _kill_tree(proc)
+        # The whole tree, including children inheriting the output pipes.
+        await _kill_tree(proc)
         await proc.wait()
         name = hook.name or hook.command
         log.warning('hook %s took longer than %ss', name, seconds)
         return HookOutcome(problems=[f'{name} took longer than {seconds:g}s and was ignored'])
+
+    except asyncio.CancelledError:
+        await _kill_tree(proc)
+        await proc.wait()
+        raise
 
     return interpret(
         event, proc.returncode or 0, out.decode('utf-8', 'replace'), err.decode('utf-8', 'replace'), hook

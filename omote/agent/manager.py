@@ -94,7 +94,8 @@ class SessionManager:
         # below, and `**kwargs` alongside would say it twice. The first
         # version of this read four of them and the call raised on the first.
         provider = kwargs.pop('provider')
-        mode = kwargs.pop('mode', Mode.ASK)
+        fallback = stored.policy if stored.policy in {m.value for m in Mode} else Mode.ASK
+        mode = kwargs.pop('mode', fallback)
         model = stored.model or kwargs.pop('model', '')
         toolset = list(stored.toolset) or kwargs.pop('toolset', None)
         effort = kwargs.pop('effort', stored.effort)
